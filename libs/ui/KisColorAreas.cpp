@@ -286,8 +286,8 @@ qreal KisColorAreas::autoStep(const QPoint &point, int reach) const
         }
         for (int l = low; l <= last; l++) {
             if (change[size_t(l)] > variation) continue;
-            // down to its least, then the levels about as stable around it, and their middle, well inside the range
-            // that finds the area
+            // down to its least, then the levels about as stable around it, and a level early among them, well inside
+            // the range that finds the area
             int least = l;
             while (least + 1 <= last && change[size_t(least + 1)] <= change[size_t(least)]) least++;
             if (least == last && last < high) return undecided;
@@ -296,7 +296,9 @@ qreal KisColorAreas::autoStep(const QPoint &point, int reach) const
             while (first - 1 >= l && change[size_t(first - 1)] <= stable) first--;
             while (end + 1 <= last && change[size_t(end + 1)] <= stable) end++;
             if (end == last && last < high) return undecided;
-            return (first + end) / 2;
+            // early in the run: the area is the same size all along it, and toward its top it is closer to
+            // spilling into what is beside it
+            return first + (end - first) / 4;
         }
         return last < high ? undecided : none;
     };

@@ -36,8 +36,9 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("skissa_high_pass"), QStringLiteral("gaussianhighpass")},
         {QStringLiteral("gaussiannoisereducer"), QStringLiteral("skissa_smooth")},
         {QStringLiteral("waveletnoisereducer"), QStringLiteral("skissa_smooth")},
-        // Noise
-        {QStringLiteral("noise"), QStringLiteral("skissa_grain")}, {QStringLiteral("randompick"), QStringLiteral("skissa_noise")},
+        // Noise, Grain among its looks
+        {QStringLiteral("noise"), QStringLiteral("skissa_noise")}, {QStringLiteral("randompick"), QStringLiteral("skissa_noise")},
+        {QStringLiteral("skissa_grain"), QStringLiteral("skissa_noise")},
         // Fewer colors
         {QStringLiteral("posterize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("threshold"), QStringLiteral("skissa_fewer_colors")},
         {QStringLiteral("palettize"), QStringLiteral("skissa_fewer_colors")}, {QStringLiteral("indexcolors"), QStringLiteral("skissa_fewer_colors")},
@@ -47,6 +48,8 @@ inline QString coveredBy(const QString &filterId)
         // Drawing's screen; Painting; Replace color, whose new color may be clear
         {QStringLiteral("halftone"), QStringLiteral("skissa_ink")}, {QStringLiteral("oilpaint"), QStringLiteral("skissa_paint")},
         {QStringLiteral("colortoalpha"), QStringLiteral("skissa_replace")},
+        // Shape's Grow spreads the edge's colors outward
+        {QStringLiteral("propagatecolors"), QStringLiteral("skissa_shape")},
     };
     return by.value(filterId);
 }
@@ -91,6 +94,7 @@ inline QVariantMap replacementSettings(const QString &filterId)
                 {QStringLiteral("colors"), QStringLiteral("paper")}};
     }
     if (filterId == QLatin1String("pixelize")) return {{QStringLiteral("pixel"), 8}};
+    if (filterId == QLatin1String("propagatecolors")) return {{QStringLiteral("grow"), 8.0}};
     if (filterId == QLatin1String("gradientmap")) return {{QStringLiteral("map"), QStringLiteral("0:#000000;1:#ffffff")}};
     return {};
 }

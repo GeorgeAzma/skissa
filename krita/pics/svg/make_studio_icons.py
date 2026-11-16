@@ -176,6 +176,8 @@ ICONS = {
     'polygon': p('M12 3.5 20.5 9.7 17.3 19.7H6.7L3.5 9.7Z'),
     'polyline': p('M3.5 17.5 9 7.5l5.5 8L20.5 5') + dot(3.5, 17.5, 1.6) + dot(9, 7.5, 1.6) + dot(14.5, 15.5, 1.6) + dot(20.5, 5, 1.6),
     'path': p('M4 19C6 9 14 17 20 5') + p('M4 19 8.5 12.5M20 5l-4.7 4') + box(2.6, 17.6, 2.8, 2.8) + box(18.6, 3.6, 2.8, 2.8) + dot(8.5, 12.5, 1.4) + dot(15.3, 9, 1.4),
+    # a stroke with its two handles: the curve tool
+    'curve': p('M3.5 18.5C8 4 15.5 20 20.5 5.5') + dot(8.6, 10.6, 1.7) + dot(15.4, 13.4, 1.7),
     'freehand_path': p('M3.5 16c2-6 5-8 7-5s1.5 7 4 6.5 3-6 6-9') + box(2.2, 14.6, 2.8, 2.8) + box(19.1, 7.1, 2.8, 2.8),
     'dyna': BRUSH + p('M3 4.5h5M3 8h3.5M3 11.5h2'),
     # a shape and its reflection: symmetry

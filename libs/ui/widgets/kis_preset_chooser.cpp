@@ -51,6 +51,9 @@
 #include <QHash>
 
 #include "KisStudioItemCard.h"
+#include "KisBrushListArranger.h"
+
+#include <functional>
 #include "KisSettingsRegistry.h"
 
 
@@ -67,6 +70,9 @@ public:
 
     /// reimplemented
     void paint(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const override;
+
+    /// While brushes are being added to a tag: 1 for a brush in it, 0 for one that isn't, -1 for neither
+    std::function<int(const QModelIndex &)> mark;
 
     /// reimplemented
     QSize sizeHint(const QStyleOptionViewItem & option, const QModelIndex &) const override {
@@ -109,6 +115,8 @@ public:
     }
 
 private:
+    void paintItem(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const;
+
     bool m_strokes {false};
     bool m_strokePictures {true};
     bool m_strokeNames {true};
@@ -177,7 +185,40 @@ bool isBroken(const QModelIndex &index)
 }
 } // namespace
 
-void KisPresetDelegate::paint(QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index) const
+void KisPresetDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
+{
+    const int marked = mark ? mark(index) : -1;
+    if (marked < 0) {
+        paintItem(painter, option, index);
+        return;
+    }
+    // adding to a tag: what is in it whole and checked, the rest faded
+    QStyleOptionViewItem plain = option;
+    plain.state &= ~QStyle::State_Selected;
+    painter->save();
+    if (!marked) painter->setOpacity(0.4);
+    paintItem(painter, plain, index);
+    painter->restore();
+    if (marked) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        const QColor ink = option.palette.color(QPalette::Text);
+        // the check in the opposite of the ink: the panel's own colors may be see-through on glass
+        const QColor paper = ink.lightnessF() > 0.5 ? Qt::black : Qt::white;
+        const qreal side = qBound<qreal>(14, option.rect.height() * 0.3, 20);
+        const QRectF badge(option.rect.right() - side - 3, option.rect.top() + 3, side, side);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(ink);
+        painter->drawEllipse(badge);
+        painter->setPen(QPen(paper, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        const QPointF c = badge.center();
+        const qreal u = side / 14.0;
+        painter->drawPolyline(QPolygonF({c + QPointF(-3.2 * u, 0.2 * u), c + QPointF(-0.9 * u, 2.5 * u), c + QPointF(3.4 * u, -2.4 * u)}));
+        painter->restore();
+    }
+}
+
+void KisPresetDelegate::paintItem(QPainter * painter, const QStyleOptionViewItem & option, const QModelIndex & index) const
 {
     if (!index.isValid()) {
         return;
@@ -391,6 +432,9 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     // a brush dragged onto the tools is pinned there
     m_chooser->itemView()->setDragKey(KisStudioShortcuts::itemMimeType(), QStringLiteral("brush:"));
     layout->addWidget(m_chooser);
+    // brushes dragged into an order, added to a tag, imported
+    auto *arranger = new KisBrushListArranger(m_chooser, layout, this);
+    m_delegate->mark = [arranger](const QModelIndex &index) { return arranger->markOf(index); };
 
     connect(m_chooser, SIGNAL(resourceSelected(KoResourceSP )),
             this, SLOT(slotResourceWasSelected(KoResourceSP )));

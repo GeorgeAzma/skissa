@@ -99,6 +99,7 @@ KisInputManager::Private::CanvasSwitcher::CanvasSwitcher(Private *_d, QObject *p
       eatOneMouseStroke(false),
       focusSwitchThreshold(InputWidgetsThreshold)
 {
+    connect(&focusSwitchThreshold, &KisTimedSignalThreshold::timeout, this, [this]() { takeKeysFromToolWindow(); });
 }
 
 void KisInputManager::Private::CanvasSwitcher::setupFocusThreshold(QObject* object)
@@ -108,6 +109,21 @@ void KisInputManager::Private::CanvasSwitcher::setupFocusThreshold(QObject* obje
 
     thresholdConnections.clear();
     thresholdConnections.addConnection(&focusSwitchThreshold, SIGNAL(timeout()), widget, SLOT(setFocus()));
+}
+
+bool isTextInput(QWidget *w);
+
+void KisInputManager::Private::CanvasSwitcher::takeKeysFromToolWindow()
+{
+    // a panel-like window left open beside the canvas (a layer's properties) keeps the keys only while something
+    // in it is typed in: pointing back at the canvas gives Space, B and E back to it
+    QWidget *active = QApplication::activeWindow();
+    if (!active || !d->canvas || active == d->canvas->canvasWidget()->window()) return;
+    if (!(active->windowFlags() & Qt::Tool) || active->isModal() || (active->windowFlags() & Qt::Popup) == Qt::Popup) return;
+    if (isTextInput(QApplication::focusWidget())) return;
+    QWidget *canvasWidget = d->canvas->canvasWidget();
+    canvasWidget->window()->activateWindow();
+    canvasWidget->setFocus();
 }
 
 void KisInputManager::Private::CanvasSwitcher::addCanvas(KisCanvas2 *canvas)

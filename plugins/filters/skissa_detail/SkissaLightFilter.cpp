@@ -9,6 +9,7 @@
 
 #include <filter/kis_filter_category_ids.h>
 #include <filter/kis_filter_configuration.h>
+#include <kis_default_bounds_base.h>
 #include <kis_lod_transform.h>
 #include <kis_paint_device.h>
 #include <klocalizedstring.h>
@@ -54,6 +55,21 @@ void SkissaLightFilter::processImpl(KisPaintDeviceSP device, const QRect &applyR
     KisLodTransformScalar t(device);
     const Light light(settings, t.scale(1.0), !SkissaPixels::holdsPastWhite(device->colorSpace()));
     const int reach = light.reach();
+    // long spikes and wide glows read far around every patch, each patch making most of the image's shine again:
+    // made once over the whole image instead, a band a core; not at a level of detail, whose device is smaller
+    const QRect bounds = device->defaultBounds()->bounds();
+    if (reach >= 128 && bounds.contains(applyRect) && device->defaultBounds()->currentLevelOfDetail() == 0) {
+        const quint64 settingsKey = qHash(config->toXML()) ^ (quint64(bounds.width()) << 32 | quint32(bounds.height()));
+        const auto whole = SkissaPixels::wholeResult(device, bounds, settingsKey, [&light, &bounds, reach](const float *in, const QRect &part, float *out) {
+            const int top = std::max(bounds.top(), part.top() - reach), bottom = std::min(bounds.bottom(), part.bottom() + reach);
+            const QRect band(bounds.left(), top, bounds.width(), bottom - top + 1);
+            light.apply(in + size_t(top - bounds.top()) * bounds.width() * 4, band, part, out);
+        });
+        if (whole) {
+            SkissaPixels::writeLinear(device, applyRect, SkissaPixels::partOf(*whole, bounds, applyRect).data());
+            return;
+        }
+    }
     // light from past the image shines into it too: a layer can reach beyond it
     const QRect source = applyRect.adjusted(-reach, -reach, reach, reach);
     const std::vector<float> in = SkissaPixels::readLinear(device, source);

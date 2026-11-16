@@ -135,6 +135,9 @@ public:
         ShowAllTags
     };
 
+    /// Leaves out "All" and "All untagged"
+    void setHidesFakeRows(bool hides);
+
     void setTagFilter(TagFilter filter);
 
     enum StorageFilter {
@@ -164,6 +167,7 @@ protected:
     bool lessThan(const QModelIndex &source_left, const QModelIndex &source_right) const override;
 
 private:
+    void readOrder();
 
     friend class DlgDbExplorer;
     friend class TestTagModel;

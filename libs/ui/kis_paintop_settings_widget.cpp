@@ -454,9 +454,8 @@ bool KisPaintOpSettingsWidget::eventFilter(QObject *obj, QEvent *event)
             break;
         case QEvent::MouseMove:
             if (m_d->scrubIndex.isValid() && (mouse->buttons() & Qt::LeftButton)) {
-                if (!m_d->scrubbing && qAbs(mouse->pos().x() - m_d->scrubX) > KisModernStyle::dragDistance(mouse)) {
+                if (!m_d->scrubbing && qAbs(mouse->pos().x() - m_d->scrubX) > KisModernStyle::scrubDistance(mouse)) {
                     m_d->scrubbing = true;
-                    m_d->scrubX = mouse->pos().x();
                 }
                 if (m_d->scrubbing) {
                     m_d->scrubTo(mouse->pos().x(), mouse->modifiers() & Qt::ShiftModifier);

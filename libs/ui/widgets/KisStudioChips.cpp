@@ -259,6 +259,9 @@ void KisStudioChips::mouseReleaseEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton) {
         const int index = at(event->pos());
         if (index >= 0) Q_EMIT clicked(index);
+    } else if (event->button() == Qt::RightButton) {
+        const int index = at(event->pos());
+        if (index >= 0) Q_EMIT rightClicked(index);
     }
     QWidget::mouseReleaseEvent(event);
 }

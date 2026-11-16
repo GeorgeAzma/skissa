@@ -78,7 +78,7 @@ const QStringList arrangedKeys = {
     QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
     QStringLiteral("StudioEffects"), QStringLiteral("StudioBlendModeGroups"), QStringLiteral("StudioEffectGroups"), QStringLiteral("StudioBrushGroups"),
     QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinned"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
-    QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"),
+    QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"), QStringLiteral("StudioTag"),
     QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
 };
 /// Kept as they are here: the classic layout's window state and the recorder's folder belong to this computer

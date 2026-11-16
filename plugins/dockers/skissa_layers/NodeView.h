@@ -39,6 +39,8 @@ Q_SIGNALS:
     void selectionChanged(const QModelIndexList &);
     /// The selected layers were dropped outside the panel, where nothing took them
     void draggedOff();
+    /// A layer's thumbnail was double-clicked: its properties
+    void propertiesRequested();
 public:
 
     enum ColumnIndex {

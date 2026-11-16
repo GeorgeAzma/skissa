@@ -1340,6 +1340,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 return true;
 
             } else if (thumbnailClicked) {
+                if (event->type() == QEvent::MouseButtonDblClick && mouseEvent->modifiers() == Qt::NoModifier) {
+                    d->view->setCurrentIndex(index);
+                    Q_EMIT d->view->propertiesRequested();
+                    return true;
+                }
                 bool hasCorrectModifier = false;
                 SelectionAction action = SELECTION_REPLACE;
 

@@ -92,6 +92,8 @@ public:
 
     private:
         void setupFocusThreshold(QObject *object);
+        /// The canvas takes the keys back from a tool window beside it, unless something there is typed in
+        void takeKeysFromToolWindow();
 
     private:
         KisInputManager::Private *d;

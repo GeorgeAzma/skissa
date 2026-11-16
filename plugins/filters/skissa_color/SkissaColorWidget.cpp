@@ -581,6 +581,26 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
         d->change = lastChange = index;
         refresh();
     });
+    // a right click on a tab resets its curves (or the map)
+    connect(d->changeTabs, &KisStudioChips::rightClicked, this, [this](int index) {
+        const Settings defaults;
+        if (index == mapTab) {
+            d->settings.map = defaults.map;
+            d->settings.mapSteps = defaults.mapSteps;
+            d->settings.mapKeepsLightness = defaults.mapKeepsLightness;
+            d->settings.mapStrength = defaults.mapStrength;
+        } else if (index == rgbTab) {
+            d->settings.rgb = defaults.rgb;
+        } else if (index >= 0 && index < 3) {
+            for (int by = 0; by < 3; by++) d->settings.curves[by][index] = defaults.curves[by][index];
+        } else {
+            return;
+        }
+        d->change = lastChange = index;
+        d->curve->glideNextChange();
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
     layout->addWidget(d->changeTabs);
 
     d->curve = new KisStudioCurveView(this);

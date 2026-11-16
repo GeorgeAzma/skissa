@@ -77,6 +77,7 @@ set(skissa_ui_SRCS
     widgets/KisScaleFilterPreview.cpp
     widgets/KisPopupCloser.cpp
     widgets/KisPresetStrokeThumbnails.cpp
+    widgets/KisBrushListArranger.cpp
     widgets/KisStudioChips.cpp
     widgets/KisStudioCurve.cpp
     widgets/KisStudioDabPictures.cpp

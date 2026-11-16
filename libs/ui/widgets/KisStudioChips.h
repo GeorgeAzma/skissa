@@ -58,6 +58,8 @@ public:
 
 Q_SIGNALS:
     void clicked(int index);
+    /// A right click on a chip: reset what it stands for
+    void rightClicked(int index);
 
 protected:
     void paintEvent(QPaintEvent *event) override;

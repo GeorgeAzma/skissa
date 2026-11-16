@@ -8,6 +8,7 @@
 #include "KisSuperellipse.h"
 #include "widgets/KisBlendModePicker.h"
 #include <KisProfile.h>
+#include <KisResourceOrder.h>
 
 #include <QAbstractSpinBox>
 #include <QApplication>
@@ -435,6 +436,8 @@ QVector<Setting> describeAll()
         all << itemList(QStringLiteral("StudioControlsPicked"), i18nc("setting", "Favorite controls"));
         all << itemList(QStringLiteral("StudioPinnedBrushTips"), i18nc("setting", "Favorite tips"));
         all << itemList(QStringLiteral("StudioPinnedPatterns"), i18nc("setting", "Favorite patterns"));
+        all << itemList(KisResourceOrder::tagsKey, i18nc("setting", "Tag order"));
+        all << itemList(KisResourceOrder::resourcesKey, i18nc("setting", "Order in tags"));
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };
@@ -1074,6 +1077,12 @@ KisSettingsRegistry::KisSettingsRegistry()
     d->gestures = new GestureCount();
     d->gestures->setParent(this);
     qApp->installEventFilter(d->gestures);
+
+    // the order tags and brushes were dragged into: steps of the undo history
+    KisResourceOrder::setWriter([](const QString &key, const QStringList &items) { writeList(key, items); });
+    connect(this, &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
+        if (replaying() && (id == KisResourceOrder::tagsKey || id == KisResourceOrder::resourcesKey)) KisResourceOrder::noteChanged();
+    });
 }
 
 const QVector<Setting> &KisSettingsRegistry::settings() const

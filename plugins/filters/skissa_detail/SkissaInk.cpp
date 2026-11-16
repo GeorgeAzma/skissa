@@ -704,7 +704,7 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
 {
     Settings settings;
     settings.size = float(std::clamp(config.getDouble("size", 1.5), 0.3, 40.0));
-    settings.lines = float(std::clamp(config.getDouble("lines", 0.5), 0.0, 1.0));
+    settings.lines = float(std::clamp(config.getDouble("lines", 0.5), 0.0, 3.0));
     settings.ink = float(std::clamp(config.getDouble("ink", 0.3), 0.0, 1.0));
     settings.level = float(std::clamp(config.getDouble("level", -1), -1.0, 1.5));
     settings.flow = float(std::clamp(config.getDouble("flow", 0.5), 0.0, 1.0));

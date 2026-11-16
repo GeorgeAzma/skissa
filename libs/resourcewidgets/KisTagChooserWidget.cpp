@@ -41,9 +41,11 @@
 #include <kis_assert.h>
 
 #include <KoIcon.h>
+#include <kis_icon_utils.h>
 #include <KisTouchMode.h>
 
 #include <KisTagResourceModel.h>
+#include <KisResourceOrder.h>
 
 class Q_DECL_HIDDEN KisTagChooserWidget::Private
 {
@@ -62,6 +64,13 @@ public:
     KisTagModel *model;
     KisTagSP cachedTag;
     QString resourceType;
+    /// A tag pressed in the list, and whether it is being dragged to another place
+    int dragRow {-1};
+    QPoint dragStart;
+    bool dragging {false};
+    QPointer<QWidget> dropLine;
+    /// Puts things in the tag shown
+    QToolButton *addButton {nullptr};
 };
 
 KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceType, QWidget* parent)
@@ -148,6 +157,28 @@ KisTagChooserWidget::~KisTagChooserWidget()
     delete d;
 }
 
+void KisTagChooserWidget::setHidesAllRows(bool hides)
+{
+    auto refresh = [this, hides]() {
+        // hidden only while there is a tag to show instead
+        bool userTags = false;
+        QAbstractItemModel *all = d->model->sourceModel();
+        for (int row = 0; all && row < all->rowCount() && !userTags; row++) {
+            const QModelIndex index = all->index(row, 0);
+            userTags = all->data(index, Qt::UserRole + KisAllTagsModel::Id).toInt() >= 0
+                && all->data(index, Qt::UserRole + KisAllTagsModel::Active).toBool();
+        }
+        d->model->setHidesFakeRows(hides && userTags);
+    };
+    refresh();
+    QAbstractItemModel *all = d->model->sourceModel();
+    if (!all) return;
+    connect(all, &QAbstractItemModel::rowsInserted, this, refresh, Qt::QueuedConnection);
+    connect(all, &QAbstractItemModel::rowsRemoved, this, refresh, Qt::QueuedConnection);
+    connect(all, &QAbstractItemModel::modelReset, this, refresh, Qt::QueuedConnection);
+    connect(all, &QAbstractItemModel::dataChanged, this, refresh, Qt::QueuedConnection);
+}
+
 bool KisTagChooserWidget::isUserTag(const KisTagSP tag)
 {
     return tag && tag->id() >= 0;
@@ -199,6 +230,19 @@ void KisTagChooserWidget::startNewTag()
     editor->setFont(d->comboBox->font());
     const QRect here(mapTo(line, QPoint()), size());
     editor->setGeometry(QRect(here.left(), here.top(), line->width() - here.left(), here.height()));
+    // the field's fill is see-through: what it covers is put away while it is open, or its text shows through
+    QList<QPointer<QWidget>> covered;
+    Q_FOREACH (QWidget *sibling, line->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (sibling != editor && sibling->isVisible() && sibling->geometry().intersects(editor->geometry())) {
+            covered << sibling;
+            sibling->hide();
+        }
+    }
+    connect(editor, &QObject::destroyed, line, [covered]() {
+        Q_FOREACH (const QPointer<QWidget> &sibling, covered) {
+            if (sibling) sibling->show();
+        }
+    });
     editor->setProperty("newTag", true);
     editor->installEventFilter(this);
     editor->show();
@@ -306,15 +350,38 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
             if (index.isValid()) startRename(index);
             return true;
         }
-        case QEvent::MouseMove:
+        case QEvent::MouseMove: {
             // the delete button lights under the pointer
             view->viewport()->update();
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            if (d->dragRow >= 0 && (mouse->buttons() & Qt::LeftButton)) {
+                if (!d->dragging && qAbs(mouse->pos().y() - d->dragStart.y()) > KisModernStyle::dragDistance(mouse)) {
+                    d->dragging = true;
+                }
+                if (d->dragging) {
+                    showDropLine(mouse->pos());
+                    return true;
+                }
+            }
             break;
+        }
         case QEvent::MouseButtonPress:
         case QEvent::MouseButtonRelease:
         case QEvent::MouseButtonDblClick: {
             auto *mouse = static_cast<QMouseEvent *>(event);
+            if (event->type() == QEvent::MouseButtonRelease && d->dragging) {
+                // dropped: the tag goes where the line shows
+                dropTag(mouse->pos());
+                return true;
+            }
+            if (event->type() != QEvent::MouseButtonPress) d->dragRow = -1;
             const QModelIndex index = view->indexAt(mouse->pos());
+            if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton) {
+                // a user tag pressed can be dragged up or down the list
+                d->dragRow = index.isValid() && isUserTag(tagAt(index)) ? index.row() : -1;
+                d->dragStart = mouse->pos();
+                d->dragging = false;
+            }
             if (!index.isValid()) {
                 break;
             }
@@ -336,6 +403,73 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+int KisTagChooserWidget::dropRowAt(const QPoint &pos) const
+{
+    // before the row whose middle is below the pointer, among the user's tags
+    QAbstractItemView *view = d->comboBox->view();
+    int first = -1, last = -1;
+    for (int row = 0; row < d->rows->newTagRow(); row++) {
+        if (!isUserTag(tagAt(d->rows->index(row, 0)))) continue;
+        if (first < 0) first = row;
+        last = row;
+    }
+    if (first < 0) return -1;
+    for (int row = first; row <= last; row++) {
+        if (pos.y() < view->visualRect(d->rows->index(row, 0)).center().y()) return row;
+    }
+    return last + 1;
+}
+
+void KisTagChooserWidget::showDropLine(const QPoint &pos)
+{
+    QAbstractItemView *view = d->comboBox->view();
+    const int row = dropRowAt(pos);
+    if (row < 0) return;
+    if (!d->dropLine) {
+        d->dropLine = new QWidget(view->viewport());
+        d->dropLine->setAttribute(Qt::WA_TransparentForMouseEvents);
+        d->dropLine->setAutoFillBackground(true);
+        QPalette palette = d->dropLine->palette();
+        palette.setColor(QPalette::Window, view->palette().color(QPalette::Text));
+        d->dropLine->setPalette(palette);
+    }
+    const QRect above = row > 0 ? view->visualRect(d->rows->index(row - 1, 0)) : QRect();
+    const QRect below = view->visualRect(d->rows->index(row, 0));
+    const int y = row < d->rows->newTagRow() ? below.top() : above.bottom() + 1;
+    d->dropLine->setGeometry(8, y - 1, view->viewport()->width() - 16, 2);
+    d->dropLine->show();
+    d->dropLine->raise();
+}
+
+void KisTagChooserWidget::dropTag(const QPoint &pos)
+{
+    const int from = d->dragRow;
+    const int to = dropRowAt(pos);
+    d->dragRow = -1;
+    d->dragging = false;
+    if (d->dropLine) d->dropLine->deleteLater();
+    if (from < 0 || to < 0) return;
+    // the others in their order, and the moved one after as many of them as were above the line
+    QStringList urls;
+    QString moved;
+    int above = 0;
+    for (int row = 0; row < d->rows->newTagRow(); row++) {
+        const KisTagSP tag = tagAt(d->rows->index(row, 0));
+        if (!isUserTag(tag)) continue;
+        if (row == from) {
+            moved = tag->url();
+            continue;
+        }
+        if (row < to) above++;
+        urls << tag->url();
+    }
+    if (moved.isEmpty()) return;
+    urls.insert(qBound(0, above, urls.size()), moved);
+    const KisTagSP current = currentlySelectedTag();
+    KisResourceOrder::setTags(d->resourceType, urls);
+    if (current) setCurrentItem(current->url());
 }
 
 void KisTagChooserWidget::tagChanged(int tagIndex)
@@ -531,7 +665,26 @@ KisTagSP KisTagChooserWidget::currentlySelectedTag()
     return tag;
 }
 
+void KisTagChooserWidget::setAddButton(const QString &toolTip, const std::function<void()> &add)
+{
+    if (!d->addButton) {
+        d->addButton = new QToolButton(this);
+        d->addButton->setAutoRaise(true);
+        d->addButton->setFocusPolicy(Qt::NoFocus);
+        d->addButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
+        // just after the tag's name
+        static_cast<QHBoxLayout *>(layout())->insertWidget(1, d->addButton);
+        auto shown = [this]() { d->addButton->setVisible(isUserTag(currentlySelectedTag())); };
+        connect(this, &KisTagChooserWidget::sigTagChosen, d->addButton, shown);
+        shown();
+    }
+    d->addButton->setToolTip(toolTip);
+    disconnect(d->addButton, &QToolButton::clicked, nullptr, nullptr);
+    connect(d->addButton, &QToolButton::clicked, this, add);
+}
+
 void KisTagChooserWidget::updateIcons()
 {
     d->undoButton->setIcon(koIcon("edit-undo"));
+    if (d->addButton) d->addButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
 }

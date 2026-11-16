@@ -253,7 +253,8 @@ public:
         
         if (a.size() == 2) {
             // Linear function
-            const T c = (a.last().y() - a.first().y()) / (a.last().x() - a.first().x());
+            const T dx = a.last().x() - a.first().x();
+            const T c = qFuzzyIsNull(dx) ? T(0) : (a.last().y() - a.first().y()) / dx;
             const T d = a.first().y() - c * a.first().x();
             m_coefficients.append({ 0.0, 0.0, c, d });
             return;
@@ -350,7 +351,20 @@ public:
         // Solve
         A.setFromTriplets(triplets.begin(), triplets.end());
         Eigen::SparseLU<Matrix> solver(A);
-        Vector x = solver.solve(b);
+        Vector x;
+        if (solver.info() == Eigen::Success) {
+            x = solver.solve(b);
+        }
+        if (solver.info() != Eigen::Success || x.size() != numberOfRows || !x.allFinite()) {
+            // Points sharing an x make the system singular, and solving it
+            // anyway writes past its buffers: join the points by lines.
+            for (qint32 i = 0; i < intervals; ++i) {
+                const T dx = a[i + 1].x() - a[i].x();
+                const T c = qFuzzyIsNull(dx) ? T(0) : (a[i + 1].y() - a[i].y()) / dx;
+                m_coefficients.append({ 0.0, 0.0, c, a[i].y() - c * a[i].x() });
+            }
+            return;
+        }
         // Fill coefficients
         for (qint32 i = 0; i < intervals; ++i) {
             row = i * 4;

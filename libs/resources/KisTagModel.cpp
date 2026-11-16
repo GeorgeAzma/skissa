@@ -5,6 +5,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisTagModel.h"
+#include "KisResourceOrder.h"
+
+#include <QHash>
+#include <climits>
 
 #include <QSqlError>
 #include <QSqlQuery>
@@ -539,14 +543,38 @@ void KisAllTagsModel::removeStorage(const QString &location)
 struct KisTagModel::Private {
     TagFilter tagFilter{KisTagModel::ShowActiveTags};
     StorageFilter storageFilter {KisTagModel::ShowActiveStorages};
+    QString type;
+    bool hidesFakeRows {false};
+    /// Where each tag url is in the user's order
+    QHash<QString, int> order;
 };
 
 KisTagModel::KisTagModel(const QString &type, QObject *parent)
     : QSortFilterProxyModel(parent)
     , d(new Private())
 {
+    d->type = type;
+    readOrder();
     setSourceModel(KisResourceModelProvider::tagModel(type));
     sort(KisAllTagsModel::Name);
+    connect(KisResourceOrder::instance(), &KisResourceOrder::changed, this, [this]() {
+        readOrder();
+        invalidate();
+    });
+}
+
+void KisTagModel::readOrder()
+{
+    d->order.clear();
+    const QStringList urls = KisResourceOrder::tags(d->type);
+    for (int i = 0; i < urls.size(); i++) d->order.insert(urls[i], i);
+}
+
+void KisTagModel::setHidesFakeRows(bool hides)
+{
+    if (d->hidesFakeRows == hides) return;
+    d->hidesFakeRows = hides;
+    invalidateFilter();
 }
 
 KisTagModel::~KisTagModel()
@@ -658,6 +686,9 @@ bool KisTagModel::changeTagActive(const KisTagSP tag, bool active)
 
 bool KisTagModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
+    if (d->hidesFakeRows && source_row < s_fakeRowsCount && !source_parent.isValid()) {
+        return false;
+    }
     if (d->tagFilter == ShowAllTags && d->storageFilter == ShowAllStorages) {
         return true;
     }
@@ -729,6 +760,12 @@ bool KisTagModel::lessThan(const QModelIndex &source_left, const QModelIndex &so
     } else if (rightIsFakeRow) {
         return false;
     } else {
+        // in the order the user dragged them into, the rest after by name
+        if (!d->order.isEmpty()) {
+            const int left = d->order.value(sourceModel()->data(source_left, Qt::UserRole + KisAllTagsModel::Url).toString(), INT_MAX);
+            const int right = d->order.value(sourceModel()->data(source_right, Qt::UserRole + KisAllTagsModel::Url).toString(), INT_MAX);
+            if (left != right) return left < right;
+        }
         QString nameLeft = sourceModel()->data(source_left, Qt::UserRole + KisAllTagsModel::Name).toString().toLower();
         QString nameRight = sourceModel()->data(source_right, Qt::UserRole + KisAllTagsModel::Name).toString().toLower();
         return (nameLeft < nameRight);

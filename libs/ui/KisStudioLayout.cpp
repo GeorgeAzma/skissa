@@ -5883,7 +5883,7 @@ void KisStudioLayout::updateContextBar()
                                 "KisToolPolyline", "KisToolPath", "KisToolPencil"});
     // tools that put down paint with the current brush preset
     const bool paints = shapeTool || any({"KritaShape/KisToolBrush", "KritaShape/KisToolDyna",
-                                          "KritaShape/KisToolMultiBrush", "KritaShape/KisToolLine"});
+                                          "KritaShape/KisToolMultiBrush", "KritaShape/KisToolLine", "KritaShape/KisToolCurveStroke"});
     // the smart patch marks what to patch with the brush's outline: only its size counts
     const bool sizeOnly = any({"KritaShape/KisToolSmartPatch"});
     const bool fills = any({"KritaFill/KisToolFill", "KisToolEncloseAndFill", "KritaShape/KisToolLazyBrush"});

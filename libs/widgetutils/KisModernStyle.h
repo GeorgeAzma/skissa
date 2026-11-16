@@ -125,6 +125,9 @@ public:
     /// How far a press may move and still be a click: the system's drag distance, twice that when \p event came
     /// from a pen or a finger, which wobble as they land
     static int dragDistance(const QInputEvent *event = nullptr);
+    /// How far a press on a value (a slider, a scrubber) moves before it drags: half the drag distance, as a click
+    /// there only types or does nothing, and the value counts from the press so nothing is lost to it
+    static int scrubDistance(const QInputEvent *event = nullptr) { return qMax(2, dragDistance(event) / 2); }
     /// How long a key, a press or a finger is held to be held rather than tapped: Windows' key repeat delay
     static int holdInterval();
 

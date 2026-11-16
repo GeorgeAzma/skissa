@@ -1841,10 +1841,11 @@ void KisModernStyle::drawComplexControl(ComplexControl control, const QStyleOpti
 
     case CC_ComboBox:
         if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
-            if (combo->editable) {
+            if (combo->editable || combo->frame) {
+                // a choice in a form is a field too: an opaque button fill read as a box pasted onto the glass
                 drawField(painter, option, true);
             } else {
-                drawButtonPanel(painter, option, !combo->frame);
+                drawButtonPanel(painter, option, true);
             }
 
             const QRect arrow = proxy()->subControlRect(CC_ComboBox, combo, SC_ComboBoxArrow, widget);

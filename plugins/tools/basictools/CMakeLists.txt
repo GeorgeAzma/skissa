@@ -9,6 +9,7 @@ set(kritadefaulttools_static_SRCS
     kis_tool_rectangle.cc
     kis_tool_ellipse.cc
     KisToolSuperellipse.cpp
+    KisToolCurveStroke.cpp
     kis_tool_gradient.cc
     kis_tool_measure.cc
     kis_tool_path.cc

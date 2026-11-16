@@ -9,6 +9,8 @@
 #define KISTAGCHOOSERWIDGET_H
 
 #include <QWidget>
+
+#include <functional>
 #include <QMessageBox>
 #include "kritaresourcewidgets_export.h"
 
@@ -45,6 +47,12 @@ public:
 
     /// \brief update icon files on loading and theme change
     void updateIcons();
+
+    /// Leaves "All" and "All untagged" out of the list while there are tags of the user's
+    void setHidesAllRows(bool hides);
+
+    /// A + beside the tag, shown while the tag is one of the user's: \p add puts things in it
+    void setAddButton(const QString &toolTip, const std::function<void()> &add);
 
 Q_SIGNALS:
 
@@ -101,6 +109,10 @@ private:
     /// The tag of a list row (none for "New tag…")
     KisTagSP tagAt(const QModelIndex &rowIndex) const;
     void startRename(const QModelIndex &index);
+    /// Dragging a tag in the list: the row it would go before, the line showing it, and the drop
+    int dropRowAt(const QPoint &pos) const;
+    void showDropLine(const QPoint &pos);
+    void dropTag(const QPoint &pos);
 
 private:
     class Private;

@@ -473,10 +473,9 @@ void KisStudioValueRow::mouseMoveEvent(QMouseEvent *event)
             return;
         }
         // a click with a little jitter isn't a drag
-        if (qAbs(x - m_pressX) <= KisModernStyle::dragDistance(event)) return;
+        if (qAbs(x - m_pressX) <= KisModernStyle::scrubDistance(event)) return;
         m_dragging = true;
         m_draggedThisPress = true;
-        m_pressX = x;
     }
     const bool fine = event->modifiers() & Qt::ShiftModifier;
     if (fine != m_fine) {

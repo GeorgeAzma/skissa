@@ -339,6 +339,7 @@ LayerBox::LayerBox()
             SIGNAL(expanded(QModelIndex)), SLOT(slotExpanded(QModelIndex)));
     connect(m_wdgLayerBox->listLayers,
             SIGNAL(selectionChanged(QModelIndexList)), SLOT(selectionChanged(QModelIndexList)));
+    connect(m_wdgLayerBox->listLayers, SIGNAL(propertiesRequested()), SLOT(slotPropertiesClicked()));
 
     slotUpdateIcons();
 

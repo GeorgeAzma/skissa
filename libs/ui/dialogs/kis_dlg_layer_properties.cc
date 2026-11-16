@@ -86,7 +86,8 @@ KisDlgLayerProperties::KisDlgLayerProperties(KisNodeList nodes, KisViewManager *
     d->view = view;
     d->colorSpace = d->nodes.first()->colorSpace();
 
-    d->page->editName->setFocus();
+    // the name takes the keys only once clicked: Space pans the canvas while the dialog is open
+    d->page->editName->setFocusPolicy(Qt::ClickFocus);
     d->nameProperty.reset(new KisMultinodeNameProperty(nodes));
     d->nameProperty->connectIgnoreCheckBox(d->page->chkName);
     d->nameProperty->connectAutoEnableWidget(d->page->editName);

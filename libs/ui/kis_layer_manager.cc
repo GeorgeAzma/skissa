@@ -6,6 +6,8 @@
  */
 
 #include "kis_layer_manager.h"
+#include <QGuiApplication>
+#include <QScreen>
 #include "KisColorDrop.h"
 #include <KisProfile.h>
 
@@ -389,6 +391,18 @@ void KisLayerManager::layerProperties()
 #endif
         connect(dlg, SIGNAL(destroyed()), this, SLOT(layerPropertiesDialogClosed()));
         m_layerPropertiesDialogActive = true;
+
+        // beside the pointer, toward the window's middle, rather than over the middle of the picture
+        const QPoint pointer = QCursor::pos();
+        const QRect window = m_view->mainWindow() ? m_view->mainWindow()->frameGeometry() : QRect(pointer, QSize(1, 1));
+        const QSize size = dlg->sizeHint().expandedTo(dlg->minimumSizeHint());
+        QPoint at(pointer.x() > window.center().x() ? pointer.x() - size.width() - 24 : pointer.x() + 24, pointer.y() - size.height() / 3);
+        if (QScreen *screen = QGuiApplication::screenAt(pointer)) {
+            const QRect room = screen->availableGeometry();
+            at.setX(qBound(room.left(), at.x(), room.right() - size.width()));
+            at.setY(qBound(room.top(), at.y(), room.bottom() - size.height()));
+        }
+        dlg->move(at);
 
         dlg->show();
         dlg->activateWindow();

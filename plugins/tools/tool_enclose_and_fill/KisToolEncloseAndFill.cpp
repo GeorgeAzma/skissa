@@ -853,7 +853,7 @@ void KisToolEncloseAndFill::loadConfiguration()
     m_fillOpacitySpread = m_configGroup.readEntry<int>("fillOpacitySpread", 100);
     m_closeGap = m_configGroup.readEntry<int>("closeGapAmount", 0);
     m_useSelectionAsBoundary = m_configGroup.readEntry<bool>("useSelectionAsBoundary", true);
-    m_antiAlias = m_configGroup.readEntry<bool>("antiAlias", false);
+    m_antiAlias = m_configGroup.readEntry<bool>("antiAlias", true);
     m_expand = m_configGroup.readEntry<int>("expand", 0);
     m_stopGrowingAtDarkestPixel = m_configGroup.readEntry<bool>("stopGrowingAtDarkestPixel", false);
     m_feather = m_configGroup.readEntry<int>("feather", 0);
@@ -1346,7 +1346,7 @@ void KisToolEncloseAndFill::slot_buttonReset_clicked()
     m_sliderFillOpacitySpread->setValue(100);
     m_sliderCloseGap->setValue(0);
     m_checkBoxSelectionAsBoundary->setChecked(true);
-    m_checkBoxAntiAlias->setChecked(false);
+    m_checkBoxAntiAlias->setChecked(true);
     m_sliderExpand->setValue(0);
     m_buttonStopGrowingAtDarkestPixel->setChecked(false);
     m_sliderFeather->setValue(0);

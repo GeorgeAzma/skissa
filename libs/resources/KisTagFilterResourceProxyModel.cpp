@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "KisTagFilterResourceProxyModel.h"
+#include "KisResourceOrder.h"
+
+#include <QHash>
+#include <climits>
 
 #include <QDebug>
 
@@ -38,6 +42,16 @@ struct KisTagFilterResourceProxyModel::Private
     int storageId {-1};
     bool useStorageIdFilter {false};
 
+    /// Where each file name is in the user's order of the current tag
+    QHash<QString, int> order;
+
+    void readOrder()
+    {
+        order.clear();
+        if (!currentTagFilter || currentTagFilter->id() < 0) return;
+        const QStringList names = KisResourceOrder::inTag(resourceType, currentTagFilter->url());
+        for (int i = 0; i < names.size(); i++) order.insert(names[i], i);
+    }
 };
 
 KisTagFilterResourceProxyModel::KisTagFilterResourceProxyModel(const QString &resourceType, QObject *parent)
@@ -49,6 +63,10 @@ KisTagFilterResourceProxyModel::KisTagFilterResourceProxyModel(const QString &re
     d->tagResourceModel = new KisTagResourceModel(resourceType);
 
     setSourceModel(d->resourceModel);
+    connect(KisResourceOrder::instance(), &KisResourceOrder::changed, this, [this]() {
+        d->readOrder();
+        invalidate();
+    });
 }
 
 KisTagFilterResourceProxyModel::~KisTagFilterResourceProxyModel()
@@ -231,6 +249,7 @@ void KisTagFilterResourceProxyModel::setMetaDataFilter(QMap<QString, QVariant> m
 void KisTagFilterResourceProxyModel::setTagFilter(const KisTagSP tag)
 {
     d->currentTagFilter = tag;
+    d->readOrder();
     updateTagFilter();
 }
 
@@ -401,6 +420,12 @@ bool KisTagFilterResourceProxyModel::filterAcceptsRow(int source_row, const QMod
 
 bool KisTagFilterResourceProxyModel::lessThan(const QModelIndex &source_left, const QModelIndex &source_right) const
 {
+    // in the order the user dragged them into in this tag, the rest after by name
+    if (!d->order.isEmpty()) {
+        const int left = d->order.value(sourceModel()->data(source_left, Qt::UserRole + KisAbstractResourceModel::Filename).toString(), INT_MAX);
+        const int right = d->order.value(sourceModel()->data(source_right, Qt::UserRole + KisAbstractResourceModel::Filename).toString(), INT_MAX);
+        if (left != right) return left < right;
+    }
     QString nameLeft = sourceModel()->data(source_left, Qt::UserRole + KisAbstractResourceModel::Name).toString();
     QString nameRight = sourceModel()->data(source_right, Qt::UserRole + KisAbstractResourceModel::Name).toString();
 

@@ -991,7 +991,7 @@ void KisToolFill::loadConfiguration()
     m_underLines = m_configGroup.readEntry<bool>("fillUnderLines", true);
     m_speckSize = qBound(0, m_configGroup.readEntry<int>("speckSize", 4), 32);
     m_useSelectionAsBoundary = m_configGroup.readEntry<bool>("useSelectionAsBoundary", true);
-    m_antiAlias = m_configGroup.readEntry<bool>("antiAlias", false);
+    m_antiAlias = m_configGroup.readEntry<bool>("antiAlias", true);
     m_sizemod = m_configGroup.readEntry<int>("growSelection", 0);
     m_stopGrowingAtDarkestPixel = m_configGroup.readEntry<bool>("stopGrowingAtDarkestPixel", false);
     m_feather = m_configGroup.readEntry<int>("featherAmount", 0);
@@ -1404,7 +1404,7 @@ void KisToolFill::slot_buttonReset_clicked()
     m_checkBoxUnderLines->setChecked(true);
     m_sliderSpecks->setValue(4);
     m_checkBoxSelectionAsBoundary->setChecked(true);
-    m_checkBoxAntiAlias->setChecked(false);
+    m_checkBoxAntiAlias->setChecked(true);
     m_sliderGrow->setValue(0);
     m_buttonStopGrowingAtDarkestPixel->setChecked(false);
     m_sliderFeather->setValue(0);

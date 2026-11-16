@@ -761,7 +761,7 @@ struct SkissaLensWidget::Private {
             {i18nc("lens effect preset", "Original"), S()},
             {i18nc("lens effect preset", "Vintage"), SkissaLens::vintage()},
             {i18nc("lens effect preset", "Vignette"), lensOf({{&S::vignette, 0.45f}})},
-            {i18nc("lens effect preset", "Wide"), lensOf({{&S::bulge, 0.35f}, {&S::fringes, 0.002f}, {&S::vignette, 0.3f}})},
+            {i18nc("lens effect preset: colored fringes at the edges", "Fringe"), lensOf({{&S::fringes, 0.008f}, {&S::halo, 0.002f}})},
             {i18nc("lens effect preset", "Fisheye"), lensOf({{&S::bulge, 1.0f}, {&S::fringes, 0.003f}, {&S::vignette, 0.35f}})},
             {i18nc("lens effect preset", "Glow"), lensOf({{&S::halo, 0.001f}, {&S::glow, 0.35f}, {&S::glowSize, 0.08f}})},
         };
@@ -1945,7 +1945,7 @@ SkissaInkWidget::SkissaInkWidget(QWidget *parent, KisPaintDeviceSP dev)
     // what is drawn
     d->size = add(i18nc("drawing effect setting", "Size"), 0.3, 40, 1, px, defaults.size, [this](qreal v) { d->settings.size = float(v); },
                   i18nc("@info:tooltip", "How fine or bold the lines are"));
-    d->lines = add(i18nc("drawing effect setting", "Lines"), 0, 100, 0, percent, defaults.lines * 100,
+    d->lines = add(i18nc("drawing effect setting", "Lines"), 0, 300, 0, percent, defaults.lines * 100,
                    [this](qreal v) { d->settings.lines = float(v / 100); });
     d->shaded = add(i18nc("drawing effect setting: how much of the picture is shaded", "Shading"), 0, 100, 0, percent, defaults.ink * 100,
                     [this](qreal v) {
@@ -2372,8 +2372,8 @@ struct SkissaShapeWidget::Private {
                  s.shadowColor = QColor(0, 0, 0, 150);
              })},
             {i18nc("shape effect look: a raised button with a soft shadow", "Button"), with([](S &s) {
-                 s.bevel = 8;
-                 s.bevelDepth = 0.7f;
+                 s.bevel = 16;
+                 s.bevelDepth = 0.6f;
                  s.shadow = 4;
                  s.shadowSoftness = 8;
                  s.shadowColor = QColor(0, 0, 0, 110);
@@ -2470,6 +2470,42 @@ SkissaShapeWidget::SkissaShapeWidget(QWidget *parent, KisPaintDeviceSP dev)
     KisFilterSP shapeFilter = KisFilterRegistry::instance()->value(QStringLiteral("skissa_shape"));
     const SkissaShape::Settings defaults = shapeFilter ? SkissaShape::Settings::from(*shapeFilter->defaultConfiguration(KisGlobalResourcesInterface::instance()))
                                                        : SkissaShape::Settings();
+    // a right click on a part's tab resets that part
+    connect(d->parts, &KisStudioChips::rightClicked, this, [this, defaults](int index) {
+        SkissaShape::Settings &s = d->settings;
+        switch (index) {
+        case OutlinePart:
+            s.outline = defaults.outline;
+            s.place = defaults.place;
+            s.outlineColor = defaults.outlineColor;
+            break;
+        case GlowPart:
+            s.glow = defaults.glow;
+            s.glowStrength = defaults.glowStrength;
+            s.glowColor = defaults.glowColor;
+            break;
+        case ShadowPart:
+            s.shadow = defaults.shadow;
+            s.shadowAngle = defaults.shadowAngle;
+            s.shadowSoftness = defaults.shadowSoftness;
+            s.shadowColor = defaults.shadowColor;
+            s.shadowFall = defaults.shadowFall;
+            break;
+        case BevelPart:
+            s.bevel = defaults.bevel;
+            s.bevelDepth = defaults.bevelDepth;
+            s.emboss = defaults.emboss;
+            break;
+        case GrowPart:
+            s.grow = defaults.grow;
+            break;
+        default:
+            return;
+        }
+        d->part = index;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
+    });
     auto add = [&](const QString &name, qreal low, qreal high, int decimals, const QString &suffix, qreal reset, std::function<void(qreal)> write) {
         KisStudioValueRow *row = valueRow(this, name, low, high, decimals, suffix, reset);
         connect(row, &KisStudioValueRow::valueChanged, this, [this, write](qreal value) {
@@ -2864,6 +2900,37 @@ SkissaLightWidget::SkissaLightWidget(QWidget *parent, KisPaintDeviceSP dev)
     connect(d->parts, &KisStudioChips::clicked, this, [this](int index) {
         d->part = index;
         showRows();
+    });
+    // a right click on a part's tab resets that part
+    connect(d->parts, &KisStudioChips::rightClicked, this, [this, defaults](int index) {
+        SkissaLight::Settings &s = d->settings;
+        switch (index) {
+        case GlowLight:
+            s.glow = defaults.glow;
+            s.size = defaults.size;
+            break;
+        case StarLight:
+            s.star = defaults.star;
+            s.length = defaults.length;
+            s.blades = defaults.blades;
+            s.angle = defaults.angle;
+            break;
+        case StreakLight:
+            s.streak = defaults.streak;
+            s.streakLength = defaults.streakLength;
+            s.streakAngle = defaults.streakAngle;
+            s.streakColor = defaults.streakColor;
+            break;
+        case HalationLight:
+            s.halation = defaults.halation;
+            s.halationSize = defaults.halationSize;
+            break;
+        default:
+            return;
+        }
+        d->part = index;
+        refresh();
+        Q_EMIT sigConfigurationItemChanged();
     });
     layout->addWidget(d->parts);
 

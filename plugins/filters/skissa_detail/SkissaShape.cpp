@@ -336,14 +336,14 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     const float flatNormal[3] = {0, 0, 1};
     const float flatLight = lightOn(flatNormal), flatShine = shineOn(flatNormal);
     const float steepestSlope = float(std::tan(qDegreesToRadians(steepest * s.bevelDepth)));
-    // the slope is read from the distance smoothed a little: exact distances step by whole pixels' roots, and their
-    // differences streaked round edges
+    // the slope is read from the distance smoothed by a fifth of the bevel: exact distances step by whole pixels'
+    // roots, and their differences streaked round edges
     std::vector<float> smooth;
     if (bevels) {
         smooth.resize(count);
         for (size_t i = 0; i < count; i++) smooth[i] = std::clamp(distance[i], -bevel - 4, bevel + 4);
         std::vector<float> scratch(count);
-        SkissaDetail::gaussian(smooth.data(), scratch.data(), w, h, 1.5);
+        SkissaDetail::gaussian(smooth.data(), scratch.data(), w, h, std::max(1.5f, 0.2f * bevel));
     }
     const float shadowAlpha = std::max(shadowColor[3], 1e-6f);
     const float shadowStraight[3] = {shadowColor[0] / shadowAlpha, shadowColor[1] / shadowAlpha, shadowColor[2] / shadowAlpha};
@@ -351,7 +351,10 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
     // the slope
     auto litAt = [&](int sx, int sy, float d, float &factor, float &highlight) {
         const float from = s.emboss ? -bevel / 2 : -bevel;
-        const float t = (d - from) / bevel;
+        // the soft edge's pixels (past the edge by under a pixel) are on the slope's outer end too: left flat, they
+        // drew a line of the paint's own color around the bevel
+        if (!s.emboss && d >= 1) return false;
+        const float t = std::min((d - from) / bevel, 0.999f);
         if (t <= 0 || t >= 1) return false;
         const size_t i = size_t(sy) * w + sx;
         const float gx = 0.5f * (smooth[size_t(sy) * w + std::min(sx + 1, w - 1)] - smooth[size_t(sy) * w + std::max(sx - 1, 0)]);
@@ -397,9 +400,14 @@ void Shape::apply(const float *source, const QRect &sourceRect, const QRect &rec
             if (shadows && cutIn) atop(shadowStraight, shadowAt(sx, sy) * shadowColor[3], result);
             float factor, highlight;
             if (bevels && litAt(sx, sy, d, factor, highlight)) {
-                if (d < 0) {
-                    // the paint itself lit
-                    for (int c = 0; c < 3; c++) result[c] = std::max(0.0f, result[c] * factor + highlight * result[3]);
+                if (d < 1 && !(s.emboss && d >= 0)) {
+                    // the paint itself lit: darker where it faces away, as a shade multiplies it; lighter where it
+                    // faces the light, as light screens it, so a dark paint's bevel shows too; the gloss on top
+                    const float lift = std::clamp(0.6f * (factor - 1) * flatLight / (1 - flatLight + skyLight) + highlight, 0.0f, 1.0f);
+                    for (int c = 0; c < 3; c++) {
+                        const float shaded = result[c] * std::min(factor, 1.0f);
+                        result[c] = shaded + (result[3] - shaded) * lift;
+                    }
                 } else {
                     // an emboss's outer half, sloping down to what is around, which may lie on layers below: black
                     // over it darkens anything by exactly the factor, and white lights a middle gray by it
