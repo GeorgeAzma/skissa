@@ -1,6 +1,7 @@
 add_subdirectory( actions )
 add_subdirectory( brushes )
 add_subdirectory( bundles )
+add_subdirectory( skissa_brushes )
 add_subdirectory( patterns )
 add_subdirectory( gradients )
 add_subdirectory( profiles )

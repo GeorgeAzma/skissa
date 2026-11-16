@@ -151,5 +151,4 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 
 ## Lessons
 
-`docs/skissa/lessons.md` (append newest last). The most costly ones: never type into the dev build to drive it (use `action.ps1`); devinput needs named params (`-X -Y`, `-K`); Python heredocs turn `
-` in C++ strings into newlines (use the Edit tool); kill only processes under `C:\code\krita-deps`.
+`docs/skissa/lessons.md` (append newest last). The most costly ones: never type into the dev build to drive it (use `action.ps1`); devinput needs named params (`-X -Y`, `-K`); Python heredocs turn backslash-n in C++ strings into newlines (use the Edit tool); kill only processes under `C:\code\krita-deps`.

@@ -548,7 +548,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
             QFont small = p->font();
             small.setPointSizeF(small.pointSizeF() * 0.9);
             p->setFont(small);
-            p->setOpacity(p->opacity() * 0.55);
+            p->setPen(KisModernStyle::secondaryInk(option.palette.color(QPalette::Text)));
             // what is unusual: a mode other than Normal, an opacity below full; the current layer's row has its
             // mode's control, and shows both on hover
             const bool usualMode = mode == KoCompositeOpRegistry::instance().getKoID(COMPOSITE_OVER).name();
@@ -590,7 +590,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
         const Qt::Alignment end = option.direction == Qt::RightToLeft ? Qt::AlignLeft : Qt::AlignRight;
         p->drawText(rc, start | Qt::AlignVCenter, name);
         if (!info.isEmpty()) {
-            p->setOpacity(p->opacity() * 0.55);
+            p->setPen(KisModernStyle::secondaryInk(option.palette.color(QPalette::Text)));
             p->drawText(rc, end | Qt::AlignVCenter, p->fontMetrics().elidedText(info, Qt::ElideRight, infoWidth - scm.textMargin()));
         }
         // the current layer's opacity beside its mode, when below full or hovered

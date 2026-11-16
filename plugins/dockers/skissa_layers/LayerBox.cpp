@@ -1134,9 +1134,8 @@ void LayerBox::quietenMode()
     QComboBox *mode = m_wdgLayerBox->cmbComposite;
     QPalette palette = m_wdgLayerBox->listLayers->viewport()->palette();
     for (QPalette::ColorRole role : {QPalette::ButtonText, QPalette::Text, QPalette::WindowText}) {
-        QColor ink = palette.color(role);
-        ink.setAlphaF(0.62);
-        palette.setColor(role, ink);
+        // the quiet ink every value uses: see-through ink over glass read faint on light themes
+        palette.setColor(role, KisModernStyle::secondaryInk(palette.color(role)));
     }
     mode->setPalette(palette);
 }
