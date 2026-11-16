@@ -29,16 +29,14 @@
 #include <KisStorageModel.h>
 #include <KisTagChooserWidget.h>
 #include <KisTagFilterResourceProxyModel.h>
+#include <KisTagModel.h>
 #include <KisTagResourceModel.h>
 #include <KoFileDialog.h>
 
-#include "KisStudioItemCard.h"
 #include "KisStudioTools.h"
 
 namespace
 {
-
-const QString brushPrefix = QStringLiteral("brush:");
 
 bool isImportable(const QString &file)
 {
@@ -54,13 +52,6 @@ QStringList importableFiles(const QMimeData *mime)
         if (url.isLocalFile() && isImportable(url.toLocalFile())) files << url.toLocalFile();
     }
     return files;
-}
-
-QString draggedBrush(const QMimeData *mime)
-{
-    if (!mime) return QString();
-    const QString key = QString::fromUtf8(mime->data(KisStudioShortcuts::itemMimeType()));
-    return key.startsWith(brushPrefix) ? key.mid(brushPrefix.size()) : QString();
 }
 
 } // namespace
@@ -119,6 +110,12 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBox
             }
         });
     }
+}
+
+KisTagSP KisBrushListArranger::orderedTag() const
+{
+    const KisTagSP tag = m_tags ? m_tags->currentlySelectedTag() : KisTagSP();
+    return tag && (tag->id() >= 0 || tag->url() == KisAllTagsModel::urlAll()) ? tag : KisTagSP();
 }
 
 KisTagSP KisBrushListArranger::userTag() const
@@ -265,21 +262,16 @@ void KisBrushListArranger::hideDropLine()
     if (m_dropLine) m_dropLine->hide();
 }
 
-void KisBrushListArranger::dropBrush(const QString &name, const QPoint &pos)
+void KisBrushListArranger::moveBrush(const QString &moved, const QPoint &pos)
 {
-    const KisTagSP tag = userTag();
+    const KisTagSP tag = orderedTag();
     QAbstractItemModel *model = m_chooser->itemView()->model();
-    if (!tag || !model) return;
-    // the tag's brushes as shown, and the dragged one among them
+    if (!tag || !model || moved.isEmpty()) return;
+    // the tag's brushes as shown
     QStringList shown;
-    QString moved;
     for (int row = 0; row < model->rowCount(); row++) {
-        const QModelIndex index = model->index(row, 0);
-        const QString file = index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
-        shown << file;
-        if (moved.isEmpty() && index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString() == name) moved = file;
+        shown << model->index(row, 0).data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
     }
-    if (moved.isEmpty()) return;
     const int to = dropRowAt(pos);
     const QString before = to < shown.size() ? shown[to] : QString();
     if (before == moved) return;
@@ -325,20 +317,51 @@ bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
     }
     case QEvent::MouseButtonPress:
     case QEvent::MouseButtonDblClick: {
-        if (!isAdding()) return false;
         auto *mouse = static_cast<QMouseEvent *>(event);
-        // a click puts the brush in the tag or takes it out; it isn't picked
         m_pressedRow = mouse->button() == Qt::LeftButton ? view->indexAt(mouse->pos()).row() : -1;
-        return mouse->button() == Qt::LeftButton;
+        m_pressPos = mouse->pos();
+        m_reordering = false;
+        // adding: a click puts the brush in the tag or takes it out; it isn't picked
+        return isAdding() && mouse->button() == Qt::LeftButton;
     }
-    case QEvent::MouseMove:
-        return isAdding() && (static_cast<QMouseEvent *>(event)->buttons() & Qt::LeftButton);
-    case QEvent::MouseButtonRelease: {
-        if (!isAdding()) return false;
+    case QEvent::MouseMove: {
         auto *mouse = static_cast<QMouseEvent *>(event);
-        const QModelIndex index = view->indexAt(mouse->pos());
-        if (mouse->button() == Qt::LeftButton && index.isValid() && index.row() == m_pressedRow) toggle(index);
+        if (!(mouse->buttons() & Qt::LeftButton)) return false;
+        if (isAdding()) return true;
+        // a brush of the user's tag dragged within the list goes elsewhere in it; out of the list, it is carried off
+        // (to the tools, to pin it) as the list's own drag
+        if (m_pressedRow < 0 || !orderedTag()) return false;
+        const bool inside = view->viewport()->rect().contains(mouse->pos());
+        if (!m_reordering && inside && QLineF(mouse->pos(), m_pressPos).length() > KisModernStyle::dragDistance(mouse)) {
+            m_reordering = true;
+        }
+        if (m_reordering && !inside) {
+            m_reordering = false;
+            hideDropLine();
+            return false;
+        }
+        if (m_reordering) {
+            showDropLine(mouse->pos());
+            return true;
+        }
+        return false;
+    }
+    case QEvent::MouseButtonRelease: {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+        const int pressed = m_pressedRow;
         m_pressedRow = -1;
+        if (m_reordering) {
+            m_reordering = false;
+            hideDropLine();
+            QAbstractItemModel *model = view->model();
+            if (model && pressed >= 0 && pressed < model->rowCount()) {
+                moveBrush(model->index(pressed, 0).data(Qt::UserRole + KisAbstractResourceModel::Filename).toString(), mouse->pos());
+            }
+            return true;
+        }
+        if (!isAdding()) return false;
+        const QModelIndex index = view->indexAt(mouse->pos());
+        if (mouse->button() == Qt::LeftButton && index.isValid() && index.row() == pressed) toggle(index);
         return mouse->button() == Qt::LeftButton;
     }
     case QEvent::DragEnter:
@@ -346,12 +369,6 @@ bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
         auto *drag = static_cast<QDragMoveEvent *>(event);
         if (!importableFiles(drag->mimeData()).isEmpty()) {
             drag->acceptProposedAction();
-            return true;
-        }
-        // a brush of this list moved within its tag
-        if (!isAdding() && userTag() && !draggedBrush(drag->mimeData()).isEmpty()) {
-            drag->acceptProposedAction();
-            showDropLine(drag->pos());
             return true;
         }
         return false;
@@ -366,12 +383,6 @@ bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
         if (!files.isEmpty()) {
             drop->acceptProposedAction();
             importFiles(files);
-            return true;
-        }
-        const QString name = draggedBrush(drop->mimeData());
-        if (!isAdding() && userTag() && !name.isEmpty()) {
-            drop->acceptProposedAction();
-            dropBrush(name, drop->pos());
             return true;
         }
         return false;

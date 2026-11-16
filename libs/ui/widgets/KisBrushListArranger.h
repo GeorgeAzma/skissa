@@ -21,9 +21,9 @@ class QModelIndex;
 class QWidget;
 
 /**
- * What the brush list does beyond picking: brushes dragged into an order within their tag, brushes added to the
- * tag shown (all of them listed, a click putting one in or taking it out), and brush files dropped on it or
- * chosen from its menu imported, into the tag shown.
+ * What the brush list does beyond picking: brushes dragged into an order within their tag (as pictures or strokes),
+ * brushes added to the tag shown (all of them listed, a click putting one in or taking it out), and brush files
+ * dropped on it or chosen from its menu imported, into the tag shown.
  */
 class KisBrushListArranger : public QObject
 {
@@ -46,12 +46,15 @@ protected:
 private:
     /// The tag shown, if it is one of the user's
     KisTagSP userTag() const;
+    /// The tag shown, if its brushes keep an order: the user's, or All
+    KisTagSP orderedTag() const;
     void toggle(const QModelIndex &index);
     /// The row a drop at \p pos goes before; the line showing it
     int dropRowAt(const QPoint &pos) const;
     void showDropLine(const QPoint &pos);
     void hideDropLine();
-    void dropBrush(const QString &name, const QPoint &pos);
+    /// The brush in file \p moved goes where a drop at \p pos in the list shows
+    void moveBrush(const QString &moved, const QPoint &pos);
     void showMenu(const QPoint &globalPos);
 
     KisResourceItemChooser *m_chooser;
@@ -62,8 +65,11 @@ private:
     QWidget *m_header {nullptr};
     QLabel *m_headerName {nullptr};
     QWidget *m_dropLine {nullptr};
-    /// A brush pressed while adding: the click toggles it on release
+    /// The brush pressed: while adding, the click toggles it on release
     int m_pressedRow {-1};
+    QPoint m_pressPos;
+    /// A brush is being dragged to another place in its tag
+    bool m_reordering {false};
 };
 
 #endif // KISBRUSHLISTARRANGER_H

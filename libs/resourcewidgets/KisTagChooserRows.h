@@ -34,6 +34,8 @@ public:
     std::function<bool(const QModelIndex &)> current;
     /// The "New tag…" row
     std::function<bool(const QModelIndex &)> adding;
+    /// The row being renamed: its field shows the name, so the row doesn't
+    std::function<bool(const QModelIndex &)> renaming;
 
     using QStyledItemDelegate::QStyledItemDelegate;
 
@@ -77,8 +79,10 @@ public:
             text.setLeft(text.left() + 16);
         }
         painter->setPen(add ? KisModernStyle::secondaryInk(ink) : ink);
-        painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft,
-                          QFontMetrics(font).elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight, text.width()));
+        if (!(renaming && renaming(index))) {
+            painter->drawText(text, Qt::AlignVCenter | Qt::AlignLeft,
+                              QFontMetrics(font).elidedText(index.data(Qt::DisplayRole).toString(), Qt::ElideRight, text.width()));
+        }
 
         if ((pointed || KisTouchMode::isActive()) && deletable && deletable(index)) {
             const QRectF button = deleteButtonRect(option.rect);

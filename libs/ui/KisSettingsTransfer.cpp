@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisSettingsTransfer.h"
+#include <KisResourceLoaderRegistry.h>
 
 #include <QColor>
 #include <QCoreApplication>
@@ -592,6 +593,24 @@ void takePendingKritaTags()
     file.remove();
     int changes = 0;
     applyKritaTags(pending, &changes);
+}
+
+void startWithoutTags()
+{
+    KConfigGroup group = KSharedConfig::openConfig()->group(QString());
+    if (group.readEntry("StudioTagsCleared", false)) return;
+    // inactive, as a deleted tag is: upstream Krita reads the database as ever, and nothing is lost
+    Q_FOREACH (const QString &type, KisResourceLoaderRegistry::instance()->resourceTypes()) {
+        KisTagModel tags(type);
+        QList<KisTagSP> active;
+        for (int row = 0; row < tags.rowCount(); row++) {
+            const KisTagSP tag = tags.tagForIndex(tags.index(row, 0));
+            if (tag && tag->valid() && tag->id() >= 0) active << tag;
+        }
+        Q_FOREACH (const KisTagSP &tag, active) tags.setTagInactive(tag);
+    }
+    group.writeEntry("StudioTagsCleared", true);
+    KisSettingsRegistry::instance()->scheduleSync();
 }
 
 } // namespace KisSettingsTransfer

@@ -421,6 +421,7 @@ LayerBox::LayerBox()
         m_rowControls->hide();
         ui->listLayers->viewport()->installEventFilter(this);
         ui->listLayers->installEventFilter(this);
+        ui->cmbComposite->installEventFilter(this);
         connect(ui->listLayers, &NodeView::draggedOff, this, [this]() {
             if (m_removeAction) m_removeAction->trigger();
         });
@@ -1227,6 +1228,35 @@ QModelIndex LayerBox::gapAt(const QPoint &pos, int *gapY) const
 bool LayerBox::eventFilter(QObject *watched, QEvent *event)
 {
     NodeView *view = m_wdgLayerBox->listLayers;
+    if (watched == m_wdgLayerBox->cmbComposite) {
+        // a press on the mode is a press on the row: dragged sideways it is the opacity, as anywhere on the row;
+        // only a click opens the modes (a drag in them picked a mode by accident)
+        const QEvent::Type type = event->type();
+        if (type != QEvent::MouseButtonPress && type != QEvent::MouseMove && type != QEvent::MouseButtonRelease
+            && type != QEvent::MouseButtonDblClick) {
+            return QWidget::eventFilter(watched, event);
+        }
+        auto *mouse = static_cast<QMouseEvent *>(event);
+        if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonDblClick) {
+            if (mouse->button() != Qt::LeftButton) return QWidget::eventFilter(watched, event);
+            m_modePressed = true;
+            m_modePressAt = mouse->globalPos();
+        } else if (!m_modePressed) {
+            return QWidget::eventFilter(watched, event);
+        }
+        QWidget *viewport = view->viewport();
+        QMouseEvent forwarded(type == QEvent::MouseButtonDblClick ? QEvent::MouseButtonPress : type, viewport->mapFromGlobal(mouse->globalPos()),
+                              mouse->globalPos(), mouse->button(), mouse->buttons(), mouse->modifiers());
+        QApplication::sendEvent(viewport, &forwarded);
+        if (type == QEvent::MouseButtonRelease) {
+            m_modePressed = false;
+            if ((mouse->globalPos() - m_modePressAt).manhattanLength() <= KisModernStyle::dragDistance(mouse)) {
+                QComboBox *mode = m_wdgLayerBox->cmbComposite;
+                QTimer::singleShot(0, mode, [mode]() { mode->showPopup(); });
+            }
+        }
+        return true;
+    }
     if (watched == view->viewport()) {
         switch (event->type()) {
         case QEvent::PaletteChange:

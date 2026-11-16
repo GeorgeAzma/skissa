@@ -48,7 +48,8 @@ struct KisTagFilterResourceProxyModel::Private
     void readOrder()
     {
         order.clear();
-        if (!currentTagFilter || currentTagFilter->id() < 0) return;
+        // the user's tags and All have an order; All untagged doesn't
+        if (!currentTagFilter || (currentTagFilter->id() < 0 && currentTagFilter->url() != KisAllTagsModel::urlAll())) return;
         const QStringList names = KisResourceOrder::inTag(resourceType, currentTagFilter->url());
         for (int i = 0; i < names.size(); i++) order.insert(names[i], i);
     }

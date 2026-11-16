@@ -227,6 +227,9 @@ private:
     QPoint m_opacityPressPos;
     /// How far the press moves before it is a drag (further for a pen or a finger)
     int m_opacitySlop {4};
+    /// A press on the row's blend mode, passed on to the row
+    bool m_modePressed {false};
+    QPoint m_modePressAt;
     bool m_opacityScrubbing {false};
     KisNodeSP m_opacityNode;
     qreal m_opacityStart {100};

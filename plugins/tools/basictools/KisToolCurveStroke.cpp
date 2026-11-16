@@ -9,23 +9,28 @@
 #include <QtMath>
 
 #include <KoCanvasBase.h>
+#include <KoCanvasResourceProvider.h>
 #include <KoPointerEvent.h>
+#include <brushengine/kis_paintop_preset.h>
+#include <brushengine/kis_paintop_settings.h>
 #include <kis_algebra_2d.h>
 #include <kis_canvas2.h>
 #include <kis_cursor.h>
-#include <kis_painting_information_builder.h>
+#include <kis_image.h>
 #include <kis_paint_information.h>
+#include <kis_painting_information_builder.h>
 #include <kis_smoothing_options.h>
 #include <kis_tool_freehand_helper.h>
-#include <KisViewManager.h>
 
 namespace
 {
 
-/// How far from a handle, in screen pixels, a press still takes it
-constexpr qreal handleReach = 14;
+/// How far from the stroke, in screen pixels beyond its own width, a press still takes it
+constexpr qreal reach = 10;
 /// The share of the stroke at each end over which it tapers
 constexpr qreal taper = 0.3;
+/// The share of the stroke at each end that moves the end rather than bending it
+constexpr qreal endGrip = 0.12;
 
 const KisCoordinatesConverter *converterOf(KoCanvasBase *canvas)
 {
@@ -34,7 +39,7 @@ const KisCoordinatesConverter *converterOf(KoCanvasBase *canvas)
     return kisCanvas->coordinatesConverter();
 }
 
-/// The pressure of the taper a share \p t along the stroke: rising in from nothing, falling out to nothing
+/// The taper a share \p t along the stroke: rising in from nothing, falling out to nothing
 qreal taperAt(qreal t)
 {
     const qreal x = qBound<qreal>(0, qMin(t, 1 - t) / taper, 1);
@@ -43,7 +48,7 @@ qreal taperAt(qreal t)
 
 } // namespace
 
-/// The brush engine's stroke, painted again whole whenever the curve changes, until it is kept
+/// The brush engine's stroke, painted again whole whenever the curve is let go, until it is kept
 class CurveStrokeHelper : public KisToolFreehandHelper
 {
 public:
@@ -77,21 +82,25 @@ KisToolCurveStroke::KisToolCurveStroke(KoCanvasBase *canvas)
     , m_infoBuilder(new KisConverterPaintingInformationBuilder(converterOf(canvas)))
     , m_helper(new CurveStrokeHelper(m_infoBuilder.data(), canvas->resourceManager()))
 {
-    m_repaint.setSingleShot(true);
-    m_repaint.setInterval(16);
     setObjectName(QStringLiteral("tool_curve_stroke"));
     setSupportOutline(true);
     setIsOpacityPresetMode(true);
-    connect(&m_repaint, &QTimer::timeout, this, &KisToolCurveStroke::repaintStroke);
+    // the shape goes once the image has no work left from the paint: two quiet looks in a row
+    m_untilPainted.setInterval(30);
+    connect(&m_untilPainted, &QTimer::timeout, this, [this]() {
+        static int quiet = 0;
+        quiet = image() && !image()->hasUpdatesRunning() ? quiet + 1 : 0;
+        if (quiet >= 3) {
+            quiet = 0;
+            m_untilPainted.stop();
+            m_showsShape = false;
+            updateDecorations();
+        }
+    });
 }
 
 KisToolCurveStroke::~KisToolCurveStroke()
 {
-}
-
-void KisToolCurveStroke::activate(const QSet<KoShape *> &shapes)
-{
-    KisToolShape::activate(shapes);
 }
 
 void KisToolCurveStroke::deactivate()
@@ -112,74 +121,97 @@ void KisToolCurveStroke::requestStrokeCancellation()
     drop();
 }
 
-KisToolCurveStroke::Part KisToolCurveStroke::partAt(const QPointF &pixel) const
+QPointF KisToolCurveStroke::pointAt(qreal t) const
+{
+    const qreal s = 1 - t;
+    return s * s * m_start + 2 * s * t * m_control + t * t * m_end;
+}
+
+qreal KisToolCurveStroke::pressureAt(qreal t) const
+{
+    return m_pressure * taperAt(t);
+}
+
+KisToolCurveStroke::Grip KisToolCurveStroke::gripAt(const QPointF &pixel, qreal *along) const
 {
     if (!m_open) return None;
     const QPointF view = pixelToView(pixel);
-    Part nearest = None;
-    qreal best = handleReach;
-    // the handles before the ends: on a short stroke they lie close together
-    for (int i : {First, Second, Start, End}) {
-        const qreal distance = QLineF(view, pixelToView(m_points[i])).length();
+    // the brush's own width counts as the stroke
+    KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
+    const qreal radius = preset ? 0.5 * preset->settings()->paintOpSize() * pixelToView(QRectF(0, 0, 1, 1)).width() : 0;
+    qreal best = reach + radius, bestT = -1;
+    constexpr int samples = 96;
+    for (int i = 0; i <= samples; i++) {
+        const qreal t = qreal(i) / samples;
+        const qreal distance = QLineF(view, pixelToView(pointAt(t))).length();
         if (distance < best) {
             best = distance;
-            nearest = Part(i);
+            bestT = t;
         }
     }
-    return nearest;
+    if (bestT < 0) return None;
+    if (along) *along = bestT;
+    return bestT < endGrip ? Start : bestT > 1 - endGrip ? End : Bend;
 }
 
-QVector<QPointF> KisToolCurveStroke::curve(int count) const
+QPolygonF KisToolCurveStroke::shapeInView() const
 {
-    // the cubic through all four points, at 0, 1/3, 2/3 and 1
-    const QPointF p0 = m_points[Start], p3 = m_points[End];
-    const QPointF a = 27 * m_points[First] - 8 * p0 - p3;
-    const QPointF b = 27 * m_points[Second] - p0 - 8 * p3;
-    const QPointF c1 = (2 * a - b) / 18;
-    const QPointF c2 = (2 * b - a) / 18;
-    QVector<QPointF> points;
-    points.reserve(count + 1);
+    KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
+    const qreal size = preset ? preset->settings()->paintOpSize() : 10;
+    constexpr int count = 64;
+    QVector<QPointF> left, right;
     for (int i = 0; i <= count; i++) {
-        const qreal t = qreal(i) / count, s = 1 - t;
-        points << s * s * s * p0 + 3 * s * s * t * c1 + 3 * s * t * t * c2 + t * t * t * p3;
+        const qreal t = qreal(i) / count;
+        const QPointF at = pointAt(t);
+        // the tangent of the quadratic there
+        QPointF along = 2 * (1 - t) * (m_control - m_start) + 2 * t * (m_end - m_control);
+        const qreal length = std::hypot(along.x(), along.y());
+        along = length > 1e-9 ? along / length : QPointF(1, 0);
+        const QPointF across(-along.y(), along.x());
+        const qreal half = qMax<qreal>(0.5, 0.5 * size * pressureAt(t));
+        left << pixelToView(at + across * half);
+        right << pixelToView(at - across * half);
     }
-    return points;
+    QPolygonF shape(left);
+    for (int i = right.size() - 1; i >= 0; i--) shape << right[i];
+    return shape;
 }
 
-void KisToolCurveStroke::repaintStroke()
+void KisToolCurveStroke::paintWithBrush()
 {
     if (!m_open || nodePaintAbility() != PAINT) return;
     // a point every couple of pixels along it
-    const qreal length = QLineF(m_points[Start], m_points[First]).length() + QLineF(m_points[First], m_points[Second]).length()
-        + QLineF(m_points[Second], m_points[End]).length();
+    const qreal length = QLineF(m_start, m_control).length() + QLineF(m_control, m_end).length();
     const int count = qBound(8, int(length / 2), 4000);
-    const QVector<QPointF> positions = curve(count);
     QVector<KisPaintInformation> points;
-    points.reserve(positions.size());
-    for (int i = 0; i < positions.size(); i++) {
-        points << KisPaintInformation(positions[i], m_pressure * taperAt(qreal(i) / count));
+    points.reserve(count + 1);
+    for (int i = 0; i <= count; i++) {
+        const qreal t = qreal(i) / count;
+        points << KisPaintInformation(pointAt(t), pressureAt(t));
     }
     m_repainting = true;
     m_helper->paintThrough(points, image(), currentNode(), image().data());
     m_repainting = false;
+    // the shape stays over the paint until it has arrived
+    m_showsShape = true;
+    m_untilPainted.start();
 }
 
 void KisToolCurveStroke::keep()
 {
-    m_repaint.stop();
-    if (m_open && m_dragged == None) repaintStroke();
     m_helper->keep();
     m_open = false;
-    m_dragged = None;
+    m_grip = None;
     updateDecorations();
 }
 
 void KisToolCurveStroke::drop()
 {
-    m_repaint.stop();
+    m_untilPainted.stop();
+    m_showsShape = false;
     m_helper->drop();
     m_open = false;
-    m_dragged = None;
+    m_grip = None;
     updateDecorations();
 }
 
@@ -190,48 +222,59 @@ void KisToolCurveStroke::beginPrimaryAction(KoPointerEvent *event)
         return;
     }
     const QPointF pixel = convertToPixelCoord(event);
-    const Part part = partAt(pixel);
     setMode(KisTool::PAINT_MODE);
     m_pressedAt = pixel;
-    if (part != None) {
-        // reshaping the open stroke
-        m_dragged = part;
-        m_pressedPoint = m_points[part];
+    m_start0 = m_start;
+    m_end0 = m_end;
+    m_control0 = m_control;
+    const Grip grip = gripAt(pixel, &m_along);
+    if (grip != None) {
+        // reshaping the open stroke: its paint gives way to its shape until it is let go
+        m_grip = grip;
+        m_helper->drop();
+        m_showsShape = true;
+        m_untilPainted.stop();
+        updateDecorations();
         return;
     }
     // the stroke before is kept; a new one starts here
     if (m_open) keep();
-    for (QPointF &point : m_points) point = pixel;
+    m_start = m_end = m_control = pixel;
     m_pressure = event->isTabletEvent() ? qMax<qreal>(0.05, event->pressure()) : 1.0;
     m_open = true;
-    m_dragged = Drawing;
+    m_grip = Drawing;
+    m_showsShape = true;
 }
 
 void KisToolCurveStroke::continuePrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
     const QPointF pixel = convertToPixelCoord(event);
-    if (m_dragged == Drawing) {
-        // a straight line while it is drawn, its handles a third and two thirds along
-        m_points[End] = pixel;
-        m_points[First] = m_points[Start] + (pixel - m_points[Start]) / 3;
-        m_points[Second] = m_points[Start] + 2 * (pixel - m_points[Start]) / 3;
+    const QPointF moved = pixel - m_pressedAt;
+    switch (m_grip) {
+    case Drawing:
+        // straight while it is drawn
+        m_end = pixel;
+        m_control = (m_start + m_end) / 2;
         if (event->isTabletEvent()) m_pressure = qMax(m_pressure, event->pressure());
-    } else if (m_dragged != None) {
-        const QPointF moved = pixel - m_pressedAt;
-        if (m_dragged == Start || m_dragged == End) {
-            // an end moved takes the handles along with it, less the further they are from it
-            const QPointF before = m_points[m_dragged];
-            const QPointF now = m_pressedPoint + moved;
-            const QPointF step = now - before;
-            m_points[m_dragged] = now;
-            m_points[First] += step * (m_dragged == Start ? 2.0 / 3 : 1.0 / 3);
-            m_points[Second] += step * (m_dragged == Start ? 1.0 / 3 : 2.0 / 3);
-        } else {
-            m_points[m_dragged] = m_pressedPoint + moved;
-        }
+        break;
+    case Bend: {
+        // the curve goes through the pointer at the place it was taken
+        const qreal t = qBound<qreal>(0.1, m_along, 0.9), s = 1 - t;
+        m_control = (pixel - s * s * m_start0 - t * t * m_end0) / (2 * s * t);
+        break;
     }
-    if (m_dragged != None && !m_repaint.isActive()) m_repaint.start();
+    case Start:
+    case End: {
+        // an end moved takes the bend along by half
+        QPointF &end = m_grip == Start ? m_start : m_end;
+        end = (m_grip == Start ? m_start0 : m_end0) + moved;
+        m_control = m_control0 + moved / 2;
+        break;
+    }
+    case None:
+        break;
+    }
     updateDecorations();
     requestUpdateOutline(event->point, event);
 }
@@ -241,22 +284,20 @@ void KisToolCurveStroke::endPrimaryAction(KoPointerEvent *event)
     Q_UNUSED(event);
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
     setMode(KisTool::HOVER_MODE);
-    if (m_dragged == Drawing && QLineF(pixelToView(m_points[Start]), pixelToView(m_points[End])).length() < 3) {
+    if (m_grip == Drawing && QLineF(pixelToView(m_start), pixelToView(m_end)).length() < 3) {
         // a click: nothing to draw
         drop();
         return;
     }
-    m_dragged = None;
-    m_repaint.stop();
-    repaintStroke();
-    updateDecorations();
+    m_grip = None;
+    paintWithBrush();
 }
 
 void KisToolCurveStroke::mouseMoveEvent(KoPointerEvent *event)
 {
-    // over a handle, the pointer says it can be taken
+    // over the open stroke, the pointer says it can be taken
     if (mode() == KisTool::HOVER_MODE) {
-        if (partAt(convertToPixelCoord(event)) != None) useCursor(Qt::SizeAllCursor);
+        if (gripAt(convertToPixelCoord(event)) != None) useCursor(Qt::SizeAllCursor);
         else resetCursorStyle();
     }
     KisToolShape::mouseMoveEvent(event);
@@ -265,32 +306,27 @@ void KisToolCurveStroke::mouseMoveEvent(KoPointerEvent *event)
 void KisToolCurveStroke::updateDecorations()
 {
     QRectF now;
-    if (m_open) {
-        for (const QPointF &point : m_points) now |= QRectF(point, QSizeF(1, 1));
-    }
+    if (m_open) now = QRectF(m_start, QSizeF(1, 1)) | QRectF(m_end, QSizeF(1, 1)) | QRectF(pointAt(0.5), QSizeF(1, 1)) | QRectF(m_control, QSizeF(1, 1));
     const QRectF dirty = m_decorated | now;
     m_decorated = now;
     if (dirty.isEmpty()) return;
-    // the handles are a fixed size on screen
-    const qreal margin = handleReach / qMax<qreal>(1e-3, pixelToView(QRectF(0, 0, 1, 1)).width());
+    KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
+    const qreal margin = (preset ? preset->settings()->paintOpSize() : 10) + 4;
     updateCanvasPixelRect(dirty.adjusted(-margin, -margin, margin, margin));
 }
 
 void KisToolCurveStroke::paint(QPainter &gc, const KoViewConverter &converter)
 {
-    if (m_open && m_dragged != Drawing) {
+    if (m_open && m_showsShape) {
+        // the stroke's shape in the paint color, while the brush hasn't painted it yet
         gc.save();
         gc.setRenderHint(QPainter::Antialiasing, true);
-        // white with a dark ring: seen on any picture
-        auto handle = [&gc](const QPointF &at, qreal radius) {
-            gc.setPen(QPen(QColor(0, 0, 0, 170), 1.5));
-            gc.setBrush(Qt::white);
-            gc.drawEllipse(at, radius, radius);
-        };
-        handle(pixelToView(m_points[Start]), 3.5);
-        handle(pixelToView(m_points[End]), 3.5);
-        handle(pixelToView(m_points[First]), 5.5);
-        handle(pixelToView(m_points[Second]), 5.5);
+        QColor color = canvas()->resourceManager()->foregroundColor().toQColor();
+        KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
+        if (preset) color.setAlphaF(qBound<qreal>(0.15, preset->settings()->paintOpOpacity(), 1.0));
+        gc.setPen(Qt::NoPen);
+        gc.setBrush(color);
+        gc.drawPolygon(shapeInView());
         gc.restore();
     }
     KisToolShape::paint(gc, converter);

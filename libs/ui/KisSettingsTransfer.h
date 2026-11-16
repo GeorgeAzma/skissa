@@ -67,6 +67,8 @@ KRITAUI_EXPORT int takeKritaResources(QString *error);
 KRITAUI_EXPORT int takeKritaTags();
 /// Does what takeKritaTags() left for the next start, once the resources are read
 KRITAUI_EXPORT void takePendingKritaTags();
+/// Once per profile: the tags that came with the resources are put away, so the user starts from their own
+KRITAUI_EXPORT void startWithoutTags();
 
 } // namespace KisSettingsTransfer
 

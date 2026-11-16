@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisModernStyle.h"
+#include <QCursor>
+#include <QTimer>
 
 #include "KisSentenceCase.h"
 #include "KisTouchMode.h"
@@ -733,6 +735,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
         if (event->type() != QEvent::Wheel || !watched->isWidgetType()) return false;
+        rehoverSoon(static_cast<QWidget *>(watched)->window());
         // a pause ends the turn; the next one belongs to the deepest widget it reaches first
         if (!m_last.isValid() || m_last.elapsed() > 400 || !m_owner) m_owner = static_cast<QWidget *>(watched);
         m_last.restart();
@@ -744,6 +747,33 @@ protected:
     }
 
 private:
+    /**
+     * What a scroll brought under the resting pointer is hovered, and what it took away isn't: Qt finds that out
+     * only when the pointer moves, so two things were lit at once. The window is told the pointer moved where it is,
+     * once the scroll has happened (and again after a smooth scroll's last step).
+     */
+    void rehoverSoon(QWidget *window)
+    {
+        if (!window || m_rehovering) return;
+        m_rehovering = true;
+        const QPointer<QWidget> target(window);
+        for (int delay : {0, 150}) {
+            QTimer::singleShot(delay, this, [this, target, delay]() {
+                if (delay) m_rehovering = false;
+                if (!target || !target->windowHandle() || QGuiApplication::mouseButtons() != Qt::NoButton) return;
+                QWindow *handle = target->windowHandle();
+                const QPoint global = QCursor::pos();
+                const QPointF local = handle->mapFromGlobal(global);
+                if (!QRect(QPoint(), handle->size()).contains(local.toPoint())) return;
+                QMouseEvent moved(QEvent::MouseMove, local, local, global, Qt::NoButton, Qt::NoButton, QGuiApplication::keyboardModifiers(),
+                                  Qt::MouseEventSynthesizedByApplication);
+                QGuiApplication::sendEvent(handle, &moved);
+            });
+        }
+    }
+
+    bool m_rehovering {false};
+
     static bool isValue(QWidget *widget)
     {
         if (qobject_cast<QAbstractSpinBox *>(widget) || qobject_cast<QComboBox *>(widget)) return true;

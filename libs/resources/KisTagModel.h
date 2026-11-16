@@ -135,8 +135,8 @@ public:
         ShowAllTags
     };
 
-    /// Leaves out "All" and "All untagged"
-    void setHidesFakeRows(bool hides);
+    /// Leaves out "All" and "All untagged", or with \p untagged only "All untagged"
+    void setHidesFakeRows(bool hides, bool untagged = false);
 
     void setTagFilter(TagFilter filter);
 

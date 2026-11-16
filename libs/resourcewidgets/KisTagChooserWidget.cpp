@@ -104,6 +104,10 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
     delegate->deletable = [this](const QModelIndex &index) { return isUserTag(tagAt(index)); };
     delegate->current = [this](const QModelIndex &index) { return index.row() == d->comboBox->currentIndex(); };
     delegate->adding = [this](const QModelIndex &index) { return d->rows->isNewTag(index); };
+    delegate->renaming = [this](const QModelIndex &index) {
+        const KisTagSP tag = d->editor ? tagAt(index) : KisTagSP();
+        return tag && d->editor->property("tagUrl").toString() == tag->url();
+    };
     d->comboBox->view()->setItemDelegate(delegate);
     d->comboBox->view()->setMouseTracking(true);
     d->comboBox->view()->viewport()->installEventFilter(this);
@@ -160,23 +164,23 @@ KisTagChooserWidget::~KisTagChooserWidget()
 void KisTagChooserWidget::setHidesAllRows(bool hides)
 {
     auto refresh = [this, hides]() {
-        // hidden only while there is a tag to show instead
+        // hidden only while there is a tag of the user's listed to show instead
         bool userTags = false;
-        QAbstractItemModel *all = d->model->sourceModel();
-        for (int row = 0; all && row < all->rowCount() && !userTags; row++) {
-            const QModelIndex index = all->index(row, 0);
-            userTags = all->data(index, Qt::UserRole + KisAllTagsModel::Id).toInt() >= 0
-                && all->data(index, Qt::UserRole + KisAllTagsModel::Active).toBool();
+        for (int row = 0; row < d->model->rowCount() && !userTags; row++) {
+            userTags = d->model->data(d->model->index(row, 0), Qt::UserRole + KisAllTagsModel::Id).toInt() >= 0;
         }
-        d->model->setHidesFakeRows(hides && userTags);
+        d->model->setHidesFakeRows(hides && userTags, hides);
+        if (d->comboBox->currentIndex() < 0 && d->comboBox->count() > 1) setCurrentIndex(0);
     };
     refresh();
-    QAbstractItemModel *all = d->model->sourceModel();
-    if (!all) return;
-    connect(all, &QAbstractItemModel::rowsInserted, this, refresh, Qt::QueuedConnection);
-    connect(all, &QAbstractItemModel::rowsRemoved, this, refresh, Qt::QueuedConnection);
-    connect(all, &QAbstractItemModel::modelReset, this, refresh, Qt::QueuedConnection);
-    connect(all, &QAbstractItemModel::dataChanged, this, refresh, Qt::QueuedConnection);
+    for (QAbstractItemModel *model : {static_cast<QAbstractItemModel *>(d->model), d->model->sourceModel()}) {
+        if (!model) continue;
+        connect(model, &QAbstractItemModel::rowsInserted, this, refresh, Qt::QueuedConnection);
+        connect(model, &QAbstractItemModel::rowsRemoved, this, refresh, Qt::QueuedConnection);
+        connect(model, &QAbstractItemModel::modelReset, this, refresh, Qt::QueuedConnection);
+        connect(model, &QAbstractItemModel::layoutChanged, this, refresh, Qt::QueuedConnection);
+        connect(model, &QAbstractItemModel::dataChanged, this, refresh, Qt::QueuedConnection);
+    }
 }
 
 bool KisTagChooserWidget::isUserTag(const KisTagSP tag)

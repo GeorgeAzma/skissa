@@ -6,6 +6,7 @@
 #ifndef KISTOOLCURVESTROKE_H
 #define KISTOOLCURVESTROKE_H
 
+#include <QPolygonF>
 #include <QScopedPointer>
 #include <QTimer>
 
@@ -17,9 +18,11 @@ class KisPaintingInformationBuilder;
 class CurveStrokeHelper;
 
 /**
- * A stroke shaped after it is drawn: a drag paints a line with the brush at once, tapered at both ends; the line
- * stays open with two handles on it, and dragging them bends it (a cubic through both), repainted as it moves, as
- * do its ends. A press elsewhere keeps it and starts the next; Enter keeps it, Escape drops it.
+ * A stroke shaped after it is drawn: a drag draws a line, tapered at both ends, painted with the brush once let go;
+ * the stroke stays open, and dragging any point of it bends it there (a quadratic through the point held), its ends
+ * move it. While it is dragged it shows as its shape in the paint color, and the brush paints it again once let go,
+ * the shape staying until the paint is there, so nothing flashes. A press away from it keeps it and starts the next;
+ * Enter keeps it, Escape drops it.
  */
 class KisToolCurveStroke : public KisToolShape
 {
@@ -34,38 +37,41 @@ public:
     void mouseMoveEvent(KoPointerEvent *event) override;
     bool primaryActionSupportsHiResEvents() const override { return true; }
 
-    void activate(const QSet<KoShape *> &shapes) override;
     void deactivate() override;
     void requestStrokeEnd() override;
     void requestStrokeCancellation() override;
 
     void paint(QPainter &gc, const KoViewConverter &converter) override;
 
-private Q_SLOTS:
-    void repaintStroke();
-
 private:
-    /// What a press takes: nothing, an end, a handle, or a new stroke being drawn
-    enum Part { None = -1, Start = 0, First = 1, Second = 2, End = 3, Drawing = 4 };
+    /// What a press takes: nothing, the start, the end, the stroke between, or a new stroke being drawn
+    enum Grip { None, Start, End, Bend, Drawing };
 
-    Part partAt(const QPointF &pixel) const;
-    /// \p count + 1 points along the curve, evenly by its parameter
-    QVector<QPointF> curve(int count) const;
+    Grip gripAt(const QPointF &pixel, qreal *along = nullptr) const;
+    QPointF pointAt(qreal t) const;
+    /// The pressure of the stroke a share \p t along it
+    qreal pressureAt(qreal t) const;
+    /// The stroke as the brush would paint it, as an outline in the view
+    QPolygonF shapeInView() const;
+    void paintWithBrush();
     void keep();
     void drop();
     void updateDecorations();
 
     QScopedPointer<KisPaintingInformationBuilder> m_infoBuilder;
     QScopedPointer<CurveStrokeHelper> m_helper;
-    /// The stroke is painted again at most once a frame while it is reshaped
-    QTimer m_repaint;
-    /// On the curve: its start, the points a third and two thirds along, its end
-    QPointF m_points[4];
+    /// The shape is shown until the brush's paint has arrived
+    QTimer m_untilPainted;
+    bool m_showsShape {false};
+    /// The stroke: its ends and the control point between
+    QPointF m_start, m_end, m_control;
     /// A stroke on the canvas, still being shaped
     bool m_open {false};
-    Part m_dragged {None};
+    Grip m_grip {None};
+    /// Where along the stroke it was taken, for a bend
+    qreal m_along {0.5};
     QPointF m_pressedAt;
-    QPointF m_pressedPoint;
+    QPointF m_start0, m_end0, m_control0;
     /// The firmest the pen pressed while the line was drawn: the stroke's middle
     qreal m_pressure {1.0};
     QRectF m_decorated;

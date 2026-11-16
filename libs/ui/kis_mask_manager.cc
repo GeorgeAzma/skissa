@@ -5,6 +5,7 @@
  */
 
 #include "kis_mask_manager.h"
+#include "KisStudioMaskEditor.h"
 
 #include <kactioncollection.h>
 
@@ -347,6 +348,12 @@ void KisMaskManager::maskProperties()
 
         KisPaintDeviceSP dev = layer->original();
         if (!dev) {
+            return;
+        }
+
+        // in the Studio, the effect's own panel beside the canvas, which it doesn't hold
+        if (m_view->mainWindowAsQWidget() && m_view->mainWindowAsQWidget()->property("studioLayoutActive").toBool()
+            && KisStudioMaskEditor::edit(m_view, KisFilterMaskSP(mask))) {
             return;
         }
 

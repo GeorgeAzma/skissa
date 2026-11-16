@@ -545,6 +545,7 @@ struct KisTagModel::Private {
     StorageFilter storageFilter {KisTagModel::ShowActiveStorages};
     QString type;
     bool hidesFakeRows {false};
+    bool hidesUntagged {false};
     /// Where each tag url is in the user's order
     QHash<QString, int> order;
 };
@@ -570,10 +571,11 @@ void KisTagModel::readOrder()
     for (int i = 0; i < urls.size(); i++) d->order.insert(urls[i], i);
 }
 
-void KisTagModel::setHidesFakeRows(bool hides)
+void KisTagModel::setHidesFakeRows(bool hides, bool untagged)
 {
-    if (d->hidesFakeRows == hides) return;
+    if (d->hidesFakeRows == hides && d->hidesUntagged == untagged) return;
     d->hidesFakeRows = hides;
+    d->hidesUntagged = untagged;
     invalidateFilter();
 }
 
@@ -686,8 +688,12 @@ bool KisTagModel::changeTagActive(const KisTagSP tag, bool active)
 
 bool KisTagModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
-    if (d->hidesFakeRows && source_row < s_fakeRowsCount && !source_parent.isValid()) {
-        return false;
+    if (!source_parent.isValid() && source_row < s_fakeRowsCount) {
+        // "All untagged" is the same as "All" while nothing is tagged
+        if (d->hidesFakeRows) return false;
+        if (d->hidesUntagged && sourceModel()->data(sourceModel()->index(source_row, 0), Qt::UserRole + KisAllTagsModel::Id).toInt() == KisAllTagsModel::AllUntagged) {
+            return false;
+        }
     }
     if (d->tagFilter == ShowAllTags && d->storageFilter == ShowAllStorages) {
         return true;
