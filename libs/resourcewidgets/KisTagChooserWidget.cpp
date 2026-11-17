@@ -127,6 +127,11 @@ KisTagChooserWidget::KisTagChooserWidget(KisTagModel* model, QString resourceTyp
         d->comboBox->setMinimumWidth(qMin(220, d->comboBox->style()->sizeFromContents(QStyle::CT_ComboBox, &option, QSize(text, d->comboBox->height()), d->comboBox).width()));
     };
     connect(d->comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, fit);
+    // the name of the tag of all, given here or taken back by undo
+    connect(KisResourceOrder::instance(), &KisResourceOrder::changed, this, [this, fit]() {
+        d->comboBox->update();
+        fit();
+    });
     QTimer::singleShot(0, this, fit);
 
     d->undoButton = new QToolButton(this);
@@ -263,7 +268,8 @@ KisTagSP KisTagChooserWidget::tagAt(const QModelIndex &rowIndex) const
 void KisTagChooserWidget::startRename(const QModelIndex &index)
 {
     KisTagSP tag = tagAt(index);
-    if (!isUserTag(tag) || d->editor) {
+    const bool all = d->rows->isAll(index);
+    if ((!isUserTag(tag) && !all) || d->editor) {
         return;
     }
     QAbstractItemView *view = d->comboBox->view();
@@ -273,7 +279,7 @@ void KisTagChooserWidget::startRename(const QModelIndex &index)
     editor->setFrame(false);
     editor->setProperty(KisModernStyle::quietFieldProperty, true);
     editor->setFont(view->font());
-    editor->setText(tag->name());
+    editor->setText(all ? KisResourceOrder::allName() : tag->name());
     editor->selectAll();
     editor->setGeometry(view->visualRect(index).adjusted(2, 1, -2, -1));
     editor->setProperty("tagUrl", tag->url());
@@ -303,7 +309,10 @@ bool KisTagChooserWidget::eventFilter(QObject *watched, QEvent *event)
                 const bool isNew = editor->property("newTag").toBool();
                 const QString url = editor->property("tagUrl").toString();
                 editor->deleteLater();
-                if (key != Qt::Key_Escape && !name.isEmpty()) {
+                if (key != Qt::Key_Escape && url == KisAllTagsModel::urlAll()) {
+                    KisResourceOrder::setAllName(name);
+                    d->comboBox->update();
+                } else if (key != Qt::Key_Escape && !name.isEmpty()) {
                     if (isNew) {
                         addTag(name);
                         setCurrentItem(name);

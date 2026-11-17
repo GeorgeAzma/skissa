@@ -18,6 +18,8 @@
 #include <klocalizedstring.h>
 
 #include <KisModernStyle.h>
+#include <KisResourceOrder.h>
+#include <KisTagModel.h>
 #include <KisTouchMode.h>
 
 // The tag chooser's list: its rows, and the "New tag…" row after them
@@ -158,7 +160,15 @@ public:
             if (role == Qt::DisplayRole) return i18nc("@item:inlistbox", "New tag…");
             return QVariant();
         }
+        if (role == Qt::DisplayRole && isAll(index)) return KisResourceOrder::allName();
         return QIdentityProxyModel::data(index, role);
+    }
+
+    /// The row of all resources, which the user may name
+    bool isAll(const QModelIndex &index) const
+    {
+        return index.isValid() && !isNewTag(index)
+            && QIdentityProxyModel::data(index, Qt::UserRole + KisAllTagsModel::Url).toString() == KisAllTagsModel::urlAll();
     }
 
     Qt::ItemFlags flags(const QModelIndex &index) const override

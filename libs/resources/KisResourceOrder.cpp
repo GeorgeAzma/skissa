@@ -7,6 +7,7 @@
 
 #include <KConfigGroup>
 #include <KSharedConfig>
+#include <klocalizedstring.h>
 
 namespace
 {
@@ -40,6 +41,7 @@ void writeList(const QString &key, const QStringList &items)
 
 const QString KisResourceOrder::tagsKey = QStringLiteral("StudioTagOrder");
 const QString KisResourceOrder::resourcesKey = QStringLiteral("StudioTagResourceOrder");
+const QString KisResourceOrder::allNameKey = QStringLiteral("StudioAllTagName");
 
 KisResourceOrder *KisResourceOrder::instance()
 {
@@ -103,6 +105,17 @@ QStringList KisResourceOrder::putAway(const QString &type)
 void KisResourceOrder::setPutAway(const QString &type, const QStringList &fileNames)
 {
     setInTag(type, putAwayUrl, fileNames);
+}
+
+QString KisResourceOrder::allName()
+{
+    const QStringList name = readList(allNameKey);
+    return name.isEmpty() || name.first().isEmpty() ? i18nc("the tag holding every resource", "★") : name.first();
+}
+
+void KisResourceOrder::setAllName(const QString &name)
+{
+    writeList(allNameKey, name.trimmed().isEmpty() ? QStringList() : QStringList(name.trimmed()));
 }
 
 void KisResourceOrder::setWriter(const std::function<void(const QString &, const QStringList &)> &writer)

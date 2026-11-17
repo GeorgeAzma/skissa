@@ -25,6 +25,8 @@
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QThreadPool>
+#include <KoStore.h>
 
 #include <KConfig>
 #include <KConfigGroup>
@@ -357,6 +359,20 @@ QString kritaResourcesPath()
     return QFileInfo(path).isDir() ? path : QString();
 }
 
+namespace
+{
+/// The folders of a resource folder that hold resources, not caches, scripts, input profiles or shortcuts
+const QStringList &resourceFolders()
+{
+    static const QStringList folders = {ResourceType::PaintOpPresets, ResourceType::Brushes,      ResourceType::Gradients,
+                                        ResourceType::Palettes,       ResourceType::Patterns,     ResourceType::Workspaces,
+                                        ResourceType::Symbols,        ResourceType::WindowLayouts, ResourceType::Sessions,
+                                        ResourceType::GamutMasks,     ResourceType::SeExprScripts, ResourceType::LayerStyles,
+                                        QStringLiteral("bundles")};
+    return folders;
+}
+} // namespace
+
 int takeKritaResources(QString *error)
 {
     const QString from = kritaResourcesPath();
@@ -365,13 +381,8 @@ int takeKritaResources(QString *error)
         return -1;
     }
     const QDir to(KisResourceLocator::instance()->resourceLocationBase());
-    // the resources, not Krita's caches, scripts, input profiles or shortcuts
-    const QStringList folders = {ResourceType::PaintOpPresets, ResourceType::Brushes,      ResourceType::Gradients,  ResourceType::Palettes,
-                                 ResourceType::Patterns,       ResourceType::Workspaces,   ResourceType::Symbols,    ResourceType::WindowLayouts,
-                                 ResourceType::Sessions,       ResourceType::GamutMasks,   ResourceType::SeExprScripts,
-                                 ResourceType::LayerStyles,    QStringLiteral("bundles")};
     int copied = 0;
-    Q_FOREACH (const QString &folder, folders) {
+    Q_FOREACH (const QString &folder, resourceFolders()) {
         const QDir source(QDir(from).filePath(folder));
         if (!source.exists()) continue;
         QDirIterator it(source.path(), QDir::Files, QDirIterator::Subdirectories);
@@ -702,6 +713,185 @@ void useSkissaBrushes()
     }
     group.writeEntry("StudioBrushSet", 7);
     KisSettingsRegistry::instance()->scheduleSync();
+}
+
+namespace
+{
+const QString backupFolderKey = QStringLiteral("StudioBackupFolder");
+const QString settingsEntry = QStringLiteral("settings.json");
+const QString tagsEntry = QStringLiteral("tags.json");
+const QString filesEntry = QStringLiteral("files.txt");
+const QString resourcesEntry = QStringLiteral("resources/");
+/// Daily backups kept in the folder; older ones are removed
+constexpr int backupsKept = 7;
+
+/// What goes in a backup, read on the window's thread: the settings, the tags, and the resource files to copy
+struct BackupContents {
+    QByteArray settings;
+    QByteArray tags;
+    QString base;
+    QStringList files;
+};
+
+BackupContents backupContents()
+{
+    KisSettingsRegistry::instance()->flush();
+    BackupContents contents;
+    contents.settings = exportSettings();
+    contents.tags = QJsonDocument(readKritaTags(QSqlDatabase::database().databaseName())).toJson(QJsonDocument::Compact);
+    contents.base = KisResourceLocator::instance()->resourceLocationBase();
+    const QDir base(contents.base);
+    Q_FOREACH (const QString &folder, resourceFolders()) {
+        QDirIterator it(base.filePath(folder), QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) contents.files << base.relativeFilePath(it.next());
+    }
+    return contents;
+}
+
+/// Writes the zip beside \p path first, so a failed backup never leaves a broken one in its place
+bool writeBackup(const BackupContents &contents, const QString &path, QString *error)
+{
+    const QString part = path + QStringLiteral(".part");
+    QFile::remove(part);
+    bool ok = false;
+    {
+        QScopedPointer<KoStore> store(KoStore::createStore(part, KoStore::Write, "application/x-skissa-backup", KoStore::Zip, false));
+        auto put = [&store](const QString &name, const QByteArray &data) {
+            return store->open(name) && store->write(data) == data.size() && store->close();
+        };
+        ok = store && !store->bad() && put(settingsEntry, contents.settings) && put(tagsEntry, contents.tags)
+            && put(filesEntry, contents.files.join(QLatin1Char('\n')).toUtf8());
+        const QDir base(contents.base);
+        for (int i = 0; ok && i < contents.files.size(); i++) {
+            QFile file(base.filePath(contents.files[i]));
+            // a file gone since the list was made is left out
+            if (!file.open(QIODevice::ReadOnly)) continue;
+            ok = put(resourcesEntry + contents.files[i], file.readAll());
+        }
+        ok = ok && store->finalize();
+    }
+    if (ok) {
+        QFile::remove(path);
+        ok = QFile::rename(part, path);
+    }
+    if (!ok) {
+        QFile::remove(part);
+        return fail(error, i18nc("@info", "The backup couldn't be written."));
+    }
+    return true;
+}
+
+KoStore *openBackup(const QString &path)
+{
+    KoStore *store = KoStore::createStore(path, KoStore::Read, QByteArray(), KoStore::Zip, false);
+    if (store && (store->bad() || !store->hasFile(settingsEntry))) {
+        delete store;
+        return nullptr;
+    }
+    return store;
+}
+
+QByteArray entry(KoStore *store, const QString &name)
+{
+    QByteArray data;
+    store->extractFile(name, data);
+    return data;
+}
+
+QString backupName(const QDate &date)
+{
+    return i18nc("file name of a backup; %1 the app's name, %2 a date as 2026-11-17", "%1 backup %2", KisProfile::name(),
+                 date.toString(Qt::ISODate))
+        + QStringLiteral(".zip");
+}
+} // namespace
+
+bool backUp(const QString &path, QString *error)
+{
+    return writeBackup(backupContents(), path, error);
+}
+
+Plan planRestore(const QString &path)
+{
+    if (path.endsWith(QLatin1String(".json"), Qt::CaseInsensitive)) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly) || file.size() > 4 * 1024 * 1024) {
+            Plan p;
+            p.error = i18nc("@info", "That file couldn't be read.");
+            return p;
+        }
+        return planImport(file.readAll());
+    }
+    QScopedPointer<KoStore> store(openBackup(path));
+    if (!store) {
+        Plan p;
+        p.error = i18nc("@info", "That file isn't a backup.");
+        return p;
+    }
+    return planImport(entry(store.data(), settingsEntry));
+}
+
+int restoreResources(const QString &path, QString *error)
+{
+    if (path.endsWith(QLatin1String(".json"), Qt::CaseInsensitive)) return 0;
+    QScopedPointer<KoStore> store(openBackup(path));
+    if (!store) {
+        if (error) *error = i18nc("@info", "That file isn't a backup.");
+        return -1;
+    }
+    const QDir to(KisResourceLocator::instance()->resourceLocationBase());
+    int copied = 0;
+    // only what isn't here: a resource changed since the backup stays as it is now
+    Q_FOREACH (const QString &file, QString::fromUtf8(entry(store.data(), filesEntry)).split(QLatin1Char('\n'), Qt::SkipEmptyParts)) {
+        const QString target = to.filePath(file);
+        if (file.contains(QLatin1String("..")) || QFileInfo::exists(target)) continue;
+        QByteArray data;
+        if (!store->extractFile(resourcesEntry + file, data)) continue;
+        QDir().mkpath(QFileInfo(target).absolutePath());
+        QSaveFile out(target);
+        if (out.open(QIODevice::WriteOnly) && out.write(data) == data.size() && out.commit()) copied++;
+    }
+    // tags for what is here now; the rest once the files just copied are read, at the next start
+    int changes = 0;
+    const QJsonObject left = applyKritaTags(QJsonDocument::fromJson(entry(store.data(), tagsEntry)).object(), &changes);
+    if (waits(left)) {
+        QString ignored;
+        writeFile(pendingTagsPath(), QJsonDocument(left).toJson(QJsonDocument::Compact), &ignored);
+    }
+    return copied;
+}
+
+QString backupFolder()
+{
+    return KSharedConfig::openConfig()->group(QString()).readEntry(backupFolderKey, QString());
+}
+
+void setBackupFolder(const QString &folder)
+{
+    KisSettingsRegistry::writeLater(backupFolderKey, folder);
+}
+
+QString backupFileName()
+{
+    return backupName(QDate::currentDate());
+}
+
+void backUpDaily()
+{
+    const QString folder = backupFolder();
+    if (folder.isEmpty() || !QFileInfo(folder).isDir()) return;
+    const QString path = QDir(folder).filePath(backupName(QDate::currentDate()));
+    if (QFileInfo::exists(path)) return;
+    // read here, written on a thread: a large resource folder takes a while
+    const BackupContents contents = backupContents();
+    const QString pattern = backupName(QDate(2000, 1, 1)).replace(QStringLiteral("2000-01-01"), QStringLiteral("*"));
+    QThreadPool::globalInstance()->start([contents, path, folder, pattern]() {
+        QString error;
+        if (!writeBackup(contents, path, &error)) return;
+        // the newest kept; names sort by their dates
+        QStringList all = QDir(folder).entryList({pattern}, QDir::Files, QDir::Name);
+        while (all.size() > backupsKept) QFile::remove(QDir(folder).filePath(all.takeFirst()));
+    });
 }
 
 } // namespace KisSettingsTransfer

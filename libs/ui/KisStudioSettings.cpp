@@ -3151,41 +3151,66 @@ struct KisStudioSettings::Private
         updateFooter();
     }
 
-    void exportFile()
+    /// Settings, panels, shortcuts, brushes and the other resources and their tags, in one file
+    void backUpFile()
     {
-        KoFileDialog dialog(q, KoFileDialog::SaveFile, QStringLiteral("StudioSettingsExport"));
-        dialog.setCaption(i18nc("@title:window", "Export Settings"));
-        dialog.setNameFilter(i18nc("file type", "Settings (*.json)"));
-        dialog.setDefaultDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QStringLiteral("/krita-settings.json"));
+        KoFileDialog dialog(q, KoFileDialog::SaveFile, QStringLiteral("StudioBackup"));
+        dialog.setCaption(i18nc("@title:window", "Back Up"));
+        dialog.setNameFilter(i18nc("file type", "Backup (*.zip)"));
+        dialog.setDefaultDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QLatin1Char('/')
+                             + KisSettingsTransfer::backupFileName());
         QString path = dialog.filename();
         if (path.isEmpty()) return;
-        if (!path.endsWith(QLatin1String(".json"), Qt::CaseInsensitive)) path += QStringLiteral(".json");
-        R::instance()->flush();
+        if (!path.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive)) path += QStringLiteral(".zip");
         QString error;
-        if (KisSettingsTransfer::writeFile(path, KisSettingsTransfer::exportSettings(), &error)) {
-            q->say(i18nc("@info", "Settings saved to %1", QFileInfo(path).fileName()));
+        if (KisSettingsTransfer::backUp(path, &error)) {
+            q->say(i18nc("@info", "Backed up to %1", QFileInfo(path).fileName()));
         } else {
-            q->say(i18nc("@info", "Couldn't save: %1", error));
+            q->say(error);
         }
     }
 
-    void importFile()
+    /// A backup's brushes and other resources that aren't here, then its settings as a plan to look over
+    void restoreFile()
     {
-        KoFileDialog dialog(q, KoFileDialog::OpenFile, QStringLiteral("StudioSettingsExport"));
-        dialog.setCaption(i18nc("@title:window", "Import Settings"));
-        dialog.setNameFilter(i18nc("file type", "Settings (*.json)"));
+        KoFileDialog dialog(q, KoFileDialog::OpenFile, QStringLiteral("StudioBackup"));
+        dialog.setCaption(i18nc("@title:window", "Restore"));
+        dialog.setNameFilter(i18nc("file type", "Backup or settings (*.zip *.json)"));
         const QString path = dialog.filename();
         if (path.isEmpty()) return;
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly) || file.size() > 4 * 1024 * 1024) {
-            q->say(i18nc("@info", "That file couldn't be read."));
+        const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planRestore(path);
+        if (!plan.error.isEmpty()) {
+            q->say(plan.error);
             return;
         }
-        const KisSettingsTransfer::Plan plan = KisSettingsTransfer::planImport(file.readAll());
-        showPlan(plan, i18nc("@title", "Import from %1", QFileInfo(path).fileName()), i18nc("@action:button", "Import"),
+        QString error;
+        const int copied = KisSettingsTransfer::restoreResources(path, &error);
+        if (copied > 0) {
+            resourcesTaken = true;
+            updateFooter();
+        }
+        showPlan(plan, i18nc("@title", "Restore from %1", QFileInfo(path).fileName()), i18nc("@action:button", "Restore"),
                  [this, plan](const QVector<KisSettingsTransfer::Change> &chosen, bool sections, bool arrangement) {
                      applyHere(chosen, sections ? plan.sections : QByteArray(), arrangement ? plan.arrangement : QByteArray());
                  });
+    }
+
+    /// A backup each day in a folder the user keeps safe (a synced drive); chosen again, it stops
+    void dailyBackups()
+    {
+        if (!KisSettingsTransfer::backupFolder().isEmpty()) {
+            KisSettingsTransfer::setBackupFolder(QString());
+            q->say(i18nc("@info", "No more daily backups."));
+            return;
+        }
+        KoFileDialog dialog(q, KoFileDialog::OpenDirectory, QStringLiteral("StudioBackupFolder"));
+        dialog.setCaption(i18nc("@title:window", "Back Up Each Day To"));
+        dialog.setDefaultDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+        const QString folder = dialog.filename();
+        if (folder.isEmpty()) return;
+        KisSettingsTransfer::setBackupFolder(folder);
+        KisSettingsTransfer::backUpDaily();
+        q->say(i18nc("@info", "Backed up each day to %1", QDir(folder).dirName()));
     }
 
     void fromKrita()
@@ -3222,8 +3247,14 @@ struct KisStudioSettings::Private
     void moreMenu(QWidget *anchor)
     {
         QMenu menu(q);
-        QAction *exportAction = menu.addAction(i18nc("@action:inmenu", "Export settings"));
-        QAction *importAction = menu.addAction(i18nc("@action:inmenu", "Import settings"));
+        QAction *backUpAction = menu.addAction(i18nc("@action:inmenu", "Back up…"));
+        QAction *restoreAction = menu.addAction(i18nc("@action:inmenu", "Restore…"));
+        const QString folder = KisSettingsTransfer::backupFolder();
+        QAction *daily = menu.addAction(folder.isEmpty() ? i18nc("@action:inmenu", "Back up each day to…")
+                                                         : i18nc("@action:inmenu, %1 a folder", "Back up each day to %1", QDir(folder).dirName()));
+        daily->setCheckable(true);
+        daily->setChecked(!folder.isEmpty());
+        if (!folder.isEmpty()) daily->setToolTip(QDir::toNativeSeparators(folder));
         QAction *from = nullptr;
         QAction *resources = nullptr;
         // Krita's settings and resources are only ever read
@@ -3234,8 +3265,9 @@ struct KisStudioSettings::Private
         if (brushes) resources = menu.addAction(i18nc("@action:inmenu", "Take Krita's brushes"));
         QAction *chosen = menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
         if (!chosen) return;
-        if (chosen == exportAction) exportFile();
-        else if (chosen == importAction) importFile();
+        if (chosen == backUpAction) backUpFile();
+        else if (chosen == restoreAction) restoreFile();
+        else if (chosen == daily) dailyBackups();
         else if (chosen == from) fromKrita();
         else if (chosen == resources) brushesFromKrita();
     }

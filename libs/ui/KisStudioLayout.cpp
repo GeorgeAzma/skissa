@@ -2986,6 +2986,8 @@ KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     KisSettingsTransfer::takePendingKritaTags();
     KisSettingsTransfer::startWithoutTags();
     KisSettingsTransfer::useSkissaBrushes();
+    // the day's backup once the window has settled
+    QTimer::singleShot(20000, this, []() { KisSettingsTransfer::backUpDaily(); });
 
     // save the heights once a resize has settled
 

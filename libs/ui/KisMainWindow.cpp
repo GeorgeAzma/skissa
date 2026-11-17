@@ -558,6 +558,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     connect(this, &KisMainWindow::restoringDone, d->studioLayout, &KisStudioLayout::normalize);
 
     d->studioFind = new KisStudioFind(this);
+    KisStudioExport::watchSaves();
     d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
     d->studioFind->setSettingsOpener([this](const QString &cardId) { d->studioLayout->openSettings(cardId); });
     d->studioRings = new KisStudioRings(this);

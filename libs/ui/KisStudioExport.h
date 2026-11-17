@@ -26,6 +26,8 @@ class KRITAUI_EXPORT KisStudioExport : public KisStudioPopup
 public:
     /// Opens the sheet for \p window's image; false where Krita's own export runs instead (classic layout, no image)
     static bool open(KisMainWindow *window);
+    /// Images set to be exported on each save are exported after each save
+    static void watchSaves();
 
     ~KisStudioExport() override;
 

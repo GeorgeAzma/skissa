@@ -41,6 +41,8 @@
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QComboBox>
+#include <QDir>
+#include <QFileInfo>
 #include <QScrollBar>
 #include <QTabBar>
 #include <QToolButton>
@@ -72,8 +74,11 @@
 #include "KisStudioBrushPicker.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioToolRail.h"
-#include "KisNodeActivationActionCreatorVisitor.h"
+#include "KisRecentFilesManager.h"
+#include "kis_layer_utils.h"
+#include "utils/KisRecentFileIconCache.h"
 #include "KisResourceServerProvider.h"
+#include "KisDocument.h"
 #include "KisView.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
@@ -83,6 +88,7 @@
 #include "kis_config.h"
 #include "kis_filter_registry.h"
 #include "kis_icon_utils.h"
+#include "kis_group_layer.h"
 #include "kis_image.h"
 #include "kis_node_manager.h"
 #include "kis_paintop_preset.h"
@@ -181,6 +187,7 @@ enum class Kind {
     BlendMode,
     Panel,
     Layer,
+    Image,
     Setting,
     Workspace,
 };
@@ -195,6 +202,7 @@ QString kindTitle(Kind kind)
     case Kind::BlendMode: return i18nc("@title find results", "Blend Modes");
     case Kind::Panel: return i18nc("@title find results", "Panels");
     case Kind::Layer: return i18nc("@title find results", "Layers");
+    case Kind::Image: return i18nc("@title find results", "Images");
     case Kind::Setting: return i18nc("@title find results", "Settings");
     case Kind::Workspace: return i18nc("@title find results", "Workspaces");
     }
@@ -211,6 +219,7 @@ int kindBias(Kind kind)
     case Kind::Brush: return 2;
     case Kind::Panel: return 2;
     case Kind::Layer: return 1;
+    case Kind::Image: return 3;
     case Kind::Setting: return 0;
     case Kind::Workspace: return 0;
     case Kind::BlendMode: return -4; // there are over a hundred; don't let them crowd out the rest
@@ -236,6 +245,7 @@ enum Roles {
     ShortcutEditableRole, ///< clicking the key cap records a new shortcut
     RecordingRole,        ///< the key cap is recording a shortcut
     SwitchRole,           ///< state of a boolean setting, toggled by clicking its switch
+    PictureRole,          ///< the icon is a picture (an image, a layer), shown large and whole
 };
 
 /// The switch at the right end of a setting's row
@@ -294,6 +304,10 @@ struct Entry {
     mutable std::function<QIcon()> makeIcon;
     /// Id of a boolean setting (see KisSettingsRegistry); its row gets a switch
     QString toggleId;
+    /// The icon is a picture of it, shown large
+    bool picture {false};
+    /// Added to its rank (a recent image ranks by how recently it was opened)
+    qreal bias {0};
     /// Every word it is found by, split once rather than at every key typed (see allWords())
     mutable QStringList words;
     mutable bool wordsMade {false};
@@ -411,6 +425,7 @@ public:
 
     QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &index) const override
     {
+        if (index.data(PictureRole).toBool()) return QSize(100, 52);
         return QSize(100, index.data(MessageRole).toBool() ? 44 : index.data(HeaderRole).toBool() ? 28 : 40);
     }
 
@@ -450,10 +465,27 @@ public:
             painter->drawPath(KisModernStyle::squircle(QRectF(r).adjusted(4, 1, -4, -1), KisModernStyle::tileRadius));
         }
 
-        // the icon on a faint tile of the ink, which reads on any theme; no tile without an icon
-        const QRectF tile(r.left() + 12, r.top() + 6, 28, 28);
+        // the icon on a faint tile of the ink, which reads on any theme; no tile without an icon. A picture fills a larger
+        // tile, whole
+        const bool picture = index.data(PictureRole).toBool();
+        const QRectF tile = picture ? QRectF(r.left() + 12, r.top() + 6, 40, 40) : QRectF(r.left() + 12, r.top() + 6, 28, 28);
         const QIcon icon = index.data(Qt::DecorationRole).value<QIcon>();
-        if (!icon.isNull()) {
+        if (picture) {
+            QColor tileFill = text;
+            tileFill.setAlphaF(0.07);
+            const QPainterPath shape = KisModernStyle::squircle(tile, KisModernStyle::tileRadius);
+            painter->fillPath(shape, tileFill);
+            const QPixmap pixmap = icon.isNull() ? QPixmap() : icon.pixmap(QSize(80, 80));
+            if (!pixmap.isNull()) {
+                const QSizeF size = QSizeF(pixmap.size()).scaled(tile.size(), Qt::KeepAspectRatio);
+                const QRectF at(tile.center() - QPointF(size.width(), size.height()) / 2, size);
+                painter->save();
+                painter->setClipPath(shape);
+                painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+                painter->drawPixmap(at, pixmap, QRectF(pixmap.rect()));
+                painter->restore();
+            }
+        } else if (!icon.isNull()) {
             QColor tileFill = text;
             tileFill.setAlphaF(0.07);
             painter->setPen(Qt::NoPen);
@@ -599,7 +631,6 @@ struct KisStudioFind::Private
         QString where;
     };
     QHash<QString, Button> buttons;
-    QScopedPointer<KisKActionCollection> layerActions;
 
     void loadUsage()
     {
@@ -688,6 +719,18 @@ KisStudioFind::KisStudioFind(KisMainWindow *mainWindow)
     layout->addWidget(d->list);
 
     connect(d->edit, &QLineEdit::textChanged, this, &KisStudioFind::updateResults);
+    // an image's picture is read on a thread the first time it is asked for
+    connect(KisRecentFileIconCache::instance(), &KisRecentFileIconCache::fileIconChanged, this, [this](const QUrl &url, const QIcon &icon) {
+        const QString key = QStringLiteral("image:") + url.toLocalFile();
+        for (Entry &entry : d->entries) {
+            if (entry.key == key) entry.icon = icon;
+        }
+        for (int row = 0; row < d->model->rowCount(); row++) {
+            QStandardItem *item = d->model->item(row);
+            const int index = item->data(EntryRole).toInt();
+            if (!item->data(HeaderRole).toBool() && index >= 0 && index < d->entries.size() && d->entries[index].key == key) item->setIcon(icon);
+        }
+    });
     connect(d->list, &QListView::clicked, this, [this](const QModelIndex &index) { runRow(index.row()); });
     connect(d->list, &QListView::entered, this, [this](const QModelIndex &index) {
         if (!index.data(HeaderRole).toBool()) {
@@ -991,17 +1034,48 @@ void KisStudioFind::rebuildIndex()
                            }});
     }
 
-    // layers of the current image
-    d->layerActions.reset();
+    // layers of the current image, each with its picture and the groups it is in
     if (viewManager && mainWindow->activeView() && mainWindow->activeView()->image()) {
-        d->layerActions.reset(new KisKActionCollection(nullptr, QStringLiteral("studiofindlayers")));
-        KisNodeActivationActionCreatorVisitor visitor(d->layerActions.data(), viewManager->nodeManager());
-        mainWindow->activeView()->image()->rootLayer()->accept(visitor);
-        Q_FOREACH (QAction *action, d->layerActions->actions()) {
-            QPointer<QAction> target = action;
-            d->entries.append({QString(), Kind::Layer, plainText(action->text()), QString(), QStringLiteral("layer"),
-                               QString(), KisIconUtils::loadIcon(QStringLiteral("all-layers")),
-                               [target]() { if (target) target->trigger(); }});
+        KisNodeSP root = mainWindow->activeView()->image()->rootLayer();
+        QPointer<KisNodeManager> nodes = viewManager->nodeManager();
+        KisLayerUtils::recursiveApplyNodes(root, [this, root, nodes](KisNodeSP node) {
+            if (node == root) return;
+            QStringList groups;
+            for (KisNodeSP parent = node->parent(); parent && parent != root; parent = parent->parent()) groups.prepend(parent->name());
+            KisNodeWSP target = node;
+            Entry entry{QString(), Kind::Layer, node->name(), groups.join(QStringLiteral(" › ")), QStringLiteral("layer"),
+                        QString(), QIcon(),
+                        [target, nodes]() {
+                            if (target && nodes) nodes->slotNonUiActivatedNode(KisNodeSP(target));
+                        }};
+            entry.picture = true;
+            entry.makeIcon = [target]() {
+                return target ? QIcon(QPixmap::fromImage(KisNodeSP(target)->createThumbnail(80, 80, Qt::KeepAspectRatio))) : QIcon();
+            };
+            d->entries.append(entry);
+        });
+    }
+
+    // recent images, ranked by how recently each was opened; their pictures come from the start page's cache
+    {
+        const QList<QUrl> recent = KisRecentFilesManager::instance()->recentUrlsLatestFirst();
+        QString open;
+        if (mainWindow->activeView() && mainWindow->activeView()->document()) open = mainWindow->activeView()->document()->localFilePath();
+        QPointer<KisMainWindow> window = mainWindow;
+        for (int i = 0; i < recent.size(); i++) {
+            const QUrl url = recent[i];
+            const QString path = url.toLocalFile();
+            if (path.isEmpty() || path == open) continue;
+            const QFileInfo info(path);
+            Entry entry{QStringLiteral("image:") + path, Kind::Image, info.completeBaseName(), info.dir().dirName(),
+                        QStringLiteral("image file document open recent"), QString(), QIcon(),
+                        [window, path]() {
+                            if (window) window->openDocument(path, KisMainWindow::None);
+                        }};
+            entry.picture = true;
+            entry.bias = 4.0 * (1.0 - qreal(i) / recent.size());
+            entry.makeIcon = [url]() { return KisRecentFileIconCache::instance()->getOrQueueFileIcon(url); };
+            d->entries.append(entry);
         }
     }
 
@@ -1046,6 +1120,7 @@ void KisStudioFind::appendResult(int index, const QString &detail)
     item->setData(entry.shortcut, ShortcutRole);
     item->setData(!d->picker && entry.action && !entry.action->objectName().isEmpty(), ShortcutEditableRole);
     item->setData(index, EntryRole);
+    item->setData(entry.picture, PictureRole);
     const bool pinnable = !d->picker && d->isOnTools && !entry.key.isEmpty()
         && (entry.kind == Kind::Tool || entry.kind == Kind::Command || entry.kind == Kind::Effect
             || entry.kind == Kind::Panel || entry.kind == Kind::Brush);
@@ -1152,7 +1227,7 @@ void KisStudioFind::updateCommands(const QString &query)
                 }
             }
             if (score >= 0.0 || loose) {
-                scored.append({score + d->frecency(entry.key) + kindBias(entry.kind), i});
+                scored.append({score + d->frecency(entry.key) + kindBias(entry.kind) + entry.bias, i});
             }
         }
         std::stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
@@ -1339,7 +1414,8 @@ void KisStudioFind::updateResults()
         }
         if (query.isEmpty()) {
             const qreal used = frecency();
-            if (used > 0.0) {
+            // images have rows of their own
+            if (used > 0.0 && entry.kind != Kind::Image) {
                 scored.append({i, used});
             }
             continue;
@@ -1361,7 +1437,7 @@ void KisStudioFind::updateResults()
             }
             total = ranked(KeywordMatch, 0.0, query);
         }
-        scored.append({i, total + frecency() + kindBias(entry.kind)});
+        scored.append({i, total + frecency() + kindBias(entry.kind) + entry.bias});
     }
 
     // with few predictable matches, add typo-tolerant fuzzy ones (not for one or two letters, which match almost anything)
@@ -1392,6 +1468,15 @@ void KisStudioFind::updateResults()
             Q_FOREACH (const Scored &s, scored) {
                 appendResult(s.entry, kindTitle(d->entries[s.entry].kind));
             }
+        }
+        // the images opened last, to go back to one
+        QVector<int> images;
+        for (int i = 0; i < d->entries.size() && images.size() < 4; i++) {
+            if (d->entries[i].kind == Kind::Image) images << i;
+        }
+        if (!images.isEmpty()) {
+            appendHeader(kindTitle(Kind::Image));
+            Q_FOREACH (int index, images) appendResult(index, d->entries[index].detail);
         }
         QVector<int> document;
         for (const char *name : {"file_new", "file_open", "file_save", "file_save_as", "file_export_file",

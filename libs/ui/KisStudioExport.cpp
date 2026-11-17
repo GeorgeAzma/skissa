@@ -7,6 +7,8 @@
 #include "KisStudioExport.h"
 
 #include <QBuffer>
+#include <QCheckBox>
+#include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -33,6 +35,9 @@
 #include <KisImportExportFilter.h>
 #include <KisImportExportManager.h>
 #include <KisMainWindow.h>
+#include <KisPart.h>
+#include <KisViewManager.h>
+#include <kis_floating_message.h>
 #include <KisModernStyle.h>
 #include <KisView.h>
 #include <KoFileDialog.h>
@@ -103,7 +108,131 @@ bool canEncode(const Format &format)
     return QImageWriter::supportedImageFormats().contains(QByteArray(format.qtFormat));
 }
 
+/**
+ * An image exported again each time it is saved: the image, the exported file, its format and settings, and the
+ * exported file's time and size as the last export left them. A file changed since by anything else is left alone.
+ */
+struct Link {
+    QString document;
+    QString target;
+    QString mime;
+    QString settings;
+    qint64 time {0};
+    qint64 size {-1};
+};
+
+const QString linksKey = QStringLiteral("StudioExportOnSave");
+
+QVector<Link> links()
+{
+    QVector<Link> all;
+    Q_FOREACH (const QString &line, KisConfig(true).readEntry<QStringList>(linksKey, QStringList())) {
+        const QStringList parts = line.split(QLatin1Char('\t'));
+        if (parts.size() < 6) continue;
+        all.append({parts[0], parts[1], parts[2], QString::fromUtf8(QByteArray::fromBase64(parts[3].toLatin1())),
+                    parts[4].toLongLong(), parts[5].toLongLong()});
+    }
+    return all;
+}
+
+void setLinks(const QVector<Link> &all)
+{
+    QStringList lines;
+    for (const Link &link : all) {
+        lines << QStringList{link.document, link.target, link.mime, QString::fromLatin1(link.settings.toUtf8().toBase64()),
+                             QString::number(link.time), QString::number(link.size)}
+                     .join(QLatin1Char('\t'));
+    }
+    KisSettingsRegistry::writeLater(linksKey, lines);
+}
+
+/// The same file however its path is written
+bool sameFile(const QString &a, const QString &b)
+{
+    if (a.isEmpty() || b.isEmpty()) return false;
+#ifdef Q_OS_WIN
+    const Qt::CaseSensitivity sensitivity = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
+#endif
+    return QDir::cleanPath(QFileInfo(a).absoluteFilePath()).compare(QDir::cleanPath(QFileInfo(b).absoluteFilePath()), sensitivity) == 0;
+}
+
+int linkOf(const QVector<Link> &all, const QString &document)
+{
+    for (int i = 0; i < all.size(); i++) {
+        if (sameFile(all[i].document, document)) return i;
+    }
+    return -1;
+}
+
+void tell(KisDocument *document, const QString &message)
+{
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    if (window && window->viewManager() && window->activeView() && window->activeView()->document() == document) {
+        window->viewManager()->showFloatingMessage(message, QIcon(), 2500, KisFloatingMessage::Low);
+    }
+}
+
+/// Exports \p link's file again; a save still finishing holds the image a moment, so it tries again
+void exportAgain(QPointer<KisDocument> document, const Link &link, int tries = 10)
+{
+    if (!document) return;
+    KisPropertiesConfigurationSP settings = new KisPropertiesConfiguration();
+    settings->fromXML(link.settings);
+    settings->setProperty(chosenTag, true);
+    if (document->exportDocument(link.target, link.mime.toLatin1(), false, false, settings)) {
+        tell(document, i18nc("@info floating message, %1 a file name", "Exported %1 too", QFileInfo(link.target).fileName()));
+    } else if (tries > 0) {
+        QTimer::singleShot(300, document.data(), [document, link, tries]() { exportAgain(document, link, tries - 1); });
+    }
+}
+
+/// After a save, its linked export; after that export, the file as it left it
+void savingFinished(KisDocument *document, const QString &path)
+{
+    QVector<Link> all = links();
+    for (int i = 0; i < all.size(); i++) {
+        Link &link = all[i];
+        if (sameFile(path, link.target)) {
+            const QFileInfo file(link.target);
+            link.time = file.lastModified().toMSecsSinceEpoch();
+            link.size = file.size();
+            setLinks(all);
+            return;
+        }
+    }
+    const int index = linkOf(all, document->path());
+    if (index < 0 || !sameFile(path, document->path())) return;
+    const Link link = all[index];
+    const QFileInfo file(link.target);
+    if (file.exists() && (file.lastModified().toMSecsSinceEpoch() != link.time || file.size() != link.size)) {
+        // changed by something else since: never written over; exporting again is the user's to ask
+        all.remove(index);
+        setLinks(all);
+        tell(document, i18nc("@info floating message, %1 a file name", "%1 was changed elsewhere, so it wasn't exported again", file.fileName()));
+        return;
+    }
+    exportAgain(document, link);
+}
+
+void watch(KisDocument *document)
+{
+    if (!document || document->property("skissaExportWatched").toBool()) return;
+    document->setProperty("skissaExportWatched", true);
+    QObject::connect(document, &KisDocument::sigSavingFinished, document, [document](const QString &path) { savingFinished(document, path); });
+}
+
 } // namespace
+
+void KisStudioExport::watchSaves()
+{
+    static bool watching = false;
+    if (watching) return;
+    watching = true;
+    Q_FOREACH (QPointer<KisDocument> document, KisPart::instance()->documents()) watch(document);
+    QObject::connect(KisPart::instance(), &KisPart::sigDocumentAdded, KisPart::instance(), &watch);
+}
 
 struct KisStudioExport::Private {
     QPointer<KisMainWindow> window;
@@ -119,6 +248,7 @@ struct KisStudioExport::Private {
     QVector<QImage> pictures;
     KisStudioChips *tiles {nullptr};
     KisStudioValueRow *qualityRow {nullptr};
+    QCheckBox *onSave {nullptr};
     QTimer measureLater;
     /// The lossless file measured at the image's own depth (16-bit PNG for a deeper image): not measured again
     bool losslessMeasured {false};
@@ -204,8 +334,12 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
         const KisPropertiesConfigurationSP last = cfg.exportConfiguration(formats()[i].mime);
         d->quality << qBound(1, qRound(last ? last->getDouble("quality", formats()[i].defaultQuality) : formats()[i].defaultQuality), 100);
     }
+    // an image exported on each save opens on the format it is exported as
+    const QVector<Link> all = links();
+    const int linked = d->document->path().isEmpty() ? -1 : linkOf(all, d->document->path());
+    const QString chosen = linked >= 0 ? all[linked].mime : cfg.readEntry<QString>(formatKey, QString());
     for (int i = 0; i < count; i++) {
-        if (formats()[i].mime == cfg.readEntry<QString>(formatKey, QString())) d->current = i;
+        if (formats()[i].mime == chosen) d->current = i;
     }
 
     auto *layout = new QVBoxLayout(this);
@@ -272,6 +406,24 @@ KisStudioExport::KisStudioExport(KisMainWindow *window)
     d->measureLater.setSingleShot(true);
     d->measureLater.setInterval(250);
     connect(&d->measureLater, &QTimer::timeout, this, [this]() { measure(d->current); });
+
+    // an image saved as .kra only: the link is kept by its file, and a picture saved as itself is already its export
+    d->onSave = new QCheckBox(i18nc("@option:check export sheet", "Export again on each save"), this);
+    d->onSave->setFocusPolicy(Qt::NoFocus);
+    d->onSave->setChecked(linked >= 0);
+    const bool native = !d->document->path().isEmpty() && d->document->mimeType() == QByteArrayLiteral("application/x-krita");
+    d->onSave->setVisible(native || linked >= 0);
+    if (linked >= 0) d->onSave->setToolTip(all[linked].target);
+    connect(d->onSave, &QCheckBox::toggled, this, [this](bool on) {
+        if (on) return;
+        // off at once; on only once exported, which says where
+        QVector<Link> all = links();
+        const int index = linkOf(all, d->document->path());
+        if (index < 0) return;
+        all.remove(index);
+        setLinks(all);
+    });
+    layout->addWidget(d->onSave);
 
     auto *buttons = new QHBoxLayout();
     buttons->setSpacing(KisModernStyle::space2);
@@ -356,11 +508,12 @@ void KisStudioExport::exportNow()
 {
     const Format format = formats()[d->current];
     const int quality = d->quality[d->current];
+    const bool onSave = d->onSave->isChecked() && !d->onSave->isHidden();
     QPointer<KisMainWindow> window = d->window;
     QPointer<KisDocument> document = d->document;
     close();
     // asked where once the sheet is gone: the file dialog is a window of its own
-    QTimer::singleShot(0, window.data(), [window, document, format, quality]() {
+    QTimer::singleShot(0, window.data(), [window, document, format, quality, onSave]() {
         if (!window || !document) return;
         KisConfig cfg(true);
         QString folder = cfg.readEntry<QString>(folderKey, QString());
@@ -391,6 +544,14 @@ void KisStudioExport::exportNow()
             }
         }
         settings->setProperty(chosenTag, true);
+        QVector<Link> all = links();
+        const int index = linkOf(all, document->path());
+        if (index >= 0) all.remove(index);
+        if (onSave) {
+            // its time and size are taken once the export is written
+            all.append({document->path(), path, format.mime, settings->toXML(), 0, -1});
+        }
+        setLinks(all);
         document->exportDocument(path, format.mime.toLatin1(), false, false, settings);
     });
 }

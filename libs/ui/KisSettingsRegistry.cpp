@@ -438,6 +438,7 @@ QVector<Setting> describeAll()
         all << itemList(QStringLiteral("StudioPinnedPatterns"), i18nc("setting", "Favorite patterns"));
         all << itemList(KisResourceOrder::tagsKey, i18nc("setting", "Tag order"));
         all << itemList(KisResourceOrder::resourcesKey, i18nc("setting", "Order in tags"));
+        all << itemList(KisResourceOrder::allNameKey, i18nc("setting", "Name of the tag of all"));
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };
@@ -1081,7 +1082,10 @@ KisSettingsRegistry::KisSettingsRegistry()
     // the order tags and brushes were dragged into: steps of the undo history
     KisResourceOrder::setWriter([](const QString &key, const QStringList &items) { writeList(key, items); });
     connect(this, &KisSettingsRegistry::valueChanged, this, [this](const QString &id) {
-        if (replaying() && (id == KisResourceOrder::tagsKey || id == KisResourceOrder::resourcesKey)) KisResourceOrder::noteChanged();
+        if (replaying() && (id == KisResourceOrder::tagsKey || id == KisResourceOrder::resourcesKey
+                            || id == KisResourceOrder::allNameKey)) {
+            KisResourceOrder::noteChanged();
+        }
     });
 }
 

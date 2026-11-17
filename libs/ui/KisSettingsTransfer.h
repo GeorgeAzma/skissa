@@ -67,6 +67,20 @@ KRITAUI_EXPORT int takeKritaResources(QString *error);
 KRITAUI_EXPORT int takeKritaTags();
 /// Does what takeKritaTags() left for the next start, once the resources are read
 KRITAUI_EXPORT void takePendingKritaTags();
+/// Everything the user made here in one zip at \p path: settings, what they arranged, shortcuts, resources and tags
+KRITAUI_EXPORT bool backUp(const QString &path, QString *error);
+/// The changes restoring the backup (or settings file) at \p path would make to the settings
+KRITAUI_EXPORT Plan planRestore(const QString &path);
+/// Copies the backup's resources that aren't here and tags them as in the backup; what waits for the files is done at
+/// the next start. How many files, or -1 when it isn't a backup
+KRITAUI_EXPORT int restoreResources(const QString &path, QString *error);
+/// Where a backup is made each day, or empty for none
+KRITAUI_EXPORT QString backupFolder();
+KRITAUI_EXPORT void setBackupFolder(const QString &folder);
+/// Today's backup's file name
+KRITAUI_EXPORT QString backupFileName();
+/// The day's backup into backupFolder(), if it isn't there yet; the newest few are kept
+KRITAUI_EXPORT void backUpDaily();
 /// Once per profile: the tags that came with the resources are put away, so the user starts from their own
 KRITAUI_EXPORT void startWithoutTags();
 /// Once per profile: Skissa's brush set is the one listed, the other brushes put away (the user's own kept)

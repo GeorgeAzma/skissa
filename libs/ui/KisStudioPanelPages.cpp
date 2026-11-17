@@ -14,6 +14,9 @@
 #include <QEvent>
 #include <QLabel>
 #include <QListView>
+#include <QCursor>
+#include <QMenu>
+#include <QSharedPointer>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
@@ -35,7 +38,11 @@
 #include <kis_icon_utils.h>
 
 #include "KisMainWindow.h"
+#include "KisDocument.h"
 #include "KisPart.h"
+#include "KisView.h"
+#include "kundo2stack.h"
+#include "widgets/KisStudioHistoryScrubber.h"
 #include "widgets/KisStudioColorField.h"
 #include "widgets/KisStudioValueRow.h"
 
@@ -296,84 +303,129 @@ std::function<void()> animationTitleBar(QDockWidget *dock)
     };
 }
 
-/// History with the snapshots under it: a snapshot is a point of the history kept to go back to
+/// Where each snapshot was kept in the history: after which step, of which image's history
+struct KeptAt {
+    const void *stack {nullptr};
+    const KUndo2Command *after {nullptr}; ///< none: the image as opened (or as the snapshot gone back to)
+    bool gone {false};                    ///< its history is no more (another snapshot was gone back to)
+};
+
+KUndo2Stack *currentHistory()
+{
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    KisView *view = window ? window->activeView() : nullptr;
+    return view && view->document() ? view->document()->undoStack() : nullptr;
+}
+
+/// History as a line to drag along, with the snapshots on it: a snapshot is a point of the history kept to go back to
 std::function<void()> historyPage(QDockWidget *history)
 {
-    QWidget *steps = history->widget();
+    auto *steps = qobject_cast<QAbstractItemView *>(history->widget());
     QWidget *window = history->window();
     QDockWidget *snapshots = window ? window->findChild<QDockWidget *>(QStringLiteral("Snapshot")) : nullptr;
     QWidget *theirs = snapshots ? snapshots->widget() : nullptr;
     auto *list = theirs ? theirs->findChild<QListView *>() : nullptr;
-    auto *theirLayout = theirs ? qobject_cast<QBoxLayout *>(theirs->layout()) : nullptr;
     // Krita's add, switch to and remove, in that order
     const QList<QToolButton *> buttons = theirs ? theirs->findChildren<QToolButton *>() : QList<QToolButton *>();
-    if (!steps || !list || !theirLayout || buttons.size() < 3) return {};
+    if (!steps || !list || !list->model() || buttons.size() < 3) return {};
     QPointer<QToolButton> add = buttons[0];
     QPointer<QToolButton> switchTo = buttons[1];
     QPointer<QToolButton> remove = buttons[2];
+    QPointer<QListView> kept = list;
 
     auto *merged = new QWidget;
     auto *box = new QVBoxLayout(merged);
     box->setContentsMargins(0, 0, 0, 0);
     box->setSpacing(KisModernStyle::space1);
-    box->addWidget(steps, 1);
-    box->addWidget(list);
-
     auto *row = new QHBoxLayout;
     row->setContentsMargins(0, 0, 0, 0);
     row->setSpacing(KisModernStyle::space1);
-    auto button = [merged, row](const char *icon, const QString &text, bool named) {
-        auto *made = new QToolButton(merged);
-        made->setAutoRaise(true);
-        made->setFocusPolicy(Qt::NoFocus);
-        made->setIcon(KisIconUtils::loadIcon(QLatin1String(icon)));
-        made->setIconSize(QSize(18, 18));
-        if (named) {
-            made->setText(text);
-            made->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        } else {
-            made->setToolTip(text);
-        }
-        row->addWidget(made);
-        return made;
-    };
-    QToolButton *snap = button("studio_snapshots", i18nc("history panel: keep the image as it is now, to go back to", "Snapshot"), true);
-    snap->setToolTip(i18nc("@info:tooltip", "A copy of the image to come back to"));
-    row->addStretch(1);
-    QToolButton *back = button("studio_undo", i18nc("@info:tooltip history panel", "Go back to this snapshot"), false);
-    QToolButton *drop = button("studio_delete", i18nc("@info:tooltip history panel", "Delete snapshot"), false);
+    auto *scrubber = new KisStudioHistoryScrubber(steps, merged);
+    row->addWidget(scrubber, 1);
+    auto *snap = new QToolButton(merged);
+    snap->setAutoRaise(true);
+    snap->setFocusPolicy(Qt::NoFocus);
+    snap->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_snapshots")));
+    snap->setIconSize(QSize(18, 18));
+    snap->setToolTip(i18nc("@info:tooltip history panel", "Snapshot: a copy of the image to come back to"));
+    row->addWidget(snap);
     box->addLayout(row);
-    QObject::connect(snap, &QToolButton::clicked, merged, [add]() {
+    box->addWidget(steps, 1);
+
+    auto places = QSharedPointer<QHash<QString, KeptAt>>::create();
+    QPointer<KisStudioHistoryScrubber> line = scrubber;
+    auto nameOf = [kept](int row) { return kept ? kept->model()->index(row, 0).data(Qt::DisplayRole).toString() : QString(); };
+    // set once the marks' refresh is made below; going back needs it
+    auto refreshMarks = QSharedPointer<std::function<void()>>::create();
+    QWeakPointer<std::function<void()>> marksLater = refreshMarks;
+    auto goBack = [kept, switchTo, places, nameOf, marksLater](int row) {
+        if (!kept || !switchTo) return;
+        kept->setCurrentIndex(kept->model()->index(row, 0));
+        switchTo->click();
+        // the history starts again from it; the others' histories are gone
+        KUndo2Stack *stack = currentHistory();
+        for (auto it = places->begin(); it != places->end(); ++it) {
+            if (it->stack == stack) it->gone = true;
+        }
+        (*places)[nameOf(row)] = {stack, nullptr, false};
+        if (const auto refreshNow = marksLater.toStrongRef()) (*refreshNow)();
+    };
+    auto drop = [kept, remove](int row) {
+        if (!kept || !remove) return;
+        kept->setCurrentIndex(kept->model()->index(row, 0));
+        remove->click();
+    };
+    // each snapshot on the step it was kept after, or before the line when that history is gone
+    auto refresh = [line, kept, places, nameOf, goBack, drop]() {
+        if (!line || !kept) return;
+        KUndo2Stack *stack = currentHistory();
+        QVector<KisStudioHistoryScrubber::Mark> marks;
+        for (int row = 0; row < kept->model()->rowCount(); row++) {
+            const QString name = nameOf(row);
+            const KeptAt place = places->value(name);
+            int step = -1;
+            if (stack && place.stack == stack && !place.gone) {
+                if (!place.after) step = 0;
+                for (int i = 0; place.after && i < stack->count(); i++) {
+                    if (stack->command(i) == place.after) step = i + 1;
+                }
+            }
+            marks.append({step, name});
+        }
+        line->setMarks(marks, [goBack, drop, kept](int mark, bool menu) {
+            if (!menu) {
+                goBack(mark);
+                return;
+            }
+            QMenu choices;
+            QAction *back = choices.addAction(KisIconUtils::loadIcon(QStringLiteral("studio_undo")),
+                                              i18nc("@action history panel", "Go back to this snapshot"));
+            QAction *forget = choices.addAction(KisIconUtils::loadIcon(QStringLiteral("studio_delete")),
+                                                i18nc("@action history panel", "Delete snapshot"));
+            QAction *chosen = choices.exec(QCursor::pos());
+            if (chosen == back) goBack(mark);
+            else if (chosen == forget) drop(mark);
+        });
+    };
+    *refreshMarks = refresh;
+    // held as long as the page is
+    QObject::connect(snap, &QToolButton::clicked, merged, [add, refreshMarks]() {
         if (add) add->click();
     });
-    QObject::connect(back, &QToolButton::clicked, merged, [switchTo]() {
-        if (switchTo) switchTo->click();
+    QAbstractItemModel *keptModel = list->model();
+    QObject::connect(keptModel, &QAbstractItemModel::rowsInserted, merged, [places, nameOf, refresh](const QModelIndex &, int, int last) {
+        KUndo2Stack *stack = currentHistory();
+        const int done = stack ? stack->index() : 0;
+        (*places)[nameOf(last)] = {stack, done > 0 ? stack->command(done - 1) : nullptr, false};
+        refresh();
     });
-    QObject::connect(drop, &QToolButton::clicked, merged, [remove]() {
-        if (remove) remove->click();
-    });
-
-    // the list as tall as its snapshots, up to four, and gone with none; going back and deleting need one chosen
-    QPointer<QListView> view = list;
-    auto fit = [view, back, drop]() {
-        if (!view || !view->model()) return;
-        const int rows = view->model()->rowCount();
-        view->setVisible(rows > 0);
-        if (rows > 0) view->setFixedHeight(qMin(rows, 4) * view->sizeHintForRow(0) + 2 * view->frameWidth());
-        const bool chosen = view->selectionModel() && view->selectionModel()->hasSelection();
-        back->setVisible(chosen);
-        drop->setVisible(chosen);
-    };
-    if (QAbstractItemModel *model = list->model()) {
-        QObject::connect(model, &QAbstractItemModel::rowsInserted, merged, fit);
-        QObject::connect(model, &QAbstractItemModel::rowsRemoved, merged, fit);
-        QObject::connect(model, &QAbstractItemModel::modelReset, merged, fit);
-        QObject::connect(model, &QAbstractItemModel::rowsInserted, merged, [view](const QModelIndex &, int, int last) {
-            if (view) view->setCurrentIndex(view->model()->index(last, 0));
-        });
+    for (QAbstractItemModel *model : {keptModel, steps->model()}) {
+        QObject::connect(model, &QAbstractItemModel::rowsRemoved, merged, refresh);
+        QObject::connect(model, &QAbstractItemModel::modelReset, merged, refresh);
+        QObject::connect(model, &QAbstractItemModel::layoutChanged, merged, refresh);
     }
-    if (list->selectionModel()) QObject::connect(list->selectionModel(), &QItemSelectionModel::selectionChanged, merged, fit);
-    fit();
+    QObject::connect(steps->model(), &QAbstractItemModel::rowsInserted, merged, refresh);
+    refresh();
 
     const bool shown = !history->isHidden();
     history->setWidget(merged);
@@ -382,14 +434,7 @@ std::function<void()> historyPage(QDockWidget *history)
     QPointer<QDockWidget> historyDock = history;
     QPointer<QWidget> stepsList = steps;
     QPointer<QWidget> mergedPage = merged;
-    QPointer<QBoxLayout> listHome = theirLayout;
-    return [historyDock, stepsList, mergedPage, view, listHome]() {
-        if (view) {
-            view->setMinimumHeight(0);
-            view->setMaximumHeight(QWIDGETSIZE_MAX);
-            view->show();
-            if (listHome) listHome->insertWidget(0, view);
-        }
+    return [historyDock, stepsList, mergedPage]() {
         if (historyDock && stepsList) {
             historyDock->setWidget(stepsList);
             stepsList->show();
