@@ -246,6 +246,29 @@ ICONS = {
     'mirror_view': solid('M10 6.5 3.5 12l6.5 5.5Z') + solid('M14 6.5l6.5 5.5-6.5 5.5Z'),
     'tool_options': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + c(7, 8.5, 2) + c(12, 15.5, 2) + c(17, 11.5, 2),
 
+    # frames in a row and the playhead over them
+    'timeline': sq(3.5, 9.5, 17, 10, 2.2) + p('M8 9.5v10M16 9.5v10') + p('M12 6v15') + '<path d="M9.5 3h5L12 6Z" fill="INK"/>',
+    # a value moving between keys
+    'anim_curves': p('M3.5 18.5C8 18.5 8.5 6 12 6s4 12.5 8.5 12.5') + dot(3.5, 18.5, 1.6) + dot(12, 6, 1.6) + dot(20.5, 18.5, 1.6),
+    # the frame before, as a ghost
+    'onion': dashed(c(9, 12, 5.5), '2.2 2.2') + c(15, 12, 5.5),
+    'storyboard': sq(3.5, 4, 8, 6, 1.5) + p('M14.5 5.5h6M14.5 8.5h4') + sq(3.5, 14, 8, 6, 1.5) + p('M14.5 15.5h6M14.5 18.5h4'),
+    'arrange': p('M4 3.5v17') + sq(7.5, 6, 13, 4, 1.2) + sq(7.5, 14, 8.5, 4, 1.2),
+    'channels': c(12, 8.5, 5) + c(8.5, 15, 5) + c(15.5, 15, 5),
+    # saved looks of the layers: cards one on another
+    'compositions': p('M7.5 8.5V6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2.5') + sq(3.5, 8.5, 12, 12, 2),
+    'grid': sq(3.5, 3.5, 17, 17, 2.6) + p('M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17'),
+    'histogram': p('M3.5 20.5h17') + p('M6.5 20.5v-5M10 20.5v-10M13.5 20.5V6M17 20.5v-8'),
+    # the screen, half of it the colors as seen through the display's transform
+    'lut': sq(3.5, 4.5, 17, 12, 2) + p('M9 20.5h6M12 16.5v4') + '<path d="M12 4.5h6.5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H12Z" fill="INK" stroke="none"/>',
+    # the whole picture and the part in view
+    'overview': sq(3.5, 4.5, 17, 15, 2.4) + sq(8, 8.5, 8, 7, 1),
+    # a tile repeated
+    'patterns': ''.join(p('M%s %sl3.6 3.6-3.6 3.6-3.6-3.6Z' % (f(x), f(y - 3.6))) for x, y in ((7.6, 7.6), (16.4, 7.6), (7.6, 16.4), (16.4, 16.4))),
+    'snapshots': sq(3.5, 7, 17, 13, 2.4) + p('M8.5 7 10 4.5h4L15.5 7') + c(12, 13.5, 3.5),
+    'symbols': p('M12 4c4.7 0 8.5 3 8.5 6.8s-3.8 6.7-8.5 6.7c-1 0-2-.1-2.9-.4L4.5 19.5l1.4-3.9C4.4 14.4 3.5 12.7 3.5 10.8 3.5 7 7.3 4 12 4Z'),
+    'text_properties': p('M3.5 18.5 8.5 5.5h1l5 13M5.4 14h7.2') + p('M17 9.5h3.5M17 14h3.5M17 18.5h3.5'),
+
     # ---- the panels, shown (see KisIconUtils: a button's On state)
     'layers_on': (solid('M12 3.5 20.5 8 12 12.5 3.5 8Z') + p('M3.5 12 12 16.5 20.5 12') + p('M3.5 16 12 20.5 20.5 16')),
     'color_on': solid('M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.8-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3Z'

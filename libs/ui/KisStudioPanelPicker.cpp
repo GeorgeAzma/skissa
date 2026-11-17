@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QLayout>
 #include <QSet>
 #include <QStandardPaths>
 #include <QtConcurrent>
@@ -195,6 +196,10 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
         }
         painter.restore();
     };
+    source.icon = [icon = rail.icon, docks](const QString &id) {
+        QDockWidget *dock = docks().value(id);
+        return dock && icon ? icon(dock) : QIcon();
+    };
     source.tiles = true;
     source.tileSize = tileSize;
     source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
@@ -206,16 +211,43 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
 
 bool KisStudioPanelPicker::isRetired(const QString &panelId)
 {
-    // the panels the Studio covers otherwise are not built; the toolbox stays for the classic layout
-    return panelId == QLatin1String("ToolBox");
+    // the panels the Studio covers otherwise are not built; the toolbox stays for the classic layout, and Krita's color
+    // selectors, mixer, gamut masks (theirs), brush settings panel and shape arranging (its commands are in Find)
+    static const QSet<QString> retired = {QStringLiteral("ToolBox"), QStringLiteral("ColorSelectorNg"), QStringLiteral("WideGamutColorSelector"),
+                                          QStringLiteral("DigitalMixer"), QStringLiteral("GamutMask"), QStringLiteral("BrushHudDocker"),
+                                          QStringLiteral("ArrangeDocker")};
+    return retired.contains(panelId);
 }
 
 KisStudioPanelPicker::KisStudioPanelPicker(KisMainWindow *mainWindow, const Rail &rail)
     : KisStudioPicker(panelsSource(mainWindow, rail), QString(), QSet<QString>(), mainWindow)
 {
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
-        if (dock->isVisible()) rememberLook(dock);
+        if (dock->isVisible()) {
+            rememberLook(dock);
+        } else if (!isRetired(dock->objectName()) && Looks::instance().look(dock->objectName()).isNull()) {
+            drawUnseen(dock);
+        }
     }
+}
+
+void KisStudioPanelPicker::drawUnseen(QDockWidget *dock)
+{
+    // a panel never shown: laid out at a panel's size, drawn, and given its own size back
+    QWidget *content = dock->widget();
+    if (!content) return;
+    const QSize before = content->size();
+    const QSize size = content->sizeHint().expandedTo(QSize(240, 160)).boundedTo(QSize(360, 420));
+    content->ensurePolished();
+    content->resize(size);
+    if (content->layout()) content->layout()->activate();
+    const qreal ratio = devicePixelRatioF();
+    QImage image(size * ratio, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(ratio);
+    image.fill(content->palette().color(QPalette::Window));
+    content->render(&image, QPoint(), QRegion(), QWidget::DrawChildren);
+    content->resize(before);
+    Looks::instance().keep(dock->objectName(), image);
 }
 
 void KisStudioPanelPicker::rememberLook(QDockWidget *dock)

@@ -39,6 +39,10 @@ public:
 
     /// Takes a snapshot of \p dock; call while it is on screen.
     static void rememberLook(QDockWidget *dock);
+
+private:
+    /// Takes a snapshot of \p dock never shown yet, drawn off screen
+    void drawUnseen(QDockWidget *dock);
 };
 
 #endif // KISSTUDIOPANELPICKER_H

@@ -470,7 +470,13 @@ protected:
             painter.setFont(font());
             painter.setPen(enabled ? pal.color(QPalette::WindowText) : dim);
             if (tiles) {
-                const QRect text(item.rect.left() + 8, preview.bottom() + 2, item.rect.width() - 16, item.rect.bottom() - preview.bottom() - 4);
+                QRect text(item.rect.left() + 8, preview.bottom() + 2, item.rect.width() - 16, item.rect.bottom() - preview.bottom() - 4);
+                const QIcon icon = m_d->source.icon ? m_d->source.icon(item.id) : QIcon();
+                if (!icon.isNull()) {
+                    const int side = 16;
+                    icon.paint(&painter, QRect(text.left(), text.center().y() - side / 2 + 1, side, side), Qt::AlignCenter, enabled ? QIcon::Normal : QIcon::Disabled);
+                    text.setLeft(text.left() + side + KisModernStyle::space1 + KisModernStyle::hairline);
+                }
                 // a long name a little smaller, on two lines: cut short, "Emboss horizontal only" and "Emboss horizontal &
                 // vertical" looked the same
                 if (painter.fontMetrics().horizontalAdvance(item.name) <= text.width()) {

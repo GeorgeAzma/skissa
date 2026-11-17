@@ -11,6 +11,7 @@
 #include <KisResourceItemChooser.h>
 #include "KisColorDrop.h"
 
+#include <memory>
 #include <QScopedValueRollback>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -44,6 +45,7 @@
 #include <QPainterPath>
 #include <QPointer>
 #include <QScrollArea>
+#include <QLabel>
 #include <QScrollBar>
 #include <QSet>
 #include <QStatusBar>
@@ -247,6 +249,21 @@ QString railIconName(const QString &id)
         {QStringLiteral("History"), QStringLiteral("studio_history")},
         {QStringLiteral("RecorderDocker"), QStringLiteral("studio_timelapse")},
         {QStringLiteral("StudioControls"), QStringLiteral("studio_controls")},
+        {QStringLiteral("TimelineDocker"), QStringLiteral("studio_timeline")},
+        {QStringLiteral("AnimationCurvesDocker"), QStringLiteral("studio_anim_curves")},
+        {QStringLiteral("OnionSkinsDocker"), QStringLiteral("studio_onion")},
+        {QStringLiteral("StoryboardDocker"), QStringLiteral("studio_storyboard")},
+        {QStringLiteral("ArrangeDocker"), QStringLiteral("studio_arrange")},
+        {QStringLiteral("ChannelDocker"), QStringLiteral("studio_channels")},
+        {QStringLiteral("CompositionDocker"), QStringLiteral("studio_compositions")},
+        {QStringLiteral("GridDocker"), QStringLiteral("studio_grid")},
+        {QStringLiteral("HistogramDocker"), QStringLiteral("studio_histogram")},
+        {QStringLiteral("LutDocker"), QStringLiteral("studio_lut")},
+        {QStringLiteral("OverviewDocker"), QStringLiteral("studio_overview")},
+        {QStringLiteral("PatternDocker"), QStringLiteral("studio_patterns")},
+        {QStringLiteral("Snapshot"), QStringLiteral("studio_snapshots")},
+        {QStringLiteral("SvgSymbolCollectionDocker"), QStringLiteral("studio_symbols")},
+        {QStringLiteral("TextProperties"), QStringLiteral("studio_text_properties")},
     };
     return icons.value(id);
 }
@@ -3248,8 +3265,27 @@ void KisStudioLayout::enter()
 
     Q_FOREACH (QDockWidget *dock, mainWindow->dockWidgets()) {
         QWidget *titleBar = dock->titleBarWidget();
-        // e.g. the animation timeline keeps its controls in the title bar
+        // e.g. the animation timeline keeps its controls in the title bar; as long as the frames, it lies under the
+        // canvas, across it
         if (titleBar && titleBar->inherits("KisUtilityTitleBar")) {
+            // also after Krita puts back a saved window layout, or the panel is dragged elsewhere
+            // once on the way in, as a saved layout may have them side by side
+            auto placed = std::make_shared<bool>(false);
+            auto toBottom = [mainWindow, dock, placed]() {
+                if (dock->isHidden()) return;
+                if (*placed && !dock->isFloating() && mainWindow->dockWidgetArea(dock) == Qt::BottomDockWidgetArea) return;
+                *placed = true;
+                dock->setFloating(false);
+                // one above another: side by side, their wide title bars would widen the window
+                mainWindow->addDockWidget(Qt::BottomDockWidgetArea, dock, Qt::Vertical);
+                dock->show();
+            };
+            d->connections << connect(dock, &QDockWidget::visibilityChanged, this, [dock, toBottom](bool visible) {
+                if (visible) QTimer::singleShot(0, dock, toBottom);
+            });
+            d->connections << connect(dock, &QDockWidget::dockLocationChanged, this, [dock, toBottom]() { QTimer::singleShot(0, dock, toBottom); });
+            d->connections << connect(dock, &QDockWidget::topLevelChanged, this, [dock, toBottom]() { QTimer::singleShot(0, dock, toBottom); });
+            QTimer::singleShot(0, dock, toBottom);
             continue;
         }
 
@@ -3279,8 +3315,30 @@ void KisStudioLayout::enter()
         // clear of the rounded corners
         static const QStringList edgeToEdge = {QStringLiteral("ColorSelectorNg"), QStringLiteral("WideGamutColorSelector"),
                                                QStringLiteral("DigitalMixer")};
-        // one name for the brushes, as the top bar has it
+        // one name for the brushes, as the top bar has it; other names say what the panel is for
         if (id == QLatin1String("PresetDocker")) dock->setWindowTitle(i18nc("@title:window the brushes panel", "Brushes"));
+        if (id == QLatin1String("History")) dock->setWindowTitle(i18nc("@title:window the undo history panel", "History"));
+        if (id == QLatin1String("SvgSymbolCollectionDocker")) dock->setWindowTitle(i18nc("@title:window the vector symbols panel", "Symbols"));
+        if (id == QLatin1String("CompositionDocker")) dock->setWindowTitle(i18nc("@title:window saved sets of which layers show", "Layer sets"));
+        if (id == QLatin1String("LutDocker")) dock->setWindowTitle(i18nc("@title:window the image seen through an OCIO view transform", "OCIO view"));
+        dock->setProperty("studioIcon", railIcon(dock));
+        if (QWidget *content = dock->widget()) {
+            // the patterns are their own preview, and their tooltips name them
+            if (id == QLatin1String("PatternDocker")) {
+                Q_FOREACH (QScrollArea *preview, content->findChildren<QScrollArea *>()) {
+                    if (qobject_cast<QLabel *>(preview->widget())) preview->hide();
+                }
+                Q_FOREACH (QLabel *name, content->findChildren<QLabel *>()) {
+                    if (name->inherits("KSqueezedTextLabel")) name->hide();
+                }
+            }
+            // + names a new set itself; right-click renames it
+            if (id == QLatin1String("CompositionDocker")) {
+                if (QWidget *name = content->findChild<QWidget *>(QStringLiteral("saveNameEdit"))) name->hide();
+            }
+            // a graph needs room to be read
+            if (id == QLatin1String("HistogramDocker")) content->setMinimumHeight(180);
+        }
         if (edgeToEdge.contains(id) && dock->widget()) {
             dock->widget()->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space2, KisModernStyle::space2);
         }
@@ -3999,7 +4057,11 @@ void KisStudioLayout::positionFlyout()
     const QRect area = QRect(canvasArea->mapToGlobal(QPoint(0, 0)), canvasArea->size()).marginsRemoved(canvasInsets(canvasArea));
     const int margin = 6;
     int contentsWidth = d->flyout->widget() ? d->flyout->widget()->sizeHint().width() : 0;
-    int contentsHeight = d->flyout->sizeHint().height();
+    int contentsHeight = qMax(d->flyout->sizeHint().height(), d->flyout->minimumSizeHint().height());
+    // a QML page scrolls inside and tells no height of its own
+    if (d->flyout->widget() && d->flyout->widget()->inherits("KisQQuickWidget")) {
+        contentsHeight = qMax(contentsHeight, area.height() * 2 / 3);
+    }
     // a scroll area has a small size hint, so fit the flyout to what it scrolls
     QScrollArea *scroll = d->flyout->findChild<QScrollArea *>();
     if (scroll && scroll->widget()) {
@@ -4011,11 +4073,15 @@ void KisStudioLayout::positionFlyout()
     // stay within the canvas area, as the main window clips anything beyond it
     const int width = qMax(0, qMin(qBound(260, contentsWidth + 2, 420), area.width() - 2 * margin));
 
-    QRect global(area.right() + 1 - margin - width, area.top() + margin, width, area.height() - 2 * margin);
+    // as tall as its contents, as from a button
+    QRect global(area.right() + 1 - margin - width, area.top() + margin, width, qBound(80, contentsHeight, area.height() - 2 * margin));
     // below the panel icons when nothing is pinned beside them, so another panel is still a click away
     if (KisStudioPanelColumn *column = d->panelColumn; column && column->isVisible()) {
         const QRect strip(column->mapToGlobal(QPoint()), column->size());
-        if (strip.intersects(global)) global.setTop(strip.bottom() + 1 + margin);
+        if (strip.intersects(global)) {
+            global.moveTop(strip.bottom() + 1 + margin);
+            global.setBottom(qMin(global.bottom(), area.bottom() - margin));
+        }
     }
     // beside the panels docked on that side, rather than over them
     Q_FOREACH (KisStudioPanelColumn *other, d->columns()) {

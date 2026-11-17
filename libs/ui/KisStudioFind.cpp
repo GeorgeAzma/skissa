@@ -905,7 +905,8 @@ void KisStudioFind::rebuildIndex()
         if (KisStudioPanelPicker::isRetired(dock->objectName())) continue;
         QPointer<QDockWidget> target = dock;
         d->entries.append({QStringLiteral("panel:") + dock->objectName(), Kind::Panel, dock->windowTitle(),
-                           QString(), QStringLiteral("docker panel"), QString(), dock->windowIcon(),
+                           QString(), QStringLiteral("docker panel"), QString(),
+                           dock->property("studioIcon").isValid() ? dock->property("studioIcon").value<QIcon>() : dock->windowIcon(),
                            [this, target]() {
                                if (!target) return;
                                if (d->openPanel) {

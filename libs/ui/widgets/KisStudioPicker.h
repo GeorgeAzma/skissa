@@ -13,6 +13,7 @@
 #include <QVector>
 
 #include <functional>
+#include <QIcon>
 #include <memory>
 
 #include "kritaui_export.h"
@@ -59,6 +60,8 @@ public:
         /// Alternative names to search by
         std::function<QStringList(const QString &id)> aliases;
         std::function<void(QPainter &painter, const QRect &rect, const QString &id)> paintPreview;
+        /// Optional: a small picture before a tile's name
+        std::function<QIcon(const QString &id)> icon;
         /// Most recent first
         std::function<QStringList()> recent;
         /// Tiles with large previews instead of rows with swatches
