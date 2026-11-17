@@ -574,7 +574,8 @@ QColor KisModernStyle::mix(const QColor &a, const QColor &b, qreal t)
 
 QColor KisModernStyle::secondaryInk(QColor ink)
 {
-    ink.setAlphaF(ink.alphaF() * 0.62);
+    // dark text on a light theme's glass loses more to what shows through it than light text on a dark one
+    ink.setAlphaF(ink.alphaF() * (ink.lightnessF() < 0.5 ? 0.78 : 0.62));
     return ink;
 }
 

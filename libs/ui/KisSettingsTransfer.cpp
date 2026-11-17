@@ -628,16 +628,31 @@ void useSkissaBrushes()
 {
     KConfigGroup group = KSharedConfig::openConfig()->group(QString());
     const int version = group.readEntry("StudioBrushSet", 0);
-    if (version >= 6) return;
+    if (version >= 7) return;
     // Skissa's set (krita/data/skissa_brushes), in the order they are listed at first
     const QStringList files = {QStringLiteral("Round.kpp"), QStringLiteral("Opacity.kpp"), QStringLiteral("Flow.kpp"), QStringLiteral("Size.kpp"),
                                QStringLiteral("Soft.kpp"), QStringLiteral("Pencil.myb"), QStringLiteral("Rough.kpp"), QStringLiteral("Blend.kpp"),
                                QStringLiteral("Blur.kpp"), QStringLiteral("Smear.kpp"), QStringLiteral("Fill.kpp"), QStringLiteral("Clone.kpp")};
     const QString userFolder = QDir::cleanPath(KisResourceLocator::instance()->resourceLocationBase());
+    const QString installed = KoResourcePaths::getApplicationRoot() + QStringLiteral("/share/krita/");
+    if (version >= 5) {
+        // the set's brushes changed since: the profile's copies are replaced
+        const QStringList changed = version < 7 ? QStringList{QStringLiteral("Smear.kpp")} : QStringList();
+        KisResourceModel presets(ResourceType::PaintOpPresets);
+        Q_FOREACH (const QString &file, changed) {
+            if (QFile::exists(installed + QStringLiteral("paintoppresets/") + file)) {
+                presets.importResourceFile(installed + QStringLiteral("paintoppresets/") + file, true);
+            }
+        }
+    }
+    if (version == 6) {
+        group.writeEntry("StudioBrushSet", 7);
+        KisSettingsRegistry::instance()->scheduleSync();
+        return;
+    }
     if (version < 5) {
         // Krita copies what is installed into a profile only at its first start: the set and the bundles shipped
         // with Skissa are taken in here, for profiles made before them
-        const QString installed = KoResourcePaths::getApplicationRoot() + QStringLiteral("/share/krita/");
         KisResourceModel presets(ResourceType::PaintOpPresets);
         Q_FOREACH (const QString &file, files) {
             const QString source = installed + QStringLiteral("paintoppresets/") + file;
@@ -685,7 +700,7 @@ void useSkissaBrushes()
         // the bundles taken in brought their tags: the user starts from none
         putTagsAway();
     }
-    group.writeEntry("StudioBrushSet", 6);
+    group.writeEntry("StudioBrushSet", 7);
     KisSettingsRegistry::instance()->scheduleSync();
 }
 

@@ -106,6 +106,9 @@ def smear(xml):
     xml = set_param(xml, 'SmudgeRateSmearAlpha', 'true')
     xml = set_param(xml, 'PressureColorRate', 'false')
     xml = set_param(xml, 'ColorRateValue', '0')
+    # dabs close together, or a smear drags the paint in steps
+    xml = re.sub(r'useAutoSpacing="0"', 'useAutoSpacing="1"', xml, count=1)
+    xml = re.sub(r'autoSpacingCoeff="[^"]*"', 'autoSpacingCoeff="0.2"', xml, count=1)
     return set_param(xml, 'Texture/Pattern/Enabled', 'false')
 
 

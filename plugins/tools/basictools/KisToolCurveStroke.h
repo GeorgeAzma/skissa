@@ -20,8 +20,9 @@ class CurveStrokeHelper;
 /**
  * A stroke shaped after it is drawn: a drag draws a line, tapered at both ends, painted with the brush once let go;
  * the stroke stays open, and dragging any point of it bends it there (a quadratic through the point held), its ends
- * move it. While it is dragged it shows as its shape in the paint color, and the brush paints it again once let go,
- * the shape staying until the paint is there, so nothing flashes. A press away from it keeps it and starts the next;
+ * move it. While it is dragged the brush paints it off the image and that shows over the canvas (its shape in the
+ * paint color for a brush that paints nothing alone); the brush paints it again once let go, the preview staying until
+ * the paint is there, so nothing flashes. A press away from it keeps it and starts the next;
  * Enter keeps it, Escape drops it.
  */
 class KisToolCurveStroke : public KisToolShape
@@ -53,6 +54,10 @@ private:
     qreal pressureAt(qreal t) const;
     /// The stroke as the brush would paint it, as an outline in the view
     QPolygonF shapeInView() const;
+    /// The points the brush paints the stroke through
+    QVector<KisPaintInformation> strokePoints() const;
+    /// The stroke painted by the brush off the image, shown while it is shaped; null for a brush that paints nothing alone
+    void paintPreview();
     void paintWithBrush();
     void keep();
     void drop();
@@ -76,6 +81,11 @@ private:
     qreal m_pressure {1.0};
     QRectF m_decorated;
     bool m_repainting {false};
+    /// The brush's stroke as shown while shaping, and where it lies in the image
+    QImage m_preview;
+    QRect m_previewRect;
+    /// One preview made per turn of the event loop, however many moves came
+    QTimer m_previewLater;
 };
 
 class KisToolCurveStrokeFactory : public KisToolPaintFactoryBase

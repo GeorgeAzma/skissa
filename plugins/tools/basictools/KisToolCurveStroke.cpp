@@ -18,6 +18,9 @@
 #include <kis_cursor.h>
 #include <kis_image.h>
 #include <kis_paint_information.h>
+#include <kis_distance_information.h>
+#include <kis_paint_device.h>
+#include <kis_painter.h>
 #include <kis_painting_information_builder.h>
 #include <kis_smoothing_options.h>
 #include <kis_tool_freehand_helper.h>
@@ -85,6 +88,12 @@ KisToolCurveStroke::KisToolCurveStroke(KoCanvasBase *canvas)
     setObjectName(QStringLiteral("tool_curve_stroke"));
     setSupportOutline(true);
     setIsOpacityPresetMode(true);
+    m_previewLater.setSingleShot(true);
+    m_previewLater.setInterval(0);
+    connect(&m_previewLater, &QTimer::timeout, this, [this]() {
+        paintPreview();
+        updateDecorations();
+    });
     // the shape goes once the image has no work left from the paint: two quiet looks in a row
     m_untilPainted.setInterval(30);
     connect(&m_untilPainted, &QTimer::timeout, this, [this]() {
@@ -177,9 +186,8 @@ QPolygonF KisToolCurveStroke::shapeInView() const
     return shape;
 }
 
-void KisToolCurveStroke::paintWithBrush()
+QVector<KisPaintInformation> KisToolCurveStroke::strokePoints() const
 {
-    if (!m_open || nodePaintAbility() != PAINT) return;
     // a point every couple of pixels along it
     const qreal length = QLineF(m_start, m_control).length() + QLineF(m_control, m_end).length();
     const int count = qBound(8, int(length / 2), 4000);
@@ -187,10 +195,36 @@ void KisToolCurveStroke::paintWithBrush()
     points.reserve(count + 1);
     for (int i = 0; i <= count; i++) {
         const qreal t = qreal(i) / count;
-        points << KisPaintInformation(pointAt(t), pressureAt(t));
+        KisPaintInformation info(pointAt(t), pressureAt(t));
+        info.setCurrentTime(i);
+        points << info;
     }
+    return points;
+}
+
+void KisToolCurveStroke::paintPreview()
+{
+    m_preview = QImage();
+    KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
+    if (!m_open || !preset || !image() || !currentNode()) return;
+    const QVector<KisPaintInformation> points = strokePoints();
+    KisPaintDeviceSP device = new KisPaintDevice(image()->colorSpace());
+    KisPainter painter(device);
+    painter.setPaintColor(canvas()->resourceManager()->foregroundColor());
+    painter.setPaintOpPreset(preset, currentNode(), image());
+    KisDistanceInformation distance(points.first().pos(), KisAlgebra2D::directionBetweenPoints(points[0].pos(), points[1].pos(), 0.0));
+    for (int i = 1; i < points.size(); i++) painter.paintLine(points[i - 1], points[i], &distance);
+    painter.end();
+    m_previewRect = device->exactBounds();
+    if (m_previewRect.isEmpty()) return;
+    m_preview = device->convertToQImage(nullptr, m_previewRect);
+}
+
+void KisToolCurveStroke::paintWithBrush()
+{
+    if (!m_open || nodePaintAbility() != PAINT) return;
     m_repainting = true;
-    m_helper->paintThrough(points, image(), currentNode(), image().data());
+    m_helper->paintThrough(strokePoints(), image(), currentNode(), image().data());
     m_repainting = false;
     // the shape stays over the paint until it has arrived
     m_showsShape = true;
@@ -199,6 +233,7 @@ void KisToolCurveStroke::paintWithBrush()
 
 void KisToolCurveStroke::keep()
 {
+    m_preview = QImage();
     m_helper->keep();
     m_open = false;
     m_grip = None;
@@ -209,6 +244,7 @@ void KisToolCurveStroke::drop()
 {
     m_untilPainted.stop();
     m_showsShape = false;
+    m_preview = QImage();
     m_helper->drop();
     m_open = false;
     m_grip = None;
@@ -229,8 +265,9 @@ void KisToolCurveStroke::beginPrimaryAction(KoPointerEvent *event)
     m_control0 = m_control;
     const Grip grip = gripAt(pixel, &m_along);
     if (grip != None) {
-        // reshaping the open stroke: its paint gives way to its shape until it is let go
+        // reshaping the open stroke: its paint gives way to the preview until it is let go
         m_grip = grip;
+        paintPreview();
         m_helper->drop();
         m_showsShape = true;
         m_untilPainted.stop();
@@ -275,6 +312,7 @@ void KisToolCurveStroke::continuePrimaryAction(KoPointerEvent *event)
     case None:
         break;
     }
+    if (!m_previewLater.isActive()) m_previewLater.start();
     updateDecorations();
     requestUpdateOutline(event->point, event);
 }
@@ -318,15 +356,29 @@ void KisToolCurveStroke::updateDecorations()
 void KisToolCurveStroke::paint(QPainter &gc, const KoViewConverter &converter)
 {
     if (m_open && m_showsShape) {
-        // the stroke's shape in the paint color, while the brush hasn't painted it yet
+        // the brush's stroke, while it hasn't painted it on the image yet
         gc.save();
         gc.setRenderHint(QPainter::Antialiasing, true);
-        QColor color = canvas()->resourceManager()->foregroundColor().toQColor();
+        gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
         KisPaintOpPresetSP preset = canvas()->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>();
-        if (preset) color.setAlphaF(qBound<qreal>(0.15, preset->settings()->paintOpOpacity(), 1.0));
-        gc.setPen(Qt::NoPen);
-        gc.setBrush(color);
-        gc.drawPolygon(shapeInView());
+        const qreal opacity = preset ? qBound<qreal>(0.15, preset->settings()->paintOpOpacity(), 1.0) : 1.0;
+        if (!m_preview.isNull()) {
+            const QRectF r(m_previewRect);
+            const QPolygonF from({r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()});
+            const QPolygonF to({pixelToView(r.topLeft()), pixelToView(r.topRight()), pixelToView(r.bottomRight()), pixelToView(r.bottomLeft())});
+            QTransform place;
+            if (QTransform::quadToQuad(from, to, place)) {
+                gc.setTransform(place, true);
+                gc.setOpacity(opacity);
+                gc.drawImage(r.topLeft(), m_preview);
+            }
+        } else {
+            QColor color = canvas()->resourceManager()->foregroundColor().toQColor();
+            color.setAlphaF(opacity);
+            gc.setPen(Qt::NoPen);
+            gc.setBrush(color);
+            gc.drawPolygon(shapeInView());
+        }
         gc.restore();
     }
     KisToolShape::paint(gc, converter);

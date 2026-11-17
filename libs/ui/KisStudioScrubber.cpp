@@ -39,12 +39,10 @@ int eventX(QMouseEvent *event)
 #endif
 }
 
-/// The largest dab shown at its own size; a larger one is shown this large, its ring dashed
-constexpr qreal largestDab = 200;
-
 /**
  * A brush's dab floating under its scrubber while its size or opacity changes: as large as the canvas will show
- * it, in its color and opacity, with a ring like the brush outline so a color like the panel's still shows.
+ * it (up to most of the screen), in its color and opacity, with a dark and a light ring as the brush outline has, so
+ * it shows over anything.
  */
 class DabView : public QWidget
 {
@@ -67,10 +65,12 @@ public:
     void present(const KisStudioScrubber::Look &look, QWidget *under, int lingerMs)
     {
         m_look = look;
-        const qreal diameter = qMax<qreal>(1.0, look.size * look.zoom);
-        const int side = qCeil(qMax<qreal>(56, qMin(diameter, largestDab) + 2 * KisModernStyle::space4));
-        resize(side, side);
         const QRect screen = under->screen() ? under->screen()->availableGeometry() : QRect();
+        // a larger dab is shown this large, its ring dashed
+        m_largest = screen.isValid() ? 0.6 * qMin(screen.width(), screen.height()) : 400;
+        const qreal diameter = qMax<qreal>(1.0, look.size * look.zoom);
+        const int side = qCeil(qMin(diameter, m_largest) + 6);
+        resize(side, side);
         const QPoint below = under->mapToGlobal(QPoint(under->width() / 2, under->height())) + QPoint(-side / 2, KisModernStyle::space1);
         QPoint at = below;
         if (screen.isValid() && at.y() + side > screen.bottom()) at.setY(under->mapToGlobal(QPoint(0, 0)).y() - side - KisModernStyle::space1);
@@ -94,19 +94,10 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const QColor window = palette().color(QPalette::Window);
-        const QColor ink = palette().color(QPalette::WindowText);
-        const QRectF panel = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-        QColor edge = ink;
-        edge.setAlphaF(0.12);
-        painter.setPen(QPen(edge, 1));
-        painter.setBrush(window);
-        painter.drawPath(KisModernStyle::squircle(panel, KisModernStyle::panelRadius));
-
         const qreal diameter = qMax<qreal>(1.0, m_look.size * m_look.zoom);
-        const bool scaled = diameter > largestDab;
-        const qreal shown = qMin(diameter, largestDab);
-        const QPointF middle = panel.center();
+        const bool scaled = diameter > m_largest;
+        const qreal shown = qMin(diameter, m_largest);
+        const QPointF middle = QRectF(rect()).center();
         const QRectF dab(middle - QPointF(shown / 2, shown / 2), QSizeF(shown, shown));
         QPainterPath round;
         round.addEllipse(dab);
@@ -115,7 +106,8 @@ protected:
         // checks under a see-through dab, so its opacity reads as on the canvas
         if (m_look.opacity < 0.999 && shown > 6) {
             const qreal cell = qBound<qreal>(4, shown / 6, 10);
-            const QColor dark = KisModernStyle::mix(window, ink, 0.14);
+            painter.fillRect(dab, QColor(236, 236, 236));
+            const QColor dark(196, 196, 196);
             for (qreal y = dab.top(); y < dab.bottom(); y += cell) {
                 for (qreal x = dab.left(); x < dab.right(); x += cell) {
                     if ((qRound((x - dab.left()) / cell) + qRound((y - dab.top()) / cell)) % 2) painter.fillRect(QRectF(x, y, cell, cell), dark);
@@ -126,13 +118,13 @@ protected:
         paint.setAlphaF(qBound(0.0, m_look.opacity, 1.0));
         painter.fillRect(dab, paint);
         painter.restore();
-        QColor ring = ink;
-        ring.setAlphaF(0.45);
-        QPen pen(ring, 1);
-        if (scaled) pen.setStyle(Qt::DashLine);
-        painter.setPen(pen);
         painter.setBrush(Qt::NoBrush);
-        painter.drawEllipse(dab.adjusted(-0.5, -0.5, 0.5, 0.5));
+        for (const auto &ring : {std::make_pair(QColor(0, 0, 0, 140), 1.5), std::make_pair(QColor(255, 255, 255, 190), 0.5)}) {
+            QPen pen(ring.first, 1);
+            if (scaled) pen.setStyle(Qt::DashLine);
+            painter.setPen(pen);
+            painter.drawEllipse(dab.adjusted(-ring.second, -ring.second, ring.second, ring.second));
+        }
     }
 
 private:
@@ -147,6 +139,7 @@ private:
     }
 
     KisStudioScrubber::Look m_look;
+    qreal m_largest {400};
     QPropertyAnimation m_fade;
     QTimer m_linger;
     bool m_leaving {false};

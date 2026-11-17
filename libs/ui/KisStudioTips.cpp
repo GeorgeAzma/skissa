@@ -10,6 +10,7 @@
 #include <QAbstractItemView>
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QStyle>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
@@ -305,8 +306,8 @@ void placeBeside(QWidget *tip, QWidget *widget, const QRect &subject, const QRec
 
 /**
  * Shows tooltips with their gestures drawn and their shortcut, for every widget, and keeps them out of the way:
- * none just after a click, a stroke or a key; a tip seen a few times waits longer before it shows; it shows beside
- * its control, off the canvas being painted, and fades as the pointer moves on.
+ * none just after a click, a stroke or a key, until the pointer rests again; it shows beside its control, off the
+ * canvas being painted, and fades as the pointer moves on.
  */
 class TipFilter : public QObject
 {
@@ -316,13 +317,6 @@ public:
         m_clock.start();
         m_pending.setSingleShot(true);
         connect(&m_pending, &QTimer::timeout, this, [this]() { showPending(); });
-        m_saveLater.setSingleShot(true);
-        m_saveLater.setInterval(3000);
-        connect(&m_saveLater, &QTimer::timeout, this, [this]() { saveSeen(); });
-        Q_FOREACH (const QString &entry, KSharedConfig::openConfig()->group(QString()).readEntry(seenKey, QStringList())) {
-            const int colon = entry.indexOf(QLatin1Char(':'));
-            if (colon > 0) m_seen.insert(entry.left(colon), entry.mid(colon + 1).toInt());
-        }
     }
 
 protected:
@@ -368,15 +362,14 @@ protected:
         auto *help = static_cast<QHelpEvent *>(event);
         if (m_inner) return showOwn(widget, help);
 
-        const QString key = keyOf(widget, help->pos());
         const qint64 now = m_clock.elapsed();
         int wait = 0;
-        if (now - m_workedAt < quietAfterWork) {
-            // the control just used says nothing; another one waits for the pointer to rest after the work
+        // after a click, a stroke or a key, the pointer rests the delay once more: what was just worked on says nothing
+        const int quiet = QApplication::style()->styleHint(QStyle::SH_ToolTip_WakeUpDelay);
+        if (now - m_workedAt < quiet) {
             if (m_usedOn && (m_usedOn == widget || m_usedOn->isAncestorOf(widget) || widget->isAncestorOf(m_usedOn))) return true;
-            wait = int(quietAfterWork - (now - m_workedAt));
+            wait = int(quiet - (now - m_workedAt));
         }
-        if (m_seen.value(key) >= familiar) wait = qMax(wait, familiarWait);
         if (wait > 0) {
             m_pendingWidget = widget;
             m_pendingPos = help->pos();
@@ -384,32 +377,12 @@ protected:
             m_pending.start(wait);
             return true;
         }
-        show(widget, help->pos(), help->globalPos(), key);
+        show(widget, help->pos(), help->globalPos());
         return true;
     }
 
 private:
-    static constexpr int quietAfterWork = 1000;
-    static constexpr int familiar = 3;
-    static constexpr int familiarWait = 1100;
-    static constexpr int seenKept = 400;
     static constexpr int workReach = 160;
-    static const QString seenKey;
-
-    /// A tip's control, by what its tip says, else by where it sits (and in a list, the column)
-    static QString keyOf(QWidget *widget, const QPoint &pos)
-    {
-        QString key = widget->toolTip();
-        if (key.isEmpty()) {
-            QStringList path;
-            for (QWidget *at = widget; at && path.size() < 4; at = at->parentWidget()) {
-                path << (at->objectName().isEmpty() ? QString::fromLatin1(at->metaObject()->className()) : at->objectName());
-            }
-            if (QAbstractItemView *view = viewOf(widget)) path << QString::number(view->indexAt(pos).column());
-            key = path.join(QLatin1Char('/'));
-        }
-        return QString::number(qHash(key), 36);
-    }
 
     /// A click, a stroke, a turn of the wheel or a key: no tips for a moment, and none waiting
     void worked(QObject *on, const QPoint &globalPos, bool pressed, ulong timestamp)
@@ -429,8 +402,6 @@ private:
         if (timestamp && timestamp == m_pressStamp) return;
         m_pressStamp = timestamp;
         m_usedOn = widget;
-        // using a control is knowing it too
-        if (!widget->toolTip().isEmpty() || viewOf(widget)) see(keyOf(widget, widget->mapFromGlobal(globalPos)));
     }
 
     /// \p wobble is how far the pointer moves while it rests: more for a pen than for a mouse
@@ -447,11 +418,11 @@ private:
     void showPending()
     {
         if (!m_pendingWidget || !m_pendingWidget->isVisible()) return;
-        show(m_pendingWidget, m_pendingPos, m_pendingGlobal, keyOf(m_pendingWidget, m_pendingPos));
+        show(m_pendingWidget, m_pendingPos, m_pendingGlobal);
     }
 
     /// Shows the tip at \p pos as \p widget or its parents make it, beside its subject
-    void show(QWidget *widget, const QPoint &pos, const QPoint &globalPos, const QString &key)
+    void show(QWidget *widget, const QPoint &pos, const QPoint &globalPos)
     {
         if (QWidget *tip = shownTip()) KisStudioMotion::stopFade(tip);
         QHelpEvent help(QEvent::ToolTip, pos, globalPos);
@@ -464,7 +435,6 @@ private:
         const QRect work = recent ? QRect(m_workAt - QPoint(workReach, workReach), QSize(2 * workReach, 2 * workReach)) : QRect();
         placeBeside(tip, widget, subjectOf(widget, pos), work);
         m_shownAt = globalPos;
-        see(key);
     }
 
     /// The tip of \p widget as its own tooltip says, drawn: false leaves it to the widget (lists, cards)
@@ -505,31 +475,8 @@ private:
         return true;
     }
 
-    /// Counts a tip shown or its control used, up to knowing it
-    void see(const QString &key)
-    {
-        int &count = m_seen[key];
-        if (count >= familiar) return;
-        count++;
-        if (m_seen.size() > seenKept) {
-            // the ones seen once make room
-            for (auto it = m_seen.begin(); it != m_seen.end();) {
-                if (it.value() <= 1 && it.key() != key) it = m_seen.erase(it);
-                else ++it;
-            }
-        }
-        m_saveLater.start();
-    }
-
-    void saveSeen()
-    {
-        QStringList entries;
-        for (auto it = m_seen.constBegin(); it != m_seen.constEnd(); ++it) entries << it.key() + QLatin1Char(':') + QString::number(it.value());
-        KisSettingsRegistry::writeLater(seenKey, entries);
-    }
-
     QElapsedTimer m_clock;
-    qint64 m_workedAt {-quietAfterWork};
+    qint64 m_workedAt {-100000};
     QPointer<QWidget> m_usedOn;
     ulong m_pressStamp {0};
     QPoint m_workAt;
@@ -540,11 +487,8 @@ private:
     QPoint m_pendingPos;
     QPoint m_pendingGlobal;
     QPoint m_shownAt;
-    QHash<QString, int> m_seen;
-    QTimer m_saveLater;
 };
 
-const QString TipFilter::seenKey = QStringLiteral("StudioTooltipsSeen");
 
 } // namespace
 

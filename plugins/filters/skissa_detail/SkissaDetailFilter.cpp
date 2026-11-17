@@ -439,7 +439,7 @@ KisConfigWidget *SkissaDetailFilter::createConfigurationWidget(QWidget *parent, 
     QVector<SkissaSlider> sliders;
     if (m_kind == Kind::Sharpen) sliders << SkissaSlider{"amount", i18nc("effect setting", "Amount"), 1000, 0, percent, 100};
     const char *radius = !krita ? "radius" : m_kind == Kind::Blur ? "horizRadius" : m_kind == Kind::Sharpen ? "halfSize" : "blurAmount";
-    SkissaSlider size{radius, i18nc("effect setting", "Radius"), 500, 1, px, 1, QString(), 0.1};
+    SkissaSlider size{radius, i18nc("effect setting", "Radius"), 1000, 1, px, 1, QString(), 0.1};
     // a blur stretched one way in Krita keeps its shape
     if (krita && m_kind == Kind::Blur) size.follower = "vertRadius";
     sliders << size;
