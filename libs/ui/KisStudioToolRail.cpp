@@ -53,6 +53,8 @@
 #include "KisTouchMode.h"
 #include "KisView.h"
 #include "kis_canvas2.h"
+#include "kis_coordinates_converter.h"
+#include "kis_image.h"
 #include "KisViewManager.h"
 #include "kis_paintop_box.h"
 #include "canvas/kis_canvas_controller.h"
@@ -1063,13 +1065,18 @@ void KisStudioToolRail::startDrag(int index, const QPixmap &pixmap)
     bool goes = done == Qt::IgnoreAction;
     if (color && !KisModernStyle::pointerHeld()) {
         const QPoint at = QCursor::pos();
-        QWidget *canvas = nullptr;
-        if (KisView *view = d->mainWindow->activeView()) {
-            if (view->canvasBase()) canvas = view->canvasBase()->canvasWidget();
+        // on the picture itself: the canvas widget spans the window, under the panels and around the image
+        bool onPicture = false;
+        KisView *view = d->mainWindow->activeView();
+        KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
+        QWidget *canvasWidget = canvas ? canvas->canvasWidget() : nullptr;
+        QWidget *under = QApplication::widgetAt(at);
+        if (canvasWidget && canvasWidget->isVisible() && under && (under == canvasWidget || canvasWidget->isAncestorOf(under))) {
+            const QPointF pixel = canvas->coordinatesConverter()->widgetToImage(QPointF(canvasWidget->mapFromGlobal(at)));
+            onPicture = canvas->image() && QRectF(canvas->image()->bounds()).contains(pixel);
         }
-        const bool onCanvas = canvas && canvas->isVisible() && canvas->rect().contains(canvas->mapFromGlobal(at));
         const bool onRail = rect().contains(mapFromGlobal(at));
-        goes = !onCanvas && !onRail;
+        goes = !onPicture && !onRail;
     }
     if (goes && !KisModernStyle::pointerHeld()) {
         QStringList items = d->items;
