@@ -14,11 +14,14 @@
 #include "KisTouchMode.h"
 #include "kis_config.h"
 #include "KisSettingsRegistry.h"
+#include "KisStudioItemCard.h"
 
 #include <QAbstractButton>
 #include <QApplication>
 #include <QGuiApplication>
 #include <QContextMenuEvent>
+#include <QDrag>
+#include <QMimeData>
 #include <QHBoxLayout>
 #include <QHash>
 #include <QJsonArray>
@@ -653,6 +656,11 @@ protected:
                 m_dragging = m_press;
                 m_d->point(-1);
             }
+            if (m_dragging >= 0 && !m_d->source.dragKey.isEmpty()
+                && !window()->rect().contains(window()->mapFromGlobal(event->globalPos()))) {
+                carryOff();
+                return;
+            }
             if (m_dragging >= 0) {
                 m_pointer = event->pos();
                 updateDrop();
@@ -932,6 +940,30 @@ private:
             m_dropLine = QRect(rect.left() + 6, after ? rect.bottom() - 1 : rect.top() - 2, rect.width() - 12, 3);
             m_dropAt = m_d->items[nearest].order + (after ? 1 : 0);
         }
+    }
+
+    /// Out of the picker: the item goes as a drag of its own (to a brush list, the tools), the picker closed
+    void carryOff()
+    {
+        const Item dragged = m_d->items[m_dragging];
+        m_dragging = -1;
+        m_press = -1;
+        update();
+        auto *drag = new QDrag(qApp);
+        auto *mime = new QMimeData();
+        mime->setData(KisStudioShortcuts::itemMimeType(), (m_d->source.dragKey + dragged.id).toUtf8());
+        drag->setMimeData(mime);
+        if (m_d->source.paintPreview) {
+            QPixmap picture(40, 40);
+            picture.fill(Qt::transparent);
+            QPainter painter(&picture);
+            m_d->source.paintPreview(painter, picture.rect(), dragged.id);
+            painter.end();
+            drag->setPixmap(picture);
+        }
+        window()->hide();
+        drag->exec(Qt::CopyAction);
+        drag->deleteLater();
     }
 
     void drop()

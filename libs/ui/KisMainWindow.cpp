@@ -165,6 +165,7 @@
 #include "KisStudioColorPanel.h"
 #include "KisStudioControls.h"
 #include "KisStudioExport.h"
+#include "KisStudioRecipes.h"
 #include "KisStudioLayout.h"
 #include "KisStudioItemCard.h"
 #include "KisUpdatePacer.h"
@@ -559,6 +560,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
 
     d->studioFind = new KisStudioFind(this);
     KisStudioExport::watchSaves();
+    KisStudioRecipes::watch(this);
     d->studioFind->setPanelOpener([this](QDockWidget *dock) { d->studioLayout->showPanel(dock); });
     d->studioFind->setSettingsOpener([this](const QString &cardId) { d->studioLayout->openSettings(cardId); });
     d->studioRings = new KisStudioRings(this);

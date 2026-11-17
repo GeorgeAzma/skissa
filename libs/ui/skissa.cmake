@@ -41,6 +41,7 @@ set(skissa_ui_SRCS
     KisStudioMotion.cpp
     KisStudioPanelPicker.cpp
     KisStudioPanelPages.cpp
+    KisStudioRecipes.cpp
     KisStudioPenPopup.cpp
     KisStudioRings.cpp
     KisStudioScrubber.cpp

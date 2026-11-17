@@ -48,6 +48,9 @@ struct KisTagFilterResourceProxyModel::Private
     bool hidesPutAway {false};
     /// What All leaves out while hidesPutAway
     QSet<QString> away;
+    /// Only these resources, by name, while onlyOn
+    QSet<QString> only;
+    bool onlyOn {false};
 
     /// Whether \p fileName is left out of the list
     bool isAway(const QString &fileName) const
@@ -270,6 +273,15 @@ void KisTagFilterResourceProxyModel::setTagFilter(const KisTagSP tag)
     updateTagFilter();
 }
 
+void KisTagFilterResourceProxyModel::setOnly(const QStringList &names, bool on)
+{
+    Q_EMIT beforeFilterChanges();
+    d->only = QSet<QString>(names.begin(), names.end());
+    d->onlyOn = on;
+    invalidateFilter();
+    Q_EMIT afterFilterChanged();
+}
+
 void KisTagFilterResourceProxyModel::setHidesPutAway(bool hides)
 {
     if (d->hidesPutAway == hides) return;
@@ -403,6 +415,10 @@ bool KisTagFilterResourceProxyModel::filterAcceptsRow(int source_row, const QMod
 {
     if (!d->away.isEmpty() && d->isAway(sourceModel()->data(sourceModel()->index(source_row, 0, source_parent),
                                                             Qt::UserRole + KisAbstractResourceModel::Filename).toString())) {
+        return false;
+    }
+    if (d->onlyOn && !d->only.contains(sourceModel()->data(sourceModel()->index(source_row, 0, source_parent),
+                                                          Qt::UserRole + KisAbstractResourceModel::Name).toString())) {
         return false;
     }
 

@@ -88,7 +88,7 @@ using Catalog = KisStudioBrushStrokes::Catalog;
 
 const QString pinnedKey = QStringLiteral("StudioBrushes");
 const QString recentKey = QStringLiteral("StudioRecentBrushes");
-constexpr int recentKept = 8;
+constexpr int recentKept = 24;
 
 /// Puts each brush under the first of its tags, the tags in the order the brush panel's tag chooser lists them
 void groupByTags(Catalog &catalog, const QHash<int, QString> &nameOfId)
@@ -303,6 +303,7 @@ KisStudioPicker::Source brushSource(std::shared_ptr<Catalog> catalog, std::share
     source.pinnedKey = pinnedKey;
     source.initialPinned = initialBrushes;
     source.groupsKey = QStringLiteral("StudioBrushGroups");
+    source.dragKey = QStringLiteral("brush:");
     // Krita's tags, as groups of the user's own
     source.initialGroups = [catalog]() { return catalog->tagGroups; };
     source.allIds = [catalog]() { return catalog->ids; };
@@ -391,6 +392,11 @@ KisStudioBrushPicker::KisStudioBrushPicker(KisMainWindow *mainWindow, std::share
         if (!strokesShown->isActive()) strokesShown->start();
     });
 
+}
+
+QStringList KisStudioBrushPicker::recentBrushes()
+{
+    return KisConfig(true).readEntry<QStringList>(recentKey, QStringList());
 }
 
 void KisStudioBrushPicker::recordUse(const QString &presetName)

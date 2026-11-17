@@ -439,6 +439,7 @@ QVector<Setting> describeAll()
         all << itemList(KisResourceOrder::tagsKey, i18nc("setting", "Tag order"));
         all << itemList(KisResourceOrder::resourcesKey, i18nc("setting", "Order in tags"));
         all << itemList(KisResourceOrder::allNameKey, i18nc("setting", "Name of the tag of all"));
+        all << itemList(QStringLiteral("StudioRecipes"), i18nc("setting", "Recipes"));
 
         Setting glass = toggle(QStringLiteral("StudioGlass"), true, i18nc("setting", "Glass"), R::Fork);
         glass.read = []() { return KisStudioGlass::isEnabled(); };

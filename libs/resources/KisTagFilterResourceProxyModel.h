@@ -83,6 +83,9 @@ public:
     /// Whether All leaves out what the user put away (KisResourceOrder::putAway) while nothing is searched for
     void setHidesPutAway(bool hides);
 
+    /// Lists only the resources named \p names (searching still narrows them); an empty list with \p on false lists all
+    void setOnly(const QStringList &names, bool on);
+
     /**
      * @brief currentTagFilter
      * @return return the current tag that's being used to filter.

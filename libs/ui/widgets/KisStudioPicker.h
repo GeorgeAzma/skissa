@@ -72,6 +72,8 @@ public:
         int previewDelay {0};
         QString yoursTitle;
         QString searchPlaceholder;
+        /// An item dragged out of the picker is carried off as this prefix and its id (as Find's items are); none: it stays
+        QString dragKey;
     };
 
     /// A picture to preview effects or blend modes on when the canvas is blank

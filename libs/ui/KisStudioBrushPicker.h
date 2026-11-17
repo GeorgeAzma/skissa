@@ -28,6 +28,8 @@ public:
 
     /// Moves \p presetName to the front of the recently used brushes
     static void recordUse(const QString &presetName);
+    /// The brushes painted with lately, the latest first
+    static QStringList recentBrushes();
     /// The pinned brush \p step places from \p current (e.g. for the mouse wheel); empty past either end
     static QString neighbour(KisMainWindow *mainWindow, const QString &current, int step);
     /// Makes the preset named \p presetName the current brush

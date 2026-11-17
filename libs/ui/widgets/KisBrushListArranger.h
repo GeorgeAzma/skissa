@@ -14,6 +14,7 @@
 
 class KisResourceItemChooser;
 class KisTagChooserWidget;
+class KisStudioChips;
 class QDropEvent;
 class QToolButton;
 class QModelIndex;
@@ -50,12 +51,20 @@ private:
     void toggle(const QModelIndex &index);
     /// The + as a ✓ and Import beside it while adding
     void showAdding(bool adding);
+    /// While adding: where the brushes listed come from (recent, another tag, all), as chips over the list
+    void showSources(bool shown);
+    void pickSource(int index);
+    void placeSources();
+    /// The list's search (Krita's tag filter widget)
+    QWidget *searchField() const;
     /// The row a drop at \p pos goes before; the line showing it
     int dropRowAt(const QPoint &pos) const;
     void showDropLine(const QPoint &pos);
     void hideDropLine();
     /// The brush in file \p moved goes where a drop at \p pos in the list shows
     void moveBrush(const QString &moved, const QPoint &pos);
+    /// A brush brought from elsewhere (Find, the rail, another list): into the tag shown, where it was dropped
+    bool dropBrush(const QString &name, const QPoint &pos);
     void showMenu(const QPoint &globalPos);
 
     KisResourceItemChooser *m_chooser;
@@ -64,6 +73,10 @@ private:
     KisTagSP m_adding;
     QSet<int> m_members;
     QToolButton *m_import {nullptr};
+    KisStudioChips *m_sources {nullptr};
+    /// Each chip's tag; Recent is the first chip when there are recent brushes, All the last (no tag)
+    QVector<KisTagSP> m_sourceTags;
+    bool m_hasRecent {false};
     QWidget *m_dropLine {nullptr};
     /// The brush pressed: while adding, the click toggles it on release
     int m_pressedRow {-1};

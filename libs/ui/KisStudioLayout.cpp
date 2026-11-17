@@ -3483,7 +3483,11 @@ void KisStudioLayout::enter()
     qApp->installEventFilter(this);
     KisStudioEmptyStates::install();
     if (KisCanvasResourceProvider *resources = viewManager ? viewManager->canvasResourceProvider() : nullptr) {
-        d->connections << connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, [this]() { updateToolChip(); });
+        d->connections << connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, [this](const KisPaintOpPresetSP preset) {
+            updateToolChip();
+            // every brush taken up, however it was picked, is recent
+            if (preset) KisStudioBrushPicker::recordUse(preset->name());
+        });
     }
     KoToolManager *tools = viewManager ? viewManager->toolManager() : nullptr;
     if (tools) {

@@ -10,6 +10,7 @@
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMimeData>
 #include <QToolButton>
@@ -31,7 +32,10 @@
 #include <KisTagResourceModel.h>
 #include <KoFileDialog.h>
 
+#include "KisStudioBrushPicker.h"
+#include "KisStudioItemCard.h"
 #include "KisStudioTools.h"
+#include "widgets/KisStudioChips.h"
 
 namespace
 {
@@ -78,6 +82,11 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QObj
     connect(m_import, &QToolButton::clicked, this, &KisBrushListArranger::chooseFilesToImport);
     m_import->hide();
 
+    // while adding: where the brushes come from, over the list
+    m_sources = new KisStudioChips(chooser->itemView());
+    m_sources->hide();
+    connect(m_sources, &KisStudioChips::clicked, this, &KisBrushListArranger::pickSource);
+
     if (m_tags) {
         m_tags->setAddButton(i18nc("@info:tooltip", "Add brushes"), [this]() {
             if (isAdding()) stopAdding();
@@ -87,6 +96,7 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QObj
         connect(m_tags, &KisTagChooserWidget::sigTagChosen, this, [this](const KisTagSP tag) {
             if (isAdding() && (!tag || tag->url() != m_adding->url())) {
                 m_adding.clear();
+                showSources(false);
                 m_chooser->tagFilterModel()->setHidesPutAway(true);
                 showAdding(false);
                 m_chooser->itemView()->viewport()->update();
@@ -137,10 +147,146 @@ void KisBrushListArranger::startAdding()
         }
     }
     showAdding(true);
-    // every brush, the tag's among them
     m_chooser->tagFilterModel()->setHidesPutAway(false);
-    m_chooser->tagFilterModel()->setTagFilter(KisTagSP());
+    showSources(true);
     m_chooser->itemView()->viewport()->update();
+    // typing looks for a brush at once
+    if (QWidget *search = searchField()) {
+        if (QLineEdit *field = search->findChild<QLineEdit *>()) {
+            if (!field->isVisible()) {
+                if (auto *open = search->findChild<QToolButton *>()) open->click();
+            }
+            field->activateWindow();
+            field->setFocus(Qt::OtherFocusReason);
+            // a search looks among every brush
+            if (!field->property("skissaSearchesAll").toBool()) {
+                field->setProperty("skissaSearchesAll", true);
+                connect(field, &QLineEdit::textChanged, this, [this](const QString &text) {
+                    if (isAdding() && !text.isEmpty() && !m_sourceTags.isEmpty()) pickSource(m_sourceTags.size() - 1);
+                });
+            }
+        }
+    }
+}
+
+QWidget *KisBrushListArranger::searchField() const
+{
+    Q_FOREACH (QWidget *child, m_chooser->findChildren<QWidget *>()) {
+        if (child->inherits("KisTagFilterWidget")) return child;
+    }
+    return nullptr;
+}
+
+namespace
+{
+/// The brush named by a dragged item ("brush:<name>"), or empty
+QString draggedBrush(const QMimeData *mime)
+{
+    const QString key = QString::fromUtf8(mime->data(KisStudioShortcuts::itemMimeType()));
+    const QString prefix = QStringLiteral("brush:");
+    return key.startsWith(prefix) ? key.mid(prefix.size()) : QString();
+}
+} // namespace
+
+bool KisBrushListArranger::dropBrush(const QString &name, const QPoint &pos)
+{
+    const KisTagSP tag = orderedTag();
+    if (!tag || isAdding()) return false;
+    KisResourceModel all(ResourceType::PaintOpPresets);
+    int id = -1;
+    QString file;
+    for (int row = 0; row < all.rowCount() && id < 0; row++) {
+        const QModelIndex index = all.index(row, 0);
+        if (index.data(Qt::UserRole + KisAbstractResourceModel::Name).toString() != name) continue;
+        id = index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt();
+        file = index.data(Qt::UserRole + KisAbstractResourceModel::Filename).toString();
+    }
+    if (id < 0) return false;
+    if (tag->id() >= 0) {
+        KisTagResourceModel inTag(ResourceType::PaintOpPresets);
+        inTag.setTagsFilter({tag});
+        bool member = false;
+        for (int row = 0; row < inTag.rowCount() && !member; row++) {
+            member = inTag.data(inTag.index(row, 0), Qt::UserRole + KisAbstractResourceModel::Id).toInt() == id;
+        }
+        if (!member) KisTagResourceModel(ResourceType::PaintOpPresets).tagResources(tag, {id});
+    } else {
+        // All: back from being put away
+        QStringList away = KisResourceOrder::putAway(ResourceType::PaintOpPresets);
+        if (away.removeAll(file)) KisResourceOrder::setPutAway(ResourceType::PaintOpPresets, away);
+    }
+    moveBrush(file, pos);
+    return true;
+}
+
+namespace
+{
+/// Lets the list keep room over its items for the chips
+struct ScrollAreaMargins : public QAbstractScrollArea {
+    using QAbstractScrollArea::setViewportMargins;
+};
+} // namespace
+
+void KisBrushListArranger::showSources(bool shown)
+{
+    KisResourceItemListView *view = m_chooser->itemView();
+    if (!shown) {
+        m_sources->hide();
+        static_cast<ScrollAreaMargins *>(static_cast<QAbstractScrollArea *>(view))->setViewportMargins(0, 0, 0, 0);
+        m_chooser->tagFilterModel()->setOnly(QStringList(), false);
+        return;
+    }
+    QVector<KisStudioChips::Chip> chips;
+    m_sourceTags.clear();
+    m_hasRecent = !KisStudioBrushPicker::recentBrushes().isEmpty();
+    if (m_hasRecent) {
+        chips.append({i18nc("brushes used lately", "Recent"), QString()});
+        m_sourceTags.append(KisTagSP());
+    }
+    // the user's other tags, in their order
+    KisTagModel tags(ResourceType::PaintOpPresets);
+    QVector<KisTagSP> theirs;
+    for (int row = 0; row < tags.rowCount(); row++) {
+        const KisTagSP tag = tags.tagForIndex(tags.index(row, 0));
+        if (tag && tag->id() >= 0 && tag->active() && tag->url() != m_adding->url()) theirs.append(tag);
+    }
+    const QStringList order = KisResourceOrder::tags(ResourceType::PaintOpPresets);
+    std::stable_sort(theirs.begin(), theirs.end(), [&order](const KisTagSP &a, const KisTagSP &b) {
+        const int left = order.indexOf(a->url());
+        const int right = order.indexOf(b->url());
+        return (left < 0 ? INT_MAX : left) < (right < 0 ? INT_MAX : right);
+    });
+    for (const KisTagSP &tag : theirs) {
+        chips.append({tag->name(), QString()});
+        m_sourceTags.append(tag);
+    }
+    chips.append({KisResourceOrder::allName(), QString()});
+    m_sourceTags.append(KisTagSP());
+    m_sources->setChips(chips);
+    m_sources->show();
+    placeSources();
+    pickSource(0);
+}
+
+void KisBrushListArranger::placeSources()
+{
+    if (!m_sources->isVisible()) return;
+    KisResourceItemListView *view = m_chooser->itemView();
+    const int side = KisModernStyle::space1;
+    const int width = view->width() - 2 * side;
+    const int height = m_sources->heightForWidth(width);
+    m_sources->setGeometry(side, side, width, height);
+    static_cast<ScrollAreaMargins *>(static_cast<QAbstractScrollArea *>(view))->setViewportMargins(0, height + 2 * side, 0, 0);
+}
+
+void KisBrushListArranger::pickSource(int index)
+{
+    if (index < 0 || index >= m_sourceTags.size()) return;
+    m_sources->setCurrent(index);
+    KisTagFilterResourceProxyModel *model = m_chooser->tagFilterModel();
+    const bool recent = m_hasRecent && index == 0;
+    model->setTagFilter(m_sourceTags[index]);
+    model->setOnly(recent ? KisStudioBrushPicker::recentBrushes() : QStringList(), recent);
 }
 
 void KisBrushListArranger::stopAdding()
@@ -149,6 +295,9 @@ void KisBrushListArranger::stopAdding()
     const KisTagSP tag = m_adding;
     m_adding.clear();
     showAdding(false);
+    showSources(false);
+    // what was typed to find brushes to add
+    if (QWidget *search = searchField()) QMetaObject::invokeMethod(search, "clear");
     m_chooser->tagFilterModel()->setHidesPutAway(true);
     m_chooser->tagFilterModel()->setTagFilter(tag);
     m_chooser->itemView()->viewport()->update();
@@ -317,11 +466,30 @@ void KisBrushListArranger::moveBrush(const QString &moved, const QPoint &pos)
 bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
 {
     KisResourceItemListView *view = m_chooser->itemView();
+    if (watched == view && event->type() == QEvent::Resize) {
+        placeSources();
+        return false;
+    }
     if (watched == view && event->type() == QEvent::KeyPress && isAdding()) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (key->key() == Qt::Key_Escape || key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
             stopAdding();
             return true;
+        }
+        // typing looks for a brush
+        const QString text = key->text();
+        if (!text.isEmpty() && text.at(0).isPrint() && !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {
+            // the search's magnifier opens its field
+            QWidget *search = searchField();
+            QLineEdit *field = search ? search->findChild<QLineEdit *>() : nullptr;
+            if (field) {
+                if (!field->isVisible()) {
+                    if (auto *open = search->findChild<QToolButton *>()) open->click();
+                }
+                field->setFocus(Qt::OtherFocusReason);
+                field->insert(text);
+                return true;
+            }
         }
         return false;
     }
@@ -391,6 +559,12 @@ bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
             drag->acceptProposedAction();
             return true;
         }
+        // a brush from elsewhere goes into the tag shown, where the line is
+        if (!draggedBrush(drag->mimeData()).isEmpty() && orderedTag() && !isAdding()) {
+            drag->acceptProposedAction();
+            showDropLine(drag->pos());
+            return true;
+        }
         return false;
     }
     case QEvent::DragLeave:
@@ -403,6 +577,11 @@ bool KisBrushListArranger::eventFilter(QObject *watched, QEvent *event)
         if (!files.isEmpty()) {
             drop->acceptProposedAction();
             importFiles(files);
+            return true;
+        }
+        const QString brush = draggedBrush(drop->mimeData());
+        if (!brush.isEmpty() && dropBrush(brush, drop->pos())) {
+            drop->acceptProposedAction();
             return true;
         }
         return false;

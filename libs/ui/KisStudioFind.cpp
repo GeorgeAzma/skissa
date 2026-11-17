@@ -1300,6 +1300,8 @@ void KisStudioFind::registerButtons()
         if (tool && tool->defaultAction() && known.contains(tool->defaultAction())) continue;
         auto *stretched = dynamic_cast<KisStretchedIconButton *>(button);
         if (stretched && known.contains(stretched->associatedAction())) continue;
+        // a button that runs one of the window's actions is found as that action
+        if (!button->property("runsAction").toString().isEmpty()) continue;
         // skip parts of compound widgets, Find itself, and the tool rail (its items are indexed already)
         bool skip = false;
         QDockWidget *dock = nullptr;
