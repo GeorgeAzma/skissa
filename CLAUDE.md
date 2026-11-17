@@ -57,7 +57,7 @@ A map of where things are. Files are in `libs/ui/` unless noted.
 
 **Detailed notes live in `docs/skissa/`; read the file for the area you touch before changing it, and update it after.**
 
-- [`docs/skissa/layout.md`](docs/skissa/layout.md): Studio layout (rail, top bar, placement, lanes, glide), panel columns and groups, tags and brush list order, zoom pill, start page and Custom image.
+- [`docs/skissa/layout.md`](docs/skissa/layout.md): Studio layout (rail, top bar, placement, lanes, glide; which of its files holds what), panel columns and groups, tags and brush list order, zoom pill, start page and Custom image.
 - [`docs/skissa/settings.md`](docs/skissa/settings.md): Settings registry, undo journal, writeList/writeLater, arrangement, Settings panel, Take Krita's settings, themes.
 - [`docs/skissa/glass.md`](docs/skissa/glass.md): Canvas-drawn glass panels, refraction, frost, rim light, vibrancy, grain, surround glow, popups/tooltips, GL framebuffer rules, shader speed.
 - [`docs/skissa/effects.md`](docs/skissa/effects.md): Effect overlay on canvas, the effect plan and retired filters, Color, Detail, Noise, Lens, Radial blur, Drawing, Fewer colors, Shape, Light, Painting, Lens blur, Replace color, effect panels, preview passes, patches, whole-image effects, follow transforms.

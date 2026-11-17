@@ -36,6 +36,8 @@ set(skissa_ui_SRCS
     KisStudioHoldKeys.cpp
     KisStudioItemCard.cpp
     KisStudioLayout.cpp
+    KisStudioLayoutBars.cpp
+    KisStudioLayoutPanels.cpp
     KisStudioMakeBrush.cpp
     KisStudioMixing.cpp
     KisStudioMotion.cpp
