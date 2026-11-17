@@ -16,6 +16,7 @@
 #include <QTabletEvent>
 #include <QTimer>
 #include <QWidget>
+#include <QWindow>
 
 #include <KisModernStyle.h>
 
@@ -134,6 +135,7 @@ protected:
             break;
         case QEvent::Show: {
             auto *popup = qobject_cast<QWidget *>(watched);
+            if (isPopup(popup)) own(popup);
             if (!isPopup(popup) || !m_pressed || m_pressedAt.elapsed() > 800) break;
             forget(popup);
             m_open.append({popup, m_pressed, m_pressedPos, m_pressedReach});
@@ -142,6 +144,7 @@ protected:
         case QEvent::Hide: {
             auto *popup = qobject_cast<QWidget *>(watched);
             if (!isPopup(popup)) break;
+            disown(popup);
             for (const Opened &opened : qAsConst(m_open)) {
                 if (opened.popup != popup || !closedFrom(opened)) continue;
                 m_closed = opened;
@@ -157,6 +160,42 @@ protected:
     }
 
 private:
+    /**
+     * A popup of the Studio's (a tool window: true popups are black on Windows) opened from another one is owned by
+     * it, which Windows keeps it above: owned only by the main window like its opener, a click on the opener, or
+     * its activation, put the opener over it.
+     */
+    void own(QWidget *popup)
+    {
+        if (popup->windowType() != Qt::Tool) return;
+        QWidget *opener = m_pressed && m_pressedAt.elapsed() <= 800 ? m_pressed->window() : QApplication::activeWindow();
+        if (!opener || opener == popup || !isPopup(opener) || opener->windowType() != Qt::Tool || popup->isAncestorOf(opener)) return;
+        QWindow *handle = popup->windowHandle();
+        QWindow *above = opener->windowHandle();
+        if (!handle || !above || handle->transientParent() == above) return;
+        m_owned.append({popup, opener, handle->transientParent()});
+        handle->setTransientParent(above);
+    }
+
+    /// \p widget hid: what it owns is the original owner's again (Windows destroys what an owner owns with it), and
+    /// it is too if it was owned
+    void disown(QWidget *widget)
+    {
+        for (int i = m_owned.size() - 1; i >= 0; i--) {
+            const Owned owned = m_owned[i];
+            if (owned.popup && owned.popup != widget && owned.opener != widget) continue;
+            if (owned.popup && owned.popup->windowHandle() && owned.original) owned.popup->windowHandle()->setTransientParent(owned.original);
+            m_owned.removeAt(i);
+        }
+    }
+
+    struct Owned {
+        QPointer<QWidget> popup;
+        QPointer<QWidget> opener;
+        QPointer<QWindow> original;
+    };
+    QVector<Owned> m_owned;
+
     struct Opened {
         QPointer<QWidget> popup;
         QPointer<QWidget> anchor;
