@@ -564,6 +564,10 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
             const size_t i = size_t(y) * w + x;
             if (inArea(i) || inside[i] < 0) continue;
             if (beyond[i] >= 0) {
+                // an edge between two other areas (a tree's against the water under the area) is reached along its
+                // own chain of edge pixels: it is the area's only when the area is about as near as the other side
+                const auto apart = [&](int to) { return std::hypot(float(to % w - x), float(to / w - y)); };
+                if (apart(inside[i]) > 2 * apart(beyond[i]) + 2) continue;
                 const int outer = further(int(i), beyond[i], inside[i], false);
                 result.blends.push_back({int(i), further(int(i), inside[i], outer, true), outer});
                 continue;
