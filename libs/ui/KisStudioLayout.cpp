@@ -3329,18 +3329,7 @@ void KisStudioLayout::enter()
         if (id == QLatin1String("History")) dock->setWindowTitle(i18nc("@title:window the undo history panel", "History"));
         if (id == QLatin1String("SvgSymbolCollectionDocker")) dock->setWindowTitle(i18nc("@title:window the vector symbols panel", "Symbols"));
         dock->setProperty("studioIcon", railIcon(dock));
-        if (QWidget *content = dock->widget()) {
-            // the patterns are their own preview, and their tooltips name them
-            if (id == QLatin1String("PatternDocker")) {
-                Q_FOREACH (QScrollArea *preview, content->findChildren<QScrollArea *>()) {
-                    if (qobject_cast<QLabel *>(preview->widget())) preview->hide();
-                }
-                Q_FOREACH (QLabel *name, content->findChildren<QLabel *>()) {
-                    if (name->inherits("KSqueezedTextLabel")) name->hide();
-                }
-            }
-            if (auto undo = KisStudioPanelPages::apply(dock)) d->pageUndos << undo;
-        }
+        if (auto undo = KisStudioPanelPages::apply(dock)) d->pageUndos << undo;
         if (edgeToEdge.contains(id) && dock->widget()) {
             dock->widget()->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space2, KisModernStyle::space2);
         }

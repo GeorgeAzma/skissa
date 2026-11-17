@@ -213,13 +213,15 @@ bool KisStudioPanelPicker::isRetired(const QString &panelId)
 {
     // the panels the Studio covers otherwise are not built; the toolbox stays for the classic layout, and Krita's color
     // selectors, mixer, gamut masks (theirs), brush settings panel and shape arranging (its commands are in Find); the
-    // grid (its switches are in Find), the histogram, layer sets, OCIO and the storyboard; snapshots are in History, and
+    // grid (its switches are in Find), the histogram, layer sets, OCIO and the storyboard; snapshots are in History, patterns
+    // on the fill tool's bar, and
     // onion skins and text properties open from the timeline and the text tool
     static const QSet<QString> retired = {QStringLiteral("ToolBox"), QStringLiteral("ColorSelectorNg"), QStringLiteral("WideGamutColorSelector"),
                                           QStringLiteral("DigitalMixer"), QStringLiteral("GamutMask"), QStringLiteral("BrushHudDocker"),
                                           QStringLiteral("ArrangeDocker"), QStringLiteral("GridDocker"), QStringLiteral("HistogramDocker"),
                                           QStringLiteral("CompositionDocker"), QStringLiteral("LutDocker"), QStringLiteral("StoryboardDocker"),
-                                          QStringLiteral("Snapshot"), QStringLiteral("OnionSkinsDocker"), QStringLiteral("TextProperties")};
+                                          QStringLiteral("Snapshot"), QStringLiteral("OnionSkinsDocker"), QStringLiteral("TextProperties"),
+                                          QStringLiteral("PatternDocker")};
     return retired.contains(panelId);
 }
 

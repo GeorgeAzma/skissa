@@ -690,6 +690,8 @@ bool KisStudioToolRail::isOwnController(KisMainWindow *mainWindow, KoCanvasContr
 
 QString KisStudioToolRail::toolName(KoToolFactoryBase *factory)
 {
+    // the name painters know it by
+    if (factory->id() == QLatin1String("KisToolSelectOutline")) return i18nc("the freehand selection tool", "Lasso");
     // the action's text is a short name, the tooltip may be a sentence
     QString name;
     if (KisActionRegistry::instance()->hasAction(factory->id())) {

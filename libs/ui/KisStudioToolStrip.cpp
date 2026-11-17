@@ -12,7 +12,9 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
+#include <QScrollArea>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <QTimer>
 #include <QLabel>
 #include <QLineEdit>
@@ -53,8 +55,11 @@
 #include <KoSvgTextProperties.h>
 #include <KoSvgTextPropertyData.h>
 #include <kis_canvas_resource_provider.h>
+#include <kis_pattern_chooser.h>
+#include <resources/KoPattern.h>
 
 #include "KisStudioFontPicker.h"
+#include "widgets/KisStudioPopup.h"
 #include "KisStudioTools.h"
 
 namespace {
@@ -1155,6 +1160,8 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 Q_FOREACH (KoGroupButton *button, strip->buttons()) {
                     mirror(button);
                 }
+                // foreground, background, pattern: the pattern itself beside its button while it fills with one
+                if (section == QLatin1String("sectionFillWith") && strip->buttons().size() >= 3) addPatternChip(strip->buttons()[2]);
                 tuckSection(strip);
             }
         }
@@ -1216,6 +1223,72 @@ void KisStudioToolStrip::addFontChip()
             source->setTextPropertyData(data);
         }, chip->window());
         picker->popupBeside(chip, Qt::BottomEdge);
+    });
+    m_layout->addWidget(chip);
+}
+
+void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)
+{
+    KisMainWindow *window = windowOf(this);
+    KisViewManager *view = window ? window->viewManager() : nullptr;
+    KisCanvasResourceProvider *provider = view ? view->canvasResourceProvider() : nullptr;
+    if (!provider) return;
+    QPointer<KisCanvasResourceProvider> resources = provider;
+
+    auto *chip = new QToolButton(this);
+    chip->setAutoRaise(true);
+    chip->setFocusPolicy(Qt::NoFocus);
+    chip->setIconSize(QSize(20, 20));
+    chip->setToolTip(i18nc("@info:tooltip the pattern a fill paints with", "Pattern"));
+    auto show = [chip](KoPatternSP pattern) {
+        // the pattern's own picture, in a tile as a swatch is
+        const qreal ratio = chip->devicePixelRatioF();
+        QPixmap tile(QSize(20, 20) * ratio);
+        tile.setDevicePixelRatio(ratio);
+        tile.fill(Qt::transparent);
+        QPainter painter(&tile);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF rect(0.5, 0.5, 19, 19);
+        const QPainterPath shape = KisModernStyle::squircle(rect, KisModernStyle::cornerRadius);
+        if (pattern && !pattern->pattern().isNull()) {
+            painter.setClipPath(shape);
+            // a piece at the size it fills, since a whole texture shrunk to a tile is a flat gray
+            QImage piece = pattern->pattern();
+            piece.setDevicePixelRatio(ratio);
+            painter.fillRect(rect, QBrush(piece));
+            painter.setClipping(false);
+        }
+        QColor edge = chip->palette().color(QPalette::WindowText);
+        edge.setAlphaF(0.25);
+        painter.setPen(QPen(edge, 1));
+        painter.drawPath(shape);
+        painter.end();
+        chip->setIcon(QIcon(tile));
+    };
+    show(provider->currentPattern());
+    connect(provider, &KisCanvasResourceProvider::sigPatternChanged, chip, show);
+    chip->setVisible(fillsWithPattern->isChecked());
+    connect(fillsWithPattern, &QAbstractButton::toggled, chip, &QWidget::setVisible);
+
+    connect(chip, &QToolButton::clicked, this, [chip, resources]() {
+        if (!resources) return;
+        auto *popup = new KisStudioPopup(chip->window());
+        popup->setAttribute(Qt::WA_DeleteOnClose);
+        auto *layout = new QVBoxLayout(popup);
+        popup->fitLayout(layout, KisModernStyle::space2);
+        auto *chooser = new KisPatternChooser(popup);
+        // the patterns are their own preview, and their tooltips name them
+        Q_FOREACH (QScrollArea *preview, chooser->findChildren<QScrollArea *>()) {
+            if (qobject_cast<QLabel *>(preview->widget())) preview->hide();
+        }
+        Q_FOREACH (QLabel *name, chooser->findChildren<QLabel *>()) {
+            if (name->inherits("KSqueezedTextLabel")) name->hide();
+        }
+        chooser->setCurrentPattern(resources->currentPattern());
+        connect(chooser, &KisPatternChooser::resourceSelected, resources.data(), &KisCanvasResourceProvider::slotPatternActivated);
+        layout->addWidget(chooser);
+        popup->resize(popup->sizeHint().expandedTo(QSize(300, 320) + QSize(2, 2) * popup->shadowMargin()));
+        popup->popupBeside(chip, Qt::BottomEdge);
     });
     m_layout->addWidget(chip);
 }
