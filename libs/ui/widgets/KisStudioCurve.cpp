@@ -65,10 +65,15 @@ QVector<float> KisStudioCurve::sampled(int count, bool wraps, bool rises) const
         return values;
     }
     if (wraps) {
-        // a turn before and after, so that the curve meets itself at the ends
+        // a turn before and after, so that the curve meets itself at the ends; the ends are one point, kept once, or
+        // the copy met itself as a flat step at every end and bent a straight hue curve into an S
+        const bool joined = points.size() > 1 && std::abs(points.last().x() - points.first().x() - 1) < 1e-6;
         QVector<QPointF> around;
         for (int turn = -1; turn <= 1; turn++) {
-            Q_FOREACH (const QPointF &point, points) around << QPointF(point.x() + turn, point.y() + (rises ? turn : 0));
+            for (int i = 0; i < points.size(); i++) {
+                if (joined && i == points.size() - 1 && turn < 1) continue;
+                around << QPointF(points[i].x() + turn, points[i].y() + (rises ? turn : 0));
+            }
         }
         points = around;
     }

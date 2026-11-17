@@ -158,9 +158,10 @@ QVector<ToolSlot> toolSlots()
          {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"), QStringLiteral("KisToolEncloseAndFill"),
           QStringLiteral("KritaShape/KisToolLazyBrush")}},
         {QStringLiteral("shape"), i18nc("@info:tooltip tool slot", "Shape"), QStringLiteral("studio_shape"), BrushMode::None,
-         {QStringLiteral("KritaShape/KisToolSuperellipse"), QStringLiteral("KritaShape/KisToolCurveStroke"), QStringLiteral("KritaShape/KisToolLine"),
-          QStringLiteral("KisToolPolygon"), QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPath"), QStringLiteral("KisToolPencil"),
-          QStringLiteral("PathTool"), QStringLiteral("KarbonCalligraphyTool"), QStringLiteral("KritaShape/KisToolKnife")}},
+         // Line draws straight and bends (Krita's line, polyline and polygon are Line and Shape's Sides); Bezier is the
+         // precise vector path
+         {QStringLiteral("KritaShape/KisToolSuperellipse"), QStringLiteral("KritaShape/KisToolCurveStroke"), QStringLiteral("KisToolPath"),
+          QStringLiteral("PathTool"), QStringLiteral("KritaShape/KisToolKnife")}},
         {QStringLiteral("text"), i18nc("@info:tooltip tool slot", "Text"), QStringLiteral("studio_text"), BrushMode::None,
          {QStringLiteral("SvgTextTool")}},
         {QStringLiteral("guides"), i18nc("@info:tooltip tool slot", "Guides"), QStringLiteral("studio_guides"), BrushMode::None,

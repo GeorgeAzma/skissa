@@ -70,7 +70,7 @@ const QSize thumbnailSize(112, 64);
 QStringList defaultEffects()
 {
     return {
-        QStringLiteral("skissa_color"), QStringLiteral("gaussian blur"), QStringLiteral("unsharp"), QStringLiteral("skissa_detail"),
+        QStringLiteral("skissa_color"), QStringLiteral("gaussian blur"), QStringLiteral("skissa_detail"), QStringLiteral("skissa_smooth"),
         QStringLiteral("motion blur"), QStringLiteral("gaussianhighpass"), QStringLiteral("skissa_ink"), QStringLiteral("skissa_replace"),
     };
 }

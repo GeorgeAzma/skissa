@@ -321,6 +321,8 @@ struct SkissaColorWidget::Private {
     KisStudioChips *mapBlend {nullptr};
     KisStudioChips *mapKeep {nullptr};
     KisStudioValueRow *mapStrength {nullptr};
+    /// The tab's simple shift: lightness up or down, chroma scaled, hues turned
+    KisStudioValueRow *shiftRow {nullptr};
     QVector<QPair<QString, Stops>> mapLookStops;
     QVector<QImage> mapLookPictures;
     /// The stop a drag on the image recolors, and its color when the drag began
@@ -593,6 +595,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
             d->settings.rgb = defaults.rgb;
         } else if (index >= 0 && index < 3) {
             for (int by = 0; by < 3; by++) d->settings.curves[by][index] = defaults.curves[by][index];
+            d->settings.shift[index] = defaults.shift[index];
         } else {
             return;
         }
@@ -630,6 +633,15 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
     });
     byRow->addWidget(d->byChips, 1);
     curveColumn->addWidget(d->byRow);
+
+    d->shiftRow = new KisStudioValueRow(QString(), this);
+    connect(d->shiftRow, &KisStudioValueRow::valueChanged, this, [this](qreal value) {
+        if (d->isMap() || d->isRgb()) return;
+        d->settings.shift[d->change] = float(d->change == Chroma ? value / 100 : d->change == Lightness ? value / 100 : value);
+        refreshChips();
+        Q_EMIT sigConfigurationItemChanged();
+    });
+    curveColumn->addWidget(d->shiftRow);
 
     // the gradient map: looks, the stops over the image's lightness, the chosen stop's color, how the stops meet
     d->mapBox = new QWidget(this);
@@ -771,6 +783,36 @@ void SkissaColorWidget::refresh()
     d->curve->setVisible(!d->isMap());
     d->byRow->setVisible(!d->isMap());
     d->mapBox->setVisible(d->isMap());
+    d->shiftRow->setVisible(!d->isMap() && !d->isRgb());
+    if (!d->isMap() && !d->isRgb()) {
+        // the whole image at once: lighter or darker, more or less colorful, hues turned
+        KisStudioValueRow::Range range;
+        qreal shown = 0;
+        qreal neutral = 0;
+        if (d->change == Lightness) {
+            d->shiftRow->setName(i18nc("color effect: lightness added to every color", "Shift"));
+            range.minimum = -50;
+            range.maximum = 50;
+            range.suffix = QStringLiteral("%");
+            shown = d->settings.shift[Lightness] * 100;
+        } else if (d->change == Chroma) {
+            d->shiftRow->setName(i18nc("color effect: every color's chroma scaled", "Amount"));
+            range.maximum = 200;
+            range.suffix = QStringLiteral("%");
+            shown = d->settings.shift[Chroma] * 100;
+            neutral = 100;
+        } else {
+            d->shiftRow->setName(i18nc("color effect: every hue turned around the wheel", "Shift"));
+            range.minimum = -180;
+            range.maximum = 180;
+            range.suffix = QStringLiteral("°");
+            shown = d->settings.shift[Hue];
+        }
+        QSignalBlocker blocker(d->shiftRow);
+        d->shiftRow->setRange(range);
+        d->shiftRow->setDefaultValue(neutral);
+        d->shiftRow->setValue(shown);
+    }
     if (d->isMap()) {
         d->shadows->setValue(d->settings.shadows);
         d->balance->setValue(d->settings.balance);
@@ -864,6 +906,7 @@ void SkissaColorWidget::refreshChips()
                 chip.dot = true;
             }
         }
+        if (change < 3 && d->settings.shift[change] != Settings().shift[change]) chip.dot = true;
         tabs << chip;
     }
     d->changeTabs->setChips(tabs);

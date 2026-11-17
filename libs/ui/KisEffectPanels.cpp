@@ -882,8 +882,8 @@ KisConfigWidget *replaceColor(QWidget *parent, KisPaintDeviceSP device)
         return Tile{name, [background](Config &c) { c.setProperty("background", background); },
                     [background](const Config &c) { return c.getBool("background", true) == background; }};
     };
-    panel->addTiles({mode(i18nc("replace color: the color is under everything, as paper is", "Background"), true),
-                     mode(i18nc("replace color: only the color and its soft edges", "Color"), false)},
+    panel->addTiles({mode(i18nc("replace color: the color is under everything, as paper is, and comes out from under all paint", "Behind all"), true),
+                     mode(i18nc("replace color: only the color and its soft edges, other paint left as it is", "Just this color"), false)},
                     {}, Panel::Pictures::Whole);
     panel->addColor({i18nc("replace color: the color replaced", "Replace"), colorOf("color", Qt::white), [](Config &c, const KoColor &color) {
                          QColor opaque = color.toQColor();

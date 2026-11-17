@@ -188,6 +188,9 @@ Settings Settings::from(const KisPropertiesConfiguration &config)
     settings.mapSteps = config.getBool("map_steps", false);
     settings.mapKeepsLightness = config.getBool("map_keep", false);
     settings.mapStrength = float(qBound(0.0, config.getDouble("map_strength", 1.0), 1.0));
+    settings.shift[Lightness] = float(qBound(-1.0, config.getDouble("shift_lightness", 0.0), 1.0));
+    settings.shift[Chroma] = float(qBound(0.0, config.getDouble("scale_chroma", 1.0), 4.0));
+    settings.shift[Hue] = float(qBound(-180.0, config.getDouble("shift_hue", 0.0), 180.0));
     return settings;
 }
 
@@ -216,6 +219,13 @@ void Settings::writeTo(KisPropertiesConfiguration &config) const
     point("balance", balance);
     point("shadows", shadows);
     point("highlights", highlights);
+    auto number = [&config](const char *key, float value, float fallback) {
+        if (std::abs(value - fallback) < 1e-5f) config.removeProperty(QLatin1String(key));
+        else config.setProperty(key, double(value));
+    };
+    number("shift_lightness", shift[Lightness], 0);
+    number("scale_chroma", shift[Chroma], 1);
+    number("shift_hue", shift[Hue], 0);
     QStringList stops;
     for (const auto &stop : map) stops << QString::number(stop.first, 'g', 4) + QLatin1Char(':') + stop.second.name();
     for (const char *key : {"map", "map_steps", "map_keep", "map_strength"}) config.removeProperty(QLatin1String(key));
@@ -231,7 +241,7 @@ bool Settings::operator==(const Settings &other) const
 {
     auto near = [](const QPointF &a, const QPointF &b) { return std::abs(a.x() - b.x()) < 1e-5 && std::abs(a.y() - b.y()) < 1e-5; };
     return curves == other.curves && rgb == other.rgb && near(balance, other.balance) && near(shadows, other.shadows)
-        && near(highlights, other.highlights) && map == other.map
+        && near(highlights, other.highlights) && map == other.map && shift == other.shift
         && (map.isEmpty() || (mapSteps == other.mapSteps && mapKeepsLightness == other.mapKeepsLightness && mapStrength == other.mapStrength));
 }
 
@@ -261,6 +271,9 @@ Recipe::Recipe(const Settings &settings)
     m_byHue = m_used[Hue][Lightness] || m_used[Hue][Chroma] || m_used[Hue][Hue];
     m_turns = m_used[Hue][Hue] || m_used[Lightness][Hue] || m_used[Chroma][Hue];
     if (!m_shadows.isNull() || !m_highlights.isNull()) m_oklch = true;
+    m_shift = settings.shift;
+    if (m_shift[Lightness] != 0 || m_shift[Chroma] != 1 || m_shift[Hue] != 0) m_oklch = true;
+    if (m_shift[Hue] != 0) m_turns = true;
 
     // white balance as the eye adapts (von Kries), in the cone responses Oklab is made from: the color opposite the
     // cast, at full lightness, becomes white
@@ -350,10 +363,11 @@ void Recipe::apply(float rgb[3], bool fit, bool inSrgb) const
             }
             if (m_used[Lightness][Chroma]) newChroma *= 2 * read(m_curves[Lightness][Chroma], lightness);
             if (m_used[Hue][Chroma]) newChroma *= 1 + colored * (2 * read(m_curves[Hue][Chroma], x) - 1);
-            newChroma *= exposed;
+            newChroma *= exposed * m_shift[Chroma];
+            newLightness = std::max(0.0f, newLightness + m_shift[Lightness]);
 
             if (m_turns) {
-                float hue = hueOfAxis(m_used[Hue][Hue] ? read(m_curves[Hue][Hue], x) : x);
+                float hue = hueOfAxis(m_used[Hue][Hue] ? read(m_curves[Hue][Hue], x) : x) + m_shift[Hue];
                 if (m_used[Lightness][Hue]) hue += (read(m_curves[Lightness][Hue], lightness) - 0.5f) * 2 * hueShift;
                 if (m_used[Chroma][Hue]) hue += (read(m_curves[Chroma][Hue], c) - 0.5f) * 2 * hueShift;
                 lab[1] = newChroma * std::cos(hue / degrees);

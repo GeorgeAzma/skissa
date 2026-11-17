@@ -94,7 +94,7 @@ public:
     KisToolCurveStrokeFactory()
         : KisToolPaintFactoryBase(QStringLiteral("KritaShape/KisToolCurveStroke"))
     {
-        setToolTip(i18nc("@info:tooltip", "Curve"));
+        setToolTip(i18nc("@info:tooltip a line that bends", "Line"));
         setSection(ToolBoxSection::Shape);
         setActivationShapeId(KRITA_TOOL_ACTIVATION_ID);
         setPriority(2);

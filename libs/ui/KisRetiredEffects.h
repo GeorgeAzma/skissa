@@ -22,6 +22,7 @@ namespace KisRetiredEffects
 inline QString coveredBy(const QString &filterId)
 {
     static const QString color = QStringLiteral("skissa_color");
+    static const QString detail = QStringLiteral("skissa_detail");
     static const QHash<QString, QString> by = {
         // Color: curves in OKLCH and RGB, white balance, tints
         {QStringLiteral("perchannel"), color}, {QStringLiteral("crosschannel"), color}, {QStringLiteral("hsvadjustment"), color},
@@ -29,10 +30,11 @@ inline QString coveredBy(const QString &filterId)
         {QStringLiteral("levels"), color}, {QStringLiteral("asc-cdl"), color}, {QStringLiteral("autocontrast"), color},
         {QStringLiteral("normalize"), color}, {QStringLiteral("maximize"), color}, {QStringLiteral("minimize"), color},
         {QStringLiteral("gradientmap"), color},
-        // Detail and the effects made of it; Blur, Sharpen and High pass have Krita's ids, and their own from before
+        // Detail and the effects made of it; Blur and High pass have Krita's ids, and their own from before. Sharpening is
+        // Detail's Crisp: Sharpen (Krita's unsharp, still rendering old masks) did less with more settings
         {QStringLiteral("blur"), QStringLiteral("gaussian blur")}, {QStringLiteral("skissa_blur"), QStringLiteral("gaussian blur")},
-        {QStringLiteral("sharpen"), QStringLiteral("unsharp")}, {QStringLiteral("mean removal"), QStringLiteral("unsharp")},
-        {QStringLiteral("skissa_sharpen"), QStringLiteral("unsharp")},
+        {QStringLiteral("sharpen"), detail}, {QStringLiteral("mean removal"), detail}, {QStringLiteral("skissa_sharpen"), detail},
+        {QStringLiteral("unsharp"), detail},
         {QStringLiteral("skissa_high_pass"), QStringLiteral("gaussianhighpass")},
         {QStringLiteral("gaussiannoisereducer"), QStringLiteral("skissa_smooth")},
         {QStringLiteral("waveletnoisereducer"), QStringLiteral("skissa_smooth")},
@@ -94,6 +96,10 @@ inline QVariantMap replacementSettings(const QString &filterId)
                 {QStringLiteral("colors"), QStringLiteral("paper")}};
     }
     if (filterId == QLatin1String("pixelize")) return {{QStringLiteral("pixel"), 8}};
+    if (coveredBy(filterId) == QLatin1String("skissa_detail")) {
+        // Detail's Crisp: the finest features twice as strong
+        return {{QStringLiteral("curve"), QStringLiteral("0,0.75;0.048543,0.75;0.2585,0.5;1,0.5;")}, {QStringLiteral("edges"), 0.0}};
+    }
     if (filterId == QLatin1String("propagatecolors")) return {{QStringLiteral("grow"), 8.0}};
     if (filterId == QLatin1String("gradientmap")) return {{QStringLiteral("map"), QStringLiteral("0:#000000;1:#ffffff")}};
     return {};

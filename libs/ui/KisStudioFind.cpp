@@ -336,7 +336,7 @@ QHash<QString, QStringList> aliasTable()
         {"tool:KritaShape/KisToolSmartPatch", i18nc("@info find aliases, comma separated", "healing brush, spot healing, content aware fill")},
         {"tool:KritaShape/KisToolBrush", i18nc("@info find aliases, comma separated", "paintbrush, pencil, pen")},
         {"tool:KritaShape/KisToolLazyBrush", i18nc("@info find aliases, comma separated", "flatting, flats")},
-        {"tool:KritaShape/KisToolCurveStroke", i18nc("@info find aliases, comma separated", "bezier, curve, line art, lineart, tapered stroke, bend")},
+        {"tool:KritaShape/KisToolCurveStroke", i18nc("@info find aliases, comma separated", "curve, line, straight line, polyline, line art, lineart, tapered stroke, bend")},
         {"tool:KisToolPath", i18nc("@info find aliases, comma separated", "pen tool, vector path")},
         {"tool:SvgTextTool", i18nc("@info find aliases, comma separated", "type")},
         {"tool:ToolReferenceImages", i18nc("@info find aliases, comma separated", "references")},
@@ -351,7 +351,7 @@ QHash<QString, QStringList> aliasTable()
         {"effect:skissa_ink", i18nc("@info find aliases, comma separated", "ink, difference of gaussians, dog, xdog, edge detection, find edges, outline, line art, lineart, sketch, pencil sketch, photo to sketch, charcoal, comic, manga, cel shading, toon, hatching, crosshatch, engraving, etching, stipple, stippling, pointillism, woodcut, watercolor, coloring book, halftone, screentone, screen tone, comic dots, ben day dots, pop art, cmyk, contour lines, topographic, paper texture")},
         {"effect:skissa_radial", i18nc("@info find aliases, comma separated", "zoom blur, spin blur, twirl, swirl, spiral, vortex, god rays, light rays, sun rays, sunbeams, light shafts, crepuscular rays, volumetric light, speed lines, warp, burst")},
         {"effect:skissa_fewer_colors", i18nc("@info find aliases, comma separated", "posterize, threshold, palettize, index colors, reduce colors, quantize, dither, dithering, limited palette, pixel art, 1-bit, black and white, retro, gameboy, pixelize, pixelate, mosaic, 8-bit, sprite")},
-        {"effect:skissa_detail", i18nc("@info find aliases, comma separated", "clarity, local contrast, structure, texture, frequency, equalizer")},
+        {"effect:skissa_detail", i18nc("@info find aliases, comma separated", "clarity, local contrast, structure, texture, frequency, equalizer, sharpen, unsharp mask, crisp")},
         {"effect:skissa_light", i18nc("@info find aliases, comma separated", "glow, bloom, optical glow, deep glow, glare, star filter, starburst, sparkle, twinkle, diffraction spikes, aperture, iris, blades, lens flare, anamorphic, streak, light leak, highlights glow, dreamy, orton, neon, halation, film halation, red halo")},
         {"effect:skissa_paint", i18nc("@info find aliases, comma separated", "painterly, oil paint, oil painting, kuwahara, anisotropic kuwahara, paint, gouache, impasto, brush strokes, artistic, watercolor, abstract, photo to painting")},
         {"effect:skissa_replace", i18nc("@info find aliases, comma separated", "color to alpha, remove white, white to transparent, remove paper, transparent background, make transparent, knock out, swap color, change color, recolor, line color, line art color, color lines")},
@@ -774,8 +774,13 @@ void KisStudioFind::rebuildIndex()
     Q_FOREACH (KoToolFactoryBase *factory, KoToolRegistry::instance()->values()) {
         const QString id = factory->id();
         toolIds.insert(id);
-        // the shape tool draws both
-        if (id == QLatin1String("KritaShape/KisToolRectangle") || id == QLatin1String("KritaShape/KisToolEllipse")) continue;
+        // the shape tool draws both; Line draws straight lines, polylines by bending, Shape's Sides polygons; brushes
+        // do calligraphy and freehand paths
+        static const QSet<QString> covered = {QStringLiteral("KritaShape/KisToolRectangle"), QStringLiteral("KritaShape/KisToolEllipse"),
+                                              QStringLiteral("KritaShape/KisToolLine"), QStringLiteral("KisToolPolygon"),
+                                              QStringLiteral("KisToolPolyline"), QStringLiteral("KisToolPencil"),
+                                              QStringLiteral("KarbonCalligraphyTool")};
+        if (covered.contains(id)) continue;
         QAction *action = mainWindow->actionCollection()->action(id);
         const QString shortcut = action ? action->shortcut().toString(QKeySequence::NativeText) : QString();
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,

@@ -69,6 +69,8 @@ struct Settings {
     QPointF balance;
     QPointF shadows;
     QPointF highlights;
+    /// The simple shifts, after the curves: lightness added (OKLCH, -1 to 1), chroma scaled, hue turned in degrees
+    std::array<float, 3> shift {0.0f, 1.0f, 0.0f}; ///< [Lightness, Chroma, Hue]
 
     Settings();
     static Settings from(const KisPropertiesConfiguration &config);
@@ -98,6 +100,7 @@ private:
     std::array<std::array<bool, 3>, 3> m_used {};
     bool m_anyRgb {false};
     bool m_oklch {false};
+    std::array<float, 3> m_shift {0.0f, 1.0f, 0.0f};
     bool m_byHue {false};
     bool m_turns {false};
     bool m_nothing {true};
