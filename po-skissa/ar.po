@@ -48,10 +48,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "اللون"
 
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "اللون"
-
 msgctxt "propagate colors: fill only so far"
 msgid "Distance"
 msgstr "المسافة"
@@ -771,10 +767,6 @@ msgstr "السّطوع"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "التّباين"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "منحنى"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

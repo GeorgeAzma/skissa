@@ -116,14 +116,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Koloro"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "Fono"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Koloro"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "Heleco"
@@ -1115,10 +1107,6 @@ msgstr "Brilo"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontrasto"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "Kurbo"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

@@ -122,14 +122,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "ფერი"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "ფონი"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "ფერი"
-
 msgctxt "propagate colors: fill only so far"
 msgid "Distance"
 msgstr "მანძილი"
@@ -1155,10 +1147,6 @@ msgstr "სიკაშკაშე"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "კონტრასტი"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "მრუდი"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

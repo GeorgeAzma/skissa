@@ -83,14 +83,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Värv"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "Taust"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Värv"
-
 msgctxt "propagate colors: fill only so far"
 msgid "Distance"
 msgstr "Vahemaa"

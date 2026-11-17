@@ -88,10 +88,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "色彩"
 
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "色彩"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "亮度"

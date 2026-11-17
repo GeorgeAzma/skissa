@@ -109,10 +109,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "色"
 
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "色"
-
 msgctxt "propagate colors: fill only so far"
 msgid "Distance"
 msgstr "距離"

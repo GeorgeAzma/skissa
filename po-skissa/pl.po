@@ -88,10 +88,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Barwa"
 
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Barwa"
-
 msgctxt "propagate colors: fill only so far"
 msgid "Distance"
 msgstr "Odległość"
@@ -876,10 +872,6 @@ msgstr "Gradient"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Wzorce"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "Krzywa"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

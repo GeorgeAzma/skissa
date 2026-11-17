@@ -68,14 +68,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "رەڭ"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "تەگلىك"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "رەڭ"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "يورۇقلۇق دەرىجىسى"
@@ -814,10 +806,6 @@ msgstr "يوق"
 msgctxt "no texture on the brush"
 msgid "None"
 msgstr "يوق"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "ئەگرى سىزىق"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

@@ -124,14 +124,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Szín"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "Háttér"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Szín"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "Világosság"
@@ -1267,10 +1259,6 @@ msgstr "Fényerő"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Kontraszt"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "Görbe"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

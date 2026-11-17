@@ -124,14 +124,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Renk"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "Arka Plan"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Renk"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "Açıklık"
@@ -1214,10 +1206,6 @@ msgstr "Parlaklık"
 msgctxt "texture setting"
 msgid "Contrast"
 msgstr "Karşıtlık"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "Eğri"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"

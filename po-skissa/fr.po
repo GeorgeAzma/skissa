@@ -129,14 +129,6 @@ msgctxt "color to alpha: the color made see-through"
 msgid "Color"
 msgstr "Couleur"
 
-msgctxt "replace color: the color is under everything, as paper is"
-msgid "Background"
-msgstr "Arrière-plan"
-
-msgctxt "replace color: only the color and its soft edges"
-msgid "Color"
-msgstr "Couleur"
-
 msgctxt "desaturate: gray halfway between the brightest and darkest channels (HSL lightness)"
 msgid "Lightness"
 msgstr "Luminosité"
@@ -1147,10 +1139,6 @@ msgstr "Dégradé"
 msgctxt "pattern group"
 msgid "Patterns"
 msgstr "Motifs"
-
-msgctxt "@info:tooltip"
-msgid "Curve"
-msgstr "Courbe"
 
 msgctxt "shape tool: the corners' curve"
 msgid "Curve"
