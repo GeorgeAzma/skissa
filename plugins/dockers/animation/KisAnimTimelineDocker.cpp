@@ -130,6 +130,7 @@ KisAnimTimelineDockerTitlebar::KisAnimTimelineDockerTitlebar(QWidget* parent) :
 
         // Onion skins menu.
         btnOnionSkinsMenu = new QToolButton(this);
+        btnOnionSkinsMenu->setObjectName("btnOnionSkinsMenu");
         btnOnionSkinsMenu->setIcon(KisIconUtils::loadIcon("onion_skin_options"));
         btnOnionSkinsMenu->setToolTip(i18n("Onion skins menu"));
         btnOnionSkinsMenu->setIconSize(QSize(22, 22));

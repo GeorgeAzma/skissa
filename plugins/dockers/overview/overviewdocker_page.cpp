@@ -398,6 +398,15 @@ bool OverviewDockerPage::eventFilter(QObject *o, QEvent *e)
 
 void OverviewDockerPage::layoutMainWidgets()
 {
+    // Skissa: the picture alone, the view's controls being on the canvas
+    if (property("studioPictureOnly").toBool()) {
+        m_controlsContainer->hide();
+        setMinimumHeight(m_overviewWidget->minimumHeight());
+        m_overviewWidget->setGeometry(rect());
+        return;
+    }
+    m_controlsContainer->show();
+
     this->setMinimumHeight(m_overviewWidget->minimumHeight() +
                              m_controlsContainer->minimumSizeHint().height());
 

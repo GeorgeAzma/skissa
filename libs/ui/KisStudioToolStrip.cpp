@@ -8,6 +8,7 @@
 #include <QAbstractButton>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDockWidget>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPainterPath>
@@ -1323,6 +1324,23 @@ void KisStudioToolStrip::addTextCommands(QObject *manager)
     // Krita's text options are a page of their own: the font is on the bar, the rest behind ⋯
     QPointer<QObject> options = manager;
     addGap();
+    // the text's properties, opened under their button; lit while open
+    if (options->property("showTextPropertyButton").toBool()) {
+        QToolButton *button = addButton(KisIconUtils::loadIcon(QStringLiteral("studio_text_properties")),
+                                        i18nc("@info:tooltip the text tool's panel of size, spacing and the like", "Text properties"));
+        QPointer<QDockWidget> panel = window()->findChild<QDockWidget *>(QStringLiteral("TextProperties"));
+        if (panel) {
+            panel->setProperty("studioAnchor", QVariant::fromValue<QObject *>(button));
+            button->setChecked(panel->isVisible());
+            connect(panel, &QDockWidget::visibilityChanged, button, [button](bool visible) { button->setChecked(visible); });
+        }
+        connect(button, &QToolButton::clicked, this, [options, panel, button]() {
+            if (!options) return;
+            if (panel) panel->setProperty("studioAnchor", QVariant::fromValue<QObject *>(button));
+            // the tool shows or hides the panel on every change of this, whatever it was
+            options->setProperty("textPropertiesOpen", !options->property("textPropertiesOpen").toBool());
+        });
+    }
     QMenu *menu = addMore();
     connect(menu, &QMenu::aboutToShow, this, [menu, options]() {
         menu->clear();
@@ -1338,9 +1356,6 @@ void KisStudioToolStrip::addTextCommands(QObject *manager)
                 if (options) options->setProperty(property, on);
             });
         };
-        if (options->property("showTextPropertyButton").toBool()) {
-            toggle(i18nc("text tool: show the text properties panel", "Text properties"), "textPropertiesOpen");
-        }
         command(i18nc("text tool: pick a character from the font", "Glyphs…"), [options]() {
             if (options) QMetaObject::invokeMethod(options, "emitGlyphPalette");
         });

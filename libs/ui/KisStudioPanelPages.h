@@ -11,9 +11,9 @@
 class QDockWidget;
 
 /**
- * Skissa's own pages over some of Krita's panels (Grid and guides, Onion skins, Channels): switches, tabs, value rows
- * and color fields that drive the panel's own controls, which are kept out of sight, so its logic and settings stay
- * Krita's.
+ * Skissa's own pages over some of Krita's panels (History with snapshots, Overview, Onion skins, Channels): value rows,
+ * color fields and buttons that drive the panel's own controls, which are kept out of sight, so its logic and settings
+ * stay Krita's.
  */
 namespace KisStudioPanelPages
 {

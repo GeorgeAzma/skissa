@@ -3205,6 +3205,11 @@ void KisStudioLayout::readArrangement()
         return QSet<QString>(list.begin(), list.end());
     };
     d->pinned = readSet(pinnedKey);
+    // a panel the Studio no longer offers isn't kept beside the canvas either
+    for (auto it = d->pinned.begin(); it != d->pinned.end();) {
+        if (KisStudioPanelPicker::isRetired(*it)) it = d->pinned.erase(it);
+        else ++it;
+    }
     d->groups.clear();
     Q_FOREACH (const QString &id, readSet(farKey)) {
         d->groups.insert(id, 1);
@@ -3323,8 +3328,6 @@ void KisStudioLayout::enter()
         if (id == QLatin1String("PresetDocker")) dock->setWindowTitle(i18nc("@title:window the brushes panel", "Brushes"));
         if (id == QLatin1String("History")) dock->setWindowTitle(i18nc("@title:window the undo history panel", "History"));
         if (id == QLatin1String("SvgSymbolCollectionDocker")) dock->setWindowTitle(i18nc("@title:window the vector symbols panel", "Symbols"));
-        if (id == QLatin1String("CompositionDocker")) dock->setWindowTitle(i18nc("@title:window saved sets of which layers show", "Layer sets"));
-        if (id == QLatin1String("LutDocker")) dock->setWindowTitle(i18nc("@title:window the image seen through an OCIO view transform", "OCIO view"));
         dock->setProperty("studioIcon", railIcon(dock));
         if (QWidget *content = dock->widget()) {
             // the patterns are their own preview, and their tooltips name them
@@ -3336,13 +3339,7 @@ void KisStudioLayout::enter()
                     if (name->inherits("KSqueezedTextLabel")) name->hide();
                 }
             }
-            // + names a new set itself; right-click renames it
-            if (id == QLatin1String("CompositionDocker")) {
-                if (QWidget *name = content->findChild<QWidget *>(QStringLiteral("saveNameEdit"))) name->hide();
-            }
             if (auto undo = KisStudioPanelPages::apply(dock)) d->pageUndos << undo;
-            // a graph needs room to be read
-            if (id == QLatin1String("HistogramDocker")) content->setMinimumHeight(180);
         }
         if (edgeToEdge.contains(id) && dock->widget()) {
             dock->widget()->setContentsMargins(KisModernStyle::space2, 0, KisModernStyle::space2, KisModernStyle::space2);
@@ -3356,6 +3353,14 @@ void KisStudioLayout::enter()
 
         // named so a shortcut set on its card is saved, and added to the window so the shortcut works
         QAction *toggle = dock->toggleViewAction();
+        // a panel left out isn't offered as a command either
+        if (KisStudioPanelPicker::isRetired(dock->objectName()) && toggle->isVisible()) {
+            toggle->setVisible(false);
+            QPointer<QAction> shown = toggle;
+            d->pageUndos << [shown]() {
+                if (shown) shown->setVisible(true);
+            };
+        }
         if (toggle->objectName().isEmpty()) {
             toggle->setObjectName(QStringLiteral("studio_panel_") + dock->objectName());
             KisStudioShortcuts::restore(toggle);
@@ -3925,7 +3930,8 @@ void KisStudioLayout::dockToggled(QDockWidget *dock, bool visible)
         QTimer::singleShot(0, this, [this, dock]() {
             if (d->active && !dock->isHidden() && dock != d->flyout
                 && !d->pinned.contains(dock->objectName()) && !arePanelsHidden()) {
-                showFlyout(dock);
+                // below the button that opened it, when one says so (the text tool's properties, the timeline's onion skins)
+                showFlyout(dock, qobject_cast<QWidget *>(dock->property("studioAnchor").value<QObject *>()));
             }
         });
     }
@@ -4107,6 +4113,12 @@ void KisStudioLayout::positionFlyout()
         }
         left = qBound(area.left() + margin, left, area.right() + 1 - margin - width);
         global = QRect(left, area.top() + margin, width, qBound(80, contentsHeight, area.height() - 2 * margin));
+        // above a button low in the window (the timeline's), so it opens beside what opened it
+        const QRect at(d->flyoutAnchor->mapToGlobal(QPoint()), d->flyoutAnchor->size());
+        if (at.center().y() > area.center().y()) {
+            global.moveBottom(qMin(at.top(), area.bottom() + 1) - 1 - margin);
+            if (global.top() < area.top() + margin) global.setTop(area.top() + margin);
+        }
     }
     QWidget *parent = d->flyoutWindow->parentWidget();
     d->flyoutWindow->setGeometry(QRect(parent->mapFromGlobal(global.topLeft()), global.size()));
@@ -5214,7 +5226,7 @@ void KisStudioLayout::rebuildRailButtons()
     QStringList panels;
     Q_FOREACH (const QString &id, d->railPanels) {
         QDockWidget *dock = d->mainWindow->dockWidget(id);
-        if (!dock || panels.contains(id)) {
+        if (!dock || panels.contains(id) || KisStudioPanelPicker::isRetired(id)) {
             continue;
         }
         panels << id;

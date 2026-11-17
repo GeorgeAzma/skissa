@@ -1245,6 +1245,8 @@ void KisStudioFind::registerButtons()
         }
         // skip buttons hidden on purpose (replaced, or unused in this mode)
         if (skip || !button->isVisibleTo(dock ? static_cast<QWidget *>(dock) : static_cast<QWidget *>(mainWindow))) continue;
+        // nor those of panels left out
+        if (dock && KisStudioPanelPicker::isRetired(dock->objectName())) continue;
 
         // title: its text, else its tooltip's first line, cut at a colon, comma or period if long
         QString title = plainText(button->text());
