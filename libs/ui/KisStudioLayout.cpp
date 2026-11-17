@@ -105,6 +105,7 @@
 #include "KisStudioSmoothing.h"
 #include "KisStudioToolRail.h"
 #include "KisStudioToolStrip.h"
+#include "KisStudioPanelPages.h"
 #include "KisStudioWindowFrame.h"
 #include "KisTouchMode.h"
 #include "KisView.h"
@@ -2806,6 +2807,8 @@ struct KisStudioLayout::Private
         QDockWidget::DockWidgetFeatures features;
     };
     QHash<QDockWidget *, ClassicDock> classicDocks;
+    /// Take away Skissa's pages over Krita's panels (KisStudioPanelPages)
+    QList<std::function<void()>> pageUndos;
     /// Every docker except the toolbox
     QSet<QDockWidget *> panels;
     QVector<QMetaObject::Connection> connections;
@@ -3286,6 +3289,7 @@ void KisStudioLayout::enter()
             d->connections << connect(dock, &QDockWidget::dockLocationChanged, this, [dock, toBottom]() { QTimer::singleShot(0, dock, toBottom); });
             d->connections << connect(dock, &QDockWidget::topLevelChanged, this, [dock, toBottom]() { QTimer::singleShot(0, dock, toBottom); });
             QTimer::singleShot(0, dock, toBottom);
+            if (auto undo = KisStudioPanelPages::apply(dock)) d->pageUndos << undo;
             continue;
         }
 
@@ -3336,6 +3340,7 @@ void KisStudioLayout::enter()
             if (id == QLatin1String("CompositionDocker")) {
                 if (QWidget *name = content->findChild<QWidget *>(QStringLiteral("saveNameEdit"))) name->hide();
             }
+            if (auto undo = KisStudioPanelPages::apply(dock)) d->pageUndos << undo;
             // a graph needs room to be read
             if (id == QLatin1String("HistogramDocker")) content->setMinimumHeight(180);
         }
@@ -3753,6 +3758,8 @@ void KisStudioLayout::leave()
         }
     }
     d->classicDocks.clear();
+    for (const auto &undo : d->pageUndos) undo();
+    d->pageUndos.clear();
     d->panels.clear();
     d->grips.clear();
     Q_FOREACH (KisStudioPanelColumn *column, d->columns()) {
