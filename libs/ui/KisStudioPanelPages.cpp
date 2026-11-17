@@ -25,7 +25,6 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStyledItemDelegate>
-#include <QTableView>
 #include <QTimer>
 #include <QToolButton>
 
@@ -201,76 +200,6 @@ std::function<void()> onionSkinsPage(QWidget *content)
     const int at = filter ? box->indexOf(filter) : -1;
     box->insertWidget(at >= 0 ? at : box->count(), page);
     return page->undo();
-}
-
-/// An eye in place of a channel's checkbox, as a layer has
-class EyeDelegate : public QStyledItemDelegate
-{
-public:
-    using QStyledItemDelegate::QStyledItemDelegate;
-
-    static QRect eyeRect(const QRect &cell)
-    {
-        const int side = 18;
-        return QRect(cell.left() + KisModernStyle::space1, cell.center().y() - side / 2 + 1, side, side);
-    }
-
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
-        QStyleOptionViewItem view = option;
-        initStyleOption(&view, index);
-        const QVariant check = index.data(Qt::CheckStateRole);
-        if (!check.isValid()) {
-            QStyledItemDelegate::paint(painter, option, index);
-            return;
-        }
-        view.features &= ~QStyleOptionViewItem::HasCheckIndicator;
-        const QRect eye = eyeRect(option.rect);
-        view.rect.setLeft(eye.right() + KisModernStyle::space1);
-        const QWidget *widget = option.widget;
-        QStyle *style = widget ? widget->style() : nullptr;
-        if (style) style->drawControl(QStyle::CE_ItemViewItem, &view, painter, widget);
-        const bool shown = check.toInt() == Qt::Checked;
-        painter->save();
-        if (!shown) painter->setOpacity(0.55);
-        KisIconUtils::loadIcon(shown ? QStringLiteral("studio_visible") : QStringLiteral("studio_hidden")).paint(painter, eye);
-        painter->restore();
-    }
-
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
-    {
-        QSize size = QStyledItemDelegate::sizeHint(option, index);
-        return QSize(size.width() + 18, qMax(size.height(), 26));
-    }
-
-    bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index) override
-    {
-        if (!index.data(Qt::CheckStateRole).isValid()) return QStyledItemDelegate::editorEvent(event, model, option, index);
-        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
-            return eyeRect(option.rect).adjusted(-4, -4, 4, 4).contains(static_cast<QMouseEvent *>(event)->pos());
-        }
-        if (event->type() == QEvent::MouseButtonRelease && eyeRect(option.rect).adjusted(-4, -4, 4, 4).contains(static_cast<QMouseEvent *>(event)->pos())) {
-            const bool shown = index.data(Qt::CheckStateRole).toInt() == Qt::Checked;
-            model->setData(index, shown ? Qt::Unchecked : Qt::Checked, Qt::CheckStateRole);
-            return true;
-        }
-        return false;
-    }
-};
-
-std::function<void()> channelsPage(QWidget *content)
-{
-    auto *table = content->findChild<QTableView *>();
-    if (!table) return {};
-    QPointer<QAbstractItemDelegate> before = table->itemDelegate();
-    auto *eyes = new EyeDelegate(table);
-    table->setItemDelegate(eyes);
-    QPointer<QTableView> view = table;
-    QPointer<EyeDelegate> own = eyes;
-    return [view, before, own]() {
-        if (view && before) view->setItemDelegate(before);
-        if (own) own->deleteLater();
-    };
 }
 
 /// The animation panels' title bars without Krita's lock and float buttons, which the Studio places itself
@@ -786,7 +715,6 @@ std::function<void()> KisStudioPanelPages::apply(QDockWidget *dock)
     if (!content) return {};
     const QString id = dock->objectName();
     if (id == QLatin1String("OnionSkinsDocker")) return onionSkinsPage(content);
-    if (id == QLatin1String("ChannelDocker")) return channelsPage(content);
     if (id == QLatin1String("History")) return historyPage(dock);
     if (id == QLatin1String("OverviewDocker")) return overviewPage(content);
     if (id == QLatin1String("TimelineDocker") || id == QLatin1String("AnimationCurvesDocker")) return animationTitleBar(dock);
