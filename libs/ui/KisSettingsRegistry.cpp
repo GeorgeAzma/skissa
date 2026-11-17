@@ -653,8 +653,8 @@ QVector<Setting> describeAll()
                 }
             }
         }
-        all << toggle(QStringLiteral("StudioLayersRememberBrushes"), true, i18nc("setting", "Layers remember their brush"), R::Fork);
-        all << toggle(QStringLiteral("StudioEffectsEditable"), true, i18nc("setting", "Effects stay editable"), R::Fork);
+        all << toggle(QStringLiteral("StudioLayersRememberBrushes"), true, i18nc("setting", "Layers remember their brush"), R::Fork | R::OwnNotice);
+        all << toggle(QStringLiteral("StudioEffectsEditable"), true, i18nc("setting", "Effects stay editable"), R::Fork | R::OwnNotice);
         all << toggle(QStringLiteral("autoPinLayers"), true, i18nc("setting", "Pin new layers to the timeline"));
         all << toggle(QStringLiteral("adaptivePlaybackRange"), true, i18nc("setting", "Playback range follows keyframes"));
         all << toggle(QStringLiteral("autoZoomTimelineToPlaybackRange"), true, i18nc("setting", "Timeline zooms to the playback range"));
