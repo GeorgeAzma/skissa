@@ -52,6 +52,8 @@ public Q_SLOTS:
     KoInteractionStrategy *createStrategy(KoPointerEvent *event) override;
 
     bool isValidForCurrentLayer() const;
+    /// A layer of panels with one panel inside the image's edge, made the current layer
+    void makePage();
 private:
     //friend class KisToolKnifeOptionsWidget;
 private:

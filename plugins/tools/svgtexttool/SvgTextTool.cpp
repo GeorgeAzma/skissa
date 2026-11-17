@@ -16,6 +16,8 @@
 #include "SvgInlineSizeHelper.h"
 #include "SvgMoveTextCommand.h"
 #include "SvgMoveTextStrategy.h"
+#include "SvgScaleRotateTextStrategy.h"
+#include <kis_cursor.h>
 #include "SvgTextChangeCommand.h"
 #include "SvgTextEditor.h"
 #include "SvgTextRemoveCommand.h"
@@ -734,6 +736,18 @@ void SvgTextTool::paint(QPainter &gc, const KoViewConverter &converter)
             handlePainter.setHandleStyle(KisHandleStyle::primarySelection(handlePalette));
         }
         handlePainter.drawHandleCircle(QPointF(), KoToolBase::handleRadius() * 0.75);
+
+        // the corners that scale it, the one under the pointer lit
+        if (m_dragging != DragMode::Move && m_dragging != DragMode::TypeSetting && m_dragging != DragMode::InlineSizeHandle) {
+            const QRectF box = shape->outlineRect();
+            const QVector<QPointF> corners = {box.topLeft(), box.topRight(), box.bottomRight(), box.bottomLeft()};
+            for (int i = 0; i < corners.size(); i++) {
+                const bool lit = i == m_corner && (m_highlightItem == HighlightItem::ScaleHandle || m_dragging == DragMode::ScaleRotate);
+                handlePainter.setHandleStyle(lit ? KisHandleStyle::highlightedPrimaryHandles(handlePalette)
+                                                 : KisHandleStyle::primarySelection(handlePalette));
+                handlePainter.drawHandleRect(corners[i]);
+            }
+        }
     }
 
     m_textOutlineHelper->setDecorationThickness(decorationThickness());
@@ -830,6 +844,12 @@ void SvgTextTool::mousePressEvent(KoPointerEvent *event)
             m_interactionStrategy.reset(new SvgChangeTextPathInfoStrategy(this, selectedShape, event->point, m_textCursor.getPos()));
             m_dragging = DragMode::TextPathHandle;
             m_textOnPathHelper.setStrategyActive(true);
+            event->accept();
+            return;
+        } else if (m_highlightItem == HighlightItem::ScaleHandle || m_highlightItem == HighlightItem::RotateHandle) {
+            m_interactionStrategy.reset(new SvgScaleRotateTextStrategy(this, selectedShape, event->point, m_corner,
+                                                                       m_highlightItem == HighlightItem::RotateHandle));
+            m_dragging = DragMode::ScaleRotate;
             event->accept();
             return;
         } else if (m_highlightItem == HighlightItem::MoveBorder) {
@@ -972,6 +992,28 @@ void SvgTextTool::mouseMoveEvent(KoPointerEvent *event)
                     } else if (startZone.containsPoint(event->point, Qt::OddEvenFill)){
                         m_highlightItem = HighlightItem::InlineSizeStartHandle;
                         cursor = lineToCursor(info->baselineLine(), canvas());
+                    }
+                }
+            }
+
+            if (m_highlightItem == HighlightItem::None) {
+                // a corner of the box scales the text, just outside one turns it
+                const QPolygonF corners = SvgScaleRotateTextStrategy::cornersOf(selectedShape);
+                const QPolygonF textOutline = selectedShape->absoluteTransformation().map(selectedShape->outlineRect());
+                const QPointF middle = selectedShape->absoluteTransformation().map(selectedShape->outlineRect().center());
+                for (int i = 0; i < corners.size() && i < 4; i++) {
+                    const qreal distance = QLineF(corners[i], event->point).length();
+                    if (distance <= sensitivity * 1.5) {
+                        m_highlightItem = HighlightItem::ScaleHandle;
+                        m_corner = i;
+                        cursor = lineToCursor(QLineF(middle, corners[i]), canvas());
+                        break;
+                    }
+                    if (distance <= sensitivity * 5 && !textOutline.containsPoint(event->point, Qt::OddEvenFill)) {
+                        m_highlightItem = HighlightItem::RotateHandle;
+                        m_corner = i;
+                        cursor = KisCursor::rotateCursor();
+                        break;
                     }
                 }
             }

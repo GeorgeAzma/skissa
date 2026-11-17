@@ -210,6 +210,7 @@ private:
         TextPathHandle,
         InShapeOffset,
         TypeSetting,
+        ScaleRotate,
     };
     enum class HighlightItem {
         None = 0,
@@ -217,7 +218,11 @@ private:
         InlineSizeEndHandle,
         MoveBorder,
         TypeSettingHandle,
+        ScaleHandle,
+        RotateHandle,
     };
+    /// The corner of the text's box under the pointer, for ScaleHandle and RotateHandle
+    int m_corner {0};
 
     QScopedPointer<SvgTextToolOptionsManager>m_optionManager;
     QPointer<SvgTextEditor> m_editor;

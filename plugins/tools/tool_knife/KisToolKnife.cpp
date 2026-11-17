@@ -44,6 +44,10 @@
 #include "kis_resources_snapshot.h"
 #include <KoSelection.h>
 #include <KoShapeManager.h>
+#include <KoShapeController.h>
+#include <KoShapeStroke.h>
+#include <kis_image.h>
+#include <kis_node_manager.h>
 
 
 struct KisToolKnife::Private {
@@ -198,16 +202,36 @@ void KisToolKnife::deactivate()
 
 void KisToolKnife::mousePressEvent(KoPointerEvent *event)
 {
-    // this tool only works on a vector layer right now, so give a warning if another layer type is trying to use it
+    // panels are cut from a vector layer's shapes: on any other layer the first press makes the page, a layer of
+    // panels with one panel inside the image's edge, and the next drags cut it
     if (!isValidForCurrentLayer()) {
-        KisCanvas2 *kiscanvas = static_cast<KisCanvas2 *>(canvas());
-        kiscanvas->viewManager()->showFloatingMessage(
-                i18n("This tool only works on vector layers. You probably want to create a vector layer and a starting shape first."),
-                QIcon(), 2000, KisFloatingMessage::Medium, Qt::AlignCenter);
+        makePage();
+        event->accept();
         return;
     }
 
     KoInteractionTool::mousePressEvent(event);
+}
+
+void KisToolKnife::makePage()
+{
+    KisCanvas2 *kiscanvas = static_cast<KisCanvas2 *>(canvas());
+    KisViewManager *view = kiscanvas ? kiscanvas->viewManager() : nullptr;
+    KisImageSP image = kiscanvas ? KisImageSP(kiscanvas->image()) : KisImageSP();
+    if (!view || !image || !view->nodeManager()) return;
+    KisNodeSP node = view->nodeManager()->createNode(QStringLiteral("KisShapeLayer"));
+    auto *layer = qobject_cast<KisShapeLayer *>(node.data());
+    if (!layer) return;
+    layer->KisBaseNode::setName(i18nc("the vector layer comic panels are cut from", "Panels"));
+    // in points, as shapes are; a margin of 4% of the shorter side
+    const QRectF page(0, 0, image->width() / image->xRes(), image->height() / image->yRes());
+    const qreal margin = 0.04 * qMin(page.width(), page.height());
+    QPainterPath outline;
+    outline.addRect(page.adjusted(margin, margin, -margin, -margin));
+    KoPathShape *panel = KoPathShape::createShapeFromPainterPath(outline);
+    panel->setStroke(KoShapeStrokeSP(new KoShapeStroke(qMax<qreal>(1.0, 0.004 * qMin(page.width(), page.height())), Qt::black)));
+    panel->setBackground(QSharedPointer<KoShapeBackground>());
+    canvas()->addCommand(canvas()->shapeController()->addShape(panel, layer));
 }
 
 void KisToolKnife::mouseMoveEvent(KoPointerEvent *event)
@@ -252,7 +276,8 @@ KoInteractionStrategy *KisToolKnife::createStrategy(KoPointerEvent *event)
 {
     QList<KoShape*> shapes = canvas()->shapeManager()->shapes();
 
-    if (m_d->optionsWidget->getToolMode() == KisToolKnifeOptionsWidget::ToolMode::AddGutter) {
+    // Alt joins the panels either side of a gutter, whatever the mode
+    if (m_d->optionsWidget->getToolMode() == KisToolKnifeOptionsWidget::ToolMode::AddGutter && !(event->modifiers() & Qt::AltModifier)) {
         return new CutThroughShapeStrategy(this, canvas()->selectedShapesProxy()->selection(), shapes, event->point, m_d->optionsWidget->getCurrentWidthsConfig());
     } else {
         return new RemoveGutterStrategy(this, canvas()->selectedShapesProxy()->selection(), shapes, event->point);
