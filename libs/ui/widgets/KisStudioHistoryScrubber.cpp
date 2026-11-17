@@ -39,6 +39,11 @@ KisStudioHistoryScrubber::KisStudioHistoryScrubber(QAbstractItemView *steps, QWi
     if (steps->selectionModel()) connect(steps->selectionModel(), &QItemSelectionModel::currentChanged, this, repaint);
 }
 
+void KisStudioHistoryScrubber::setStepTo(const std::function<void(int)> &stepTo)
+{
+    m_stepTo = stepTo;
+}
+
 void KisStudioHistoryScrubber::setMarks(const QVector<Mark> &marks, const std::function<void(int, bool)> &open)
 {
     m_marks = marks;
@@ -72,11 +77,8 @@ void KisStudioHistoryScrubber::goTo(int step)
 {
     if (!m_steps || !m_steps->model()) return;
     step = qBound(0, step, stepCount() - 1);
-    if (step == currentStep()) return;
-    // the list's own choosing undoes and redoes to that step
-    const QModelIndex index = m_steps->model()->index(step, 0);
-    m_steps->setCurrentIndex(index);
-    m_steps->scrollTo(index);
+    if (step == currentStep() || !m_stepTo) return;
+    m_stepTo(step);
     update();
 }
 

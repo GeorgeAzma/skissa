@@ -29,6 +29,10 @@ public:
 
     explicit KisStudioHistoryScrubber(QAbstractItemView *steps, QWidget *parent = nullptr);
 
+    /// Goes to a step: the history's own undo and redo, as Ctrl+Z does, which the list then follows. Choosing the list's
+    /// row instead changes the list as it handles the change, and Qt then scrolls to a row that is gone
+    void setStepTo(const std::function<void(int step)> &stepTo);
+
     /// The snapshots, at the step each was kept; \p open is called on a click (\p menu false) or a right click
     void setMarks(const QVector<Mark> &marks, const std::function<void(int mark, bool menu)> &open);
 
@@ -58,6 +62,7 @@ private:
     QPointer<QAbstractItemView> m_steps;
     QVector<Mark> m_marks;
     std::function<void(int, bool)> m_open;
+    std::function<void(int)> m_stepTo;
     bool m_dragging {false};
     int m_pressedMark {-1};
 };
