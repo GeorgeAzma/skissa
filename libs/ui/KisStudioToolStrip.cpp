@@ -59,6 +59,7 @@
 #include <resources/KoPattern.h>
 
 #include "KisStudioFontPicker.h"
+#include "KisStudioSymbols.h"
 #include "widgets/KisStudioPopup.h"
 #include "KisStudioTools.h"
 
@@ -1176,6 +1177,13 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
 
     // the text tool's options are Krita's own panel: its font, the setting changed most, written in itself
     if (KisStudioTools::activeToolId() == QLatin1String("SvgTextTool")) addFontChip();
+    // the shape tool also places Krita's symbols (balloons, effects…)
+    if (KisStudioTools::activeToolId() == QLatin1String("KritaShape/KisToolSuperellipse")) {
+        addGap();
+        QToolButton *symbols = addButton(KisIconUtils::loadIcon(QStringLiteral("studio_symbols")), i18nc("@info:tooltip", "Symbols"));
+        symbols->setCheckable(false);
+        connect(symbols, &QToolButton::clicked, this, [symbols]() { KisStudioSymbols::openPicker(symbols); });
+    }
     if (text) addTextCommands(text);
 
     m_hasOptions = m_layout->count() > 0;

@@ -8,6 +8,7 @@
 #include "KisView.h"
 #include "KisStudioLayout.h"
 #include "KisColorDrop.h"
+#include "KisStudioSymbols.h"
 #include <KisProfile.h>
 
 #include "KisView_p.h"
@@ -479,6 +480,13 @@ void KisView::dropEvent(QDropEvent *event)
     dbgUI << "\t Has images: " << event->mimeData()->hasImage();
 
     if (!shouldAcceptDrag(event)) {
+        return;
+    }
+
+    // a symbol from the shape tool's picker, where it is dropped
+    if (KisStudioSymbols::carriesSymbol(event->mimeData())) {
+        KisStudioSymbols::drop(this, event->mimeData(), event->pos());
+        event->acceptProposedAction();
         return;
     }
 
@@ -1499,6 +1507,7 @@ bool KisView::shouldAcceptDrag(const QDropEvent *event) const
         return data->hasImage()
             || data->hasUrls()
             || data->hasFormat("krita/x-colorsetentry")
-            || data->hasColor();
+            || data->hasColor()
+            || KisStudioSymbols::carriesSymbol(data);
     }
 }

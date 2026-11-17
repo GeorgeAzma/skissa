@@ -433,7 +433,6 @@ QVector<Setting> describeAll()
         // what the pickers list first
         all << itemList(QStringLiteral("StudioBrushes"), i18nc("setting", "Favorite brushes"));
         all << itemList(QStringLiteral("StudioEffects"), i18nc("setting", "Favorite effects"));
-        all << itemList(QStringLiteral("StudioControlsPicked"), i18nc("setting", "Favorite controls"));
         all << itemList(QStringLiteral("StudioPinnedBrushTips"), i18nc("setting", "Favorite tips"));
         all << itemList(QStringLiteral("StudioPinnedPatterns"), i18nc("setting", "Favorite patterns"));
         all << itemList(KisResourceOrder::tagsKey, i18nc("setting", "Tag order"));

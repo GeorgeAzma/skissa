@@ -584,7 +584,7 @@ void KisStudioBarButtons::startDrag(int index, QWidget *source, const QPixmap &p
     if (!pixmap.isNull()) {
         drag->setPixmap(pixmap);
     }
-    // dropping it off the bar (or onto the Controls panel) removes it, unless the drag was cancelled with Esc
+    // dropping it off the bar removes it, unless the drag was cancelled with Esc
     d->droppedHere = false;
     const Qt::DropAction done = drag->exec(Qt::MoveAction);
     drag->deleteLater();

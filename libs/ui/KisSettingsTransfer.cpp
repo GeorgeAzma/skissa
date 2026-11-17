@@ -81,9 +81,9 @@ QString nameOf(const Setting &setting)
 /// their buttons, pinned controls and items, the tool rail, rings, the color panel's style, the recorder's choices
 const QStringList arrangedKeys = {
     QStringLiteral("StudioLayout"), QStringLiteral("StudioBarItems"), QStringLiteral("StudioViewPillItems"), QStringLiteral("StudioControlItems"),
-    QStringLiteral("StudioControlsPicked"), QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
+    QStringLiteral("StudioRailItems"), QStringLiteral("StudioHiddenVariants"), QStringLiteral("StudioBrushes"),
     QStringLiteral("StudioEffects"), QStringLiteral("StudioBlendModeGroups"), QStringLiteral("StudioEffectGroups"), QStringLiteral("StudioBrushGroups"),
-    QStringLiteral("StudioControlsGroups"), QStringLiteral("StudioPinned"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
+    QStringLiteral("StudioPinned"), QStringLiteral("StudioRing"), QStringLiteral("StudioColorHues"), QStringLiteral("StudioColorShape"), QStringLiteral("StudioColorKeepLightness"),
     QStringLiteral("StudioColorCopyFormat"), QStringLiteral("StudioLastStrokeFollowsBrush"), QStringLiteral("BrushTipSizeLinked"), QStringLiteral("StudioTag"),
     QStringLiteral("recorder/"), QStringLiteral("recorder_export/"),
 };

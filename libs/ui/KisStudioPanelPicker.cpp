@@ -215,13 +215,15 @@ bool KisStudioPanelPicker::isRetired(const QString &panelId)
     // selectors, mixer, gamut masks (theirs), brush settings panel and shape arranging (its commands are in Find); the
     // grid (its switches are in Find), the histogram, channels, layer sets, OCIO and the storyboard; snapshots are in History, patterns
     // on the fill tool's bar, and
-    // onion skins and text properties open from the timeline and the text tool
+    // onion skins and text properties open from the timeline and the text tool, and what the tool bar doesn't hold of a
+    // tool's options from the tool's chip; symbols are picked on the shape tool's bar; the animation curves are left out
     static const QSet<QString> retired = {QStringLiteral("ToolBox"), QStringLiteral("ColorSelectorNg"), QStringLiteral("WideGamutColorSelector"),
                                           QStringLiteral("DigitalMixer"), QStringLiteral("GamutMask"), QStringLiteral("BrushHudDocker"),
                                           QStringLiteral("ArrangeDocker"), QStringLiteral("GridDocker"), QStringLiteral("HistogramDocker"),
                                           QStringLiteral("CompositionDocker"), QStringLiteral("LutDocker"), QStringLiteral("StoryboardDocker"),
                                           QStringLiteral("Snapshot"), QStringLiteral("OnionSkinsDocker"), QStringLiteral("TextProperties"),
-                                          QStringLiteral("PatternDocker"), QStringLiteral("ChannelDocker")};
+                                          QStringLiteral("PatternDocker"), QStringLiteral("ChannelDocker"), QStringLiteral("AnimationCurvesDocker"),
+                                          QStringLiteral("sharedtooldocker"), QStringLiteral("SvgSymbolCollectionDocker")};
     return retired.contains(panelId);
 }
 

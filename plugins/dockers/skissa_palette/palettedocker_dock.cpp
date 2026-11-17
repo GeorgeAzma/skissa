@@ -7,6 +7,8 @@
 
 #include "palettedocker_dock.h"
 
+#include <KisColorDrop.h>
+
 #include <QApplication>
 #include <QDrag>
 #include <QDragEnterEvent>
@@ -121,15 +123,16 @@ class PaletteGrid : public QWidget
 {
 public:
     std::function<void(const QModelIndex &)> picked;
-    /// The "+": an empty slot to put the color in, or invalid for a new row
-    std::function<void(const QModelIndex &emptySlot)> addRequested;
+    /// A color dragged in from elsewhere (the color chip, another palette, the image) dropped on an empty slot, or on the
+    /// slot after the last swatch (an invalid slot: a new row)
+    std::function<void(const KoColor &color, const QModelIndex &slot)> colorDropped;
     std::function<void(const QModelIndex &, QWidget *anchor)> cardRequested;
     std::function<void(const QModelIndex &from, const QModelIndex &to)> moved;
     std::function<void(const QModelIndex &)> draggedOff;
     std::function<bool()> editable;
     /// The swatch size and columns once laid out, for the recent row to line up with
     std::function<void(int cell, int left, int columns)> laidOut;
-    /// A recent color (\p recent in \p source's row) dropped on an empty slot, or on the "+" (an invalid slot: a new row)
+    /// A recent color (\p recent in \p source's row) dropped on an empty slot, or after the last swatch (an invalid slot: a new row)
     std::function<void(QObject *source, int recent, const QColor &color, const QModelIndex &slot)> recentDropped;
 
     PaletteGrid(KisPaletteModel *model, QWidget *parent)
@@ -162,8 +165,8 @@ public:
     {
         m_cells.clear();
         m_headers.clear();
-        m_plus = QRect();
-        m_plusSlot = QPersistentModelIndex();
+        m_next = QRect();
+        m_nextSlot = QPersistentModelIndex();
         m_contentHeight = 0;
 
         const int columns = m_model->colorSet() ? m_model->columnCount() : 0;
@@ -180,7 +183,7 @@ public:
 
         int y = 0;
         bool inGlobalGroup = true;
-        // the "+" goes after the last swatch of the first group, in a row of its own if it is full
+        // the slot a dropped color goes to: after the last swatch of the first group, in a row of its own if it is full
         auto endGlobalGroup = [&]() {
             inGlobalGroup = false;
             if (!canAdd) return;
@@ -189,10 +192,10 @@ public:
                 if (isOccupied(m_cells[i].index)) last = i;
             }
             if (last + 1 < m_cells.size()) {
-                m_plus = m_cells[last + 1].rect;
-                m_plusSlot = m_cells[last + 1].index;
+                m_next = m_cells[last + 1].rect;
+                m_nextSlot = m_cells[last + 1].index;
             } else {
-                m_plus = QRect(left, y, m_cell, m_cell);
+                m_next = QRect(left, y, m_cell, m_cell);
                 y += m_cell;
             }
         };
@@ -242,8 +245,8 @@ protected:
             auto *help = static_cast<QHelpEvent *>(event);
             const QPoint pos = help->pos() + QPoint(0, m_scroll);
             QString text;
-            if (m_plus.contains(pos)) {
-                text = i18nc("@info:tooltip", "Add the current color");
+            if (m_next.contains(pos)) {
+                text = i18nc("@info:tooltip", "Drop a color here");
             } else {
                 const QModelIndex index = indexAt(help->pos());
                 if (isOccupied(index)) {
@@ -294,16 +297,13 @@ protected:
             painter.setOpacity(1.0);
         }
 
-        if (!m_plus.isNull()) {
-            QColor plusInk = ink;
-            plusInk.setAlphaF(m_hoverPlus ? 0.9 : 0.45);
-            QPen pen(plusInk, 1.5);
-            pen.setCapStyle(Qt::RoundCap);
-            painter.setPen(pen);
-            const QPointF c = QRectF(m_plus).center();
-            const qreal arm = qMin(5.0, m_cell * 0.25);
-            painter.drawLine(c - QPointF(arm, 0), c + QPointF(arm, 0));
-            painter.drawLine(c - QPointF(0, arm), c + QPointF(0, arm));
+        if (!m_next.isNull()) {
+            // where the next color dropped goes: an empty place, edged so it reads as one
+            QColor edge = ink;
+            edge.setAlphaF(0.22);
+            painter.setPen(QPen(edge, 1));
+            painter.setBrush(empty);
+            painter.drawPath(KisModernStyle::squircle(QRectF(m_next).adjusted(1.5, 1.5, -1.5, -1.5), radius));
         }
 
         if (!m_dropRect.isNull()) {
@@ -329,7 +329,6 @@ protected:
         m_pressPos = event->pos();
         m_pressScroll = m_scroll;
         m_press = indexAt(event->pos());
-        m_pressOnPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
         m_scrolling = false;
     }
 
@@ -337,11 +336,9 @@ protected:
     {
         if (!(event->buttons() & Qt::LeftButton)) {
             const QModelIndex hover = indexAt(event->pos());
-            const bool hoverPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
-            if (QPersistentModelIndex(hover) != m_hover || hoverPlus != m_hoverPlus) {
+            if (QPersistentModelIndex(hover) != m_hover) {
                 m_hover = hover;
-                m_hoverPlus = hoverPlus;
-                setCursor(isOccupied(hover) || hoverPlus ? Qt::PointingHandCursor : Qt::ArrowCursor);
+                setCursor(isOccupied(hover) ? Qt::PointingHandCursor : Qt::ArrowCursor);
                 update();
             }
             return;
@@ -356,7 +353,7 @@ protected:
         // a locked palette's colors still go onto the canvas; only moving and removing them needs it unlocked
         if (isOccupied(m_press)) {
             startDrag();
-        } else if (!m_pressOnPlus) {
+        } else {
             // from an empty place: the swatches follow the finger
             m_scrolling = true;
         }
@@ -368,9 +365,7 @@ protected:
             m_scrolling = false;
             return;
         }
-        if (m_pressOnPlus && m_plus.contains(event->pos() + QPoint(0, m_scroll))) {
-            if (addRequested) addRequested(m_plusSlot);
-        } else if (isOccupied(m_press) && QPersistentModelIndex(indexAt(event->pos())) == m_press) {
+        if (isOccupied(m_press) && QPersistentModelIndex(indexAt(event->pos())) == m_press) {
             if (picked) picked(m_press);
         }
     }
@@ -387,15 +382,13 @@ protected:
     void leaveEvent(QEvent *) override
     {
         m_hover = QPersistentModelIndex();
-        m_hoverPlus = false;
         update();
     }
 
     void dragEnterEvent(QDragEnterEvent *event) override
     {
-        // swatches of this palette, moved; recent colors, kept
-        if ((m_dragging && event->mimeData()->hasFormat(swatchMimeType) && editable && editable())
-            || (event->mimeData()->hasFormat(recentMimeType) && editable && editable())) {
+        // swatches of this palette, moved; any other color (recent, the color chip, another palette), kept
+        if (editable && editable() && (m_dragging || KisColorDrop::carriesColor(event->mimeData()))) {
             event->acceptProposedAction();
         }
     }
@@ -404,11 +397,11 @@ protected:
     {
         const QModelIndex target = indexAt(event->pos());
         bool ok;
-        if (event->mimeData()->hasFormat(recentMimeType)) {
-            // a recent color goes in an empty place: an empty slot or the "+"
-            const bool onPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
-            ok = onPlus || (target.isValid() && !isOccupied(target));
-            m_dropRect = !ok ? QRect() : onPlus ? m_plus : cellRect(target);
+        if (!m_dragging) {
+            // a color from elsewhere goes in the empty slot under it, or else after the last swatch
+            const bool onEmpty = target.isValid() && !isOccupied(target);
+            ok = onEmpty || !m_next.isNull();
+            m_dropRect = !ok ? QRect() : onEmpty ? cellRect(target) : m_next;
         } else {
             ok = target.isValid() && QPersistentModelIndex(target) != m_press;
             m_dropRect = ok ? cellRect(target) : QRect();
@@ -427,18 +420,28 @@ protected:
     void dropEvent(QDropEvent *event) override
     {
         m_dropRect = QRect();
-        if (event->mimeData()->hasFormat(recentMimeType)) {
-            const int recent = event->mimeData()->data(recentMimeType).toInt();
-            const QColor color = qvariant_cast<QColor>(event->mimeData()->colorData());
-            const bool onPlus = m_plus.contains(event->pos() + QPoint(0, m_scroll));
-            const QModelIndex target = onPlus ? QModelIndex(m_plusSlot) : indexAt(event->pos());
-            if (!onPlus && (!target.isValid() || isOccupied(target))) {
+        if (!m_dragging) {
+            const QModelIndex under = indexAt(event->pos());
+            const bool onEmpty = under.isValid() && !isOccupied(under);
+            if (!onEmpty && m_next.isNull()) {
                 event->ignore();
                 return;
             }
+            const QModelIndex target = onEmpty ? under : QModelIndex(m_nextSlot);
             event->acceptProposedAction();
-            QTimer::singleShot(0, this, [this, source = QPointer<QObject>(event->source()), recent, color, slot = QPersistentModelIndex(target)]() {
-                if (recentDropped) recentDropped(source, recent, color, slot);
+            // the drag's own event loop is still running: change the palette after it
+            if (event->mimeData()->hasFormat(recentMimeType)) {
+                const int recent = event->mimeData()->data(recentMimeType).toInt();
+                const QColor color = qvariant_cast<QColor>(event->mimeData()->colorData());
+                QTimer::singleShot(0, this, [this, source = QPointer<QObject>(event->source()), recent, color, slot = QPersistentModelIndex(target)]() {
+                    if (recentDropped) recentDropped(source, recent, color, slot);
+                });
+                return;
+            }
+            KoColor color;
+            if (!KisColorDrop::colorOf(event->mimeData(), &color)) return;
+            QTimer::singleShot(0, this, [this, color, slot = QPersistentModelIndex(target)]() {
+                if (colorDropped) colorDropped(color, slot);
             });
             return;
         }
@@ -535,19 +538,17 @@ private:
     KisPaletteModel *m_model;
     QVector<Cell> m_cells;
     QVector<Header> m_headers;
-    QRect m_plus;
-    QPersistentModelIndex m_plusSlot;
+    QRect m_next;
+    QPersistentModelIndex m_nextSlot;
     int m_cell {20};
     int m_contentHeight {0};
     int m_scroll {0};
     QRgb m_current {0};
 
     QPersistentModelIndex m_hover;
-    bool m_hoverPlus {false};
     QPersistentModelIndex m_press;
     QPoint m_pressPos;
     int m_pressScroll {0};
-    bool m_pressOnPlus {false};
     bool m_scrolling {false};
     bool m_dragging {false};
     QRect m_dropRect;
@@ -766,7 +767,7 @@ PaletteDockerDock::PaletteDockerDock( )
     };
     m_grid->editable = [this]() { return canEdit(); };
     m_grid->picked = [this](const QModelIndex &index) { pickSwatch(index); };
-    m_grid->addRequested = [this](const QModelIndex &slot) { addCurrentColor(slot); };
+    m_grid->colorDropped = [this](const KoColor &color, const QModelIndex &slot) { addColor(color, slot); };
     m_grid->moved = [this](const QModelIndex &from, const QModelIndex &to) { moveSwatch(from, to); };
     m_grid->draggedOff = [this](const QModelIndex &index) { removeSwatch(index); };
     m_grid->cardRequested = [this](const QModelIndex &index, QWidget *anchor) { showSwatchCard(index, anchor); };
@@ -1027,13 +1028,6 @@ void PaletteDockerDock::pickSwatch(const QModelIndex &index)
     m_resourceProvider->setFGColor(color);
     m_colorSelfUpdate = false;
     m_grid->setCurrentColor(color.toQColor());
-}
-
-void PaletteDockerDock::addCurrentColor(const QModelIndex &emptySlot)
-{
-    if (m_resourceProvider) {
-        addColor(m_resourceProvider->fgColor(), emptySlot);
-    }
 }
 
 void PaletteDockerDock::addColor(const KoColor &color, const QModelIndex &emptySlot)

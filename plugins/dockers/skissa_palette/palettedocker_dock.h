@@ -73,7 +73,6 @@ private:
     bool isGlobal() const;
     KisSwatch newSwatch(const KoColor &color) const;
     void pickSwatch(const QModelIndex &index);
-    void addCurrentColor(const QModelIndex &emptySlot);
     /// In \p emptySlot, or a new row under the first group when it is invalid
     void addColor(const KoColor &color, const QModelIndex &emptySlot);
     void updateRecentStrip();

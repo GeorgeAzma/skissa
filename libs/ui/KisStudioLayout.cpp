@@ -112,6 +112,7 @@
 #include "KisViewManager.h"
 #include "kis_node_manager.h"
 #include <kis_image.h>
+#include <kis_image_animation_interface.h>
 #include <kis_layer.h>
 #include <kis_paint_layer.h>
 #include <QSharedPointer>
@@ -249,7 +250,6 @@ QString railIconName(const QString &id)
         {QStringLiteral("PaletteDocker"), QStringLiteral("studio_palette")},
         {QStringLiteral("History"), QStringLiteral("studio_history")},
         {QStringLiteral("RecorderDocker"), QStringLiteral("studio_timelapse")},
-        {QStringLiteral("StudioControls"), QStringLiteral("studio_controls")},
         {QStringLiteral("TimelineDocker"), QStringLiteral("studio_timeline")},
         {QStringLiteral("AnimationCurvesDocker"), QStringLiteral("studio_anim_curves")},
         {QStringLiteral("OnionSkinsDocker"), QStringLiteral("studio_onion")},
@@ -3278,6 +3278,31 @@ void KisStudioLayout::enter()
         // e.g. the animation timeline keeps its controls in the title bar; as long as the frames, it lies under the
         // canvas, across it
         if (titleBar && titleBar->inherits("KisUtilityTitleBar")) {
+            if (KisStudioPanelPicker::isRetired(dock->objectName())) {
+                // left out: hidden, also when Krita puts back a saved window layout, and not offered as a command
+                QAction *toggle = dock->toggleViewAction();
+                dock->hide();
+                d->connections << connect(dock, &QDockWidget::visibilityChanged, this, [dock](bool visible) {
+                    if (visible) QTimer::singleShot(0, dock, &QWidget::hide);
+                });
+                toggle->setVisible(false);
+                QPointer<QAction> shown = toggle;
+                d->pageUndos << [shown]() {
+                    if (shown) shown->setVisible(true);
+                };
+                continue;
+            }
+            if (dock->objectName() == QLatin1String("TimelineDocker")) {
+                // shown for an image that is animated; a still one can still open it, to start animating
+                QPointer<QDockWidget> timeline = dock;
+                auto followImage = [mainWindow, timeline]() {
+                    KisView *view = mainWindow->activeView();
+                    if (!timeline || !view || !view->image()) return;
+                    timeline->setVisible(view->image()->animationInterface()->hasAnimation());
+                };
+                d->connections << connect(mainWindow, &KisMainWindow::activeViewChanged, this, followImage);
+                QTimer::singleShot(0, dock, followImage);
+            }
             // also after Krita puts back a saved window layout, or the panel is dragged elsewhere
             // once on the way in, as a saved layout may have them side by side
             auto placed = std::make_shared<bool>(false);
