@@ -4047,6 +4047,9 @@ void KisStudioLayout::toggleToolOptions()
     }
     if (d->flyout == dock) {
         closeFlyout();
+    } else if (d->toolStrip && !d->toolStrip->optionsLeft()) {
+        // the bar holds them all
+        d->toolStrip->showMore();
     } else if (d->pinned.contains(dock->objectName())) {
         togglePanel(dock, true);
     } else {

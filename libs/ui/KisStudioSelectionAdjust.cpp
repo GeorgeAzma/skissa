@@ -196,7 +196,10 @@ struct Preview : public KUndo2Command {
         if (m_grow > 0) run(KisGrowSelectionFilter(m_grow, m_grow));
         else if (m_grow < 0) run(KisShrinkSelectionFilter(-m_grow, -m_grow, false));
         if (m_soft > 0) run(SoftEdge(m_soft));
+        // the revert put back the first outline, which the ants would keep showing
+        pixels->invalidateOutlineCache();
         pixels->setDirty(before | rect);
+        m_selection->notifySelectionChanged();
         *m_busy = false;
     }
 

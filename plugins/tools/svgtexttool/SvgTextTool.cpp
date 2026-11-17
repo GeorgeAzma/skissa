@@ -259,6 +259,9 @@ QWidget *SvgTextTool::createOptionWidget()
     }
 
 
+    // Skissa: its bar drives the same object (KisStudioToolStrip::addTextCommands)
+    optionWidget->setProperty("studioTextOptions", QVariant::fromValue<QObject *>(m_optionManager.data()));
+
     connect(m_optionManager.data(), SIGNAL(openTextEditor()), SLOT(showEditor()));
     connect(m_optionManager.data(), SIGNAL(openGlyphPalette()), SLOT(showGlyphPalette()));
 

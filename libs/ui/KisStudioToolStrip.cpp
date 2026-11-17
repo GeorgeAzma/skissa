@@ -12,6 +12,11 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QToolButton>
+#include <QTimer>
+#include <QLabel>
+#include <QLineEdit>
+#include <QAbstractSlider>
+#include <KisOptionCollectionWidget.h>
 
 
 #include <KisModernStyle.h>
@@ -484,6 +489,94 @@ private:
     QWidget *m_mirror;
 };
 
+/// Follows a widget's enabled state onto its mirror on the strip
+class FollowEnabled : public QObject
+{
+public:
+    FollowEnabled(QWidget *source, QWidget *mirror)
+        : QObject(mirror)
+        , m_mirror(mirror)
+    {
+        source->installEventFilter(this);
+        mirror->setEnabled(source->isEnabled());
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::EnabledChange) m_mirror->setEnabled(static_cast<QWidget *>(watched)->isEnabled());
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QWidget *m_mirror;
+};
+
+/// Keeps a part of a tool's options out of sight while the bar does what it did, even when the tool shows it again
+class Tucked : public QObject
+{
+public:
+    explicit Tucked(QWidget *widget)
+        : QObject(widget)
+        , m_widget(widget)
+    {
+        widget->installEventFilter(this);
+        widget->hide();
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::ShowToParent) {
+            QPointer<QWidget> widget = m_widget;
+            QTimer::singleShot(0, m_widget, [widget]() {
+                if (widget) widget->hide();
+            });
+        }
+        return false;
+    }
+
+private:
+    QWidget *m_widget;
+};
+
+void tuck(QWidget *widget)
+{
+    if (!widget || widget->property("studioTucked").toBool()) return;
+    widget->setProperty("studioTucked", true);
+    new Tucked(widget);
+}
+
+/// Hides \p strip's section header, and the section with it while nothing else in it shows
+void tuckSection(KisOptionButtonStrip *strip)
+{
+    auto *section = strip ? qobject_cast<KisOptionCollectionWidgetWithHeader *>(strip->parentWidget()) : nullptr;
+    if (!section || section->property("studioTucked").toBool()) return;
+    QWidget *wrapper = section;
+    while (wrapper && !qobject_cast<KisOptionCollectionWidget *>(wrapper->parentWidget())) wrapper = wrapper->parentWidget();
+    if (!wrapper) return;
+    section->setProperty("studioTucked", true);
+    auto *collection = qobject_cast<KisOptionCollectionWidget *>(wrapper->parentWidget());
+    const QString id = wrapper->property("id").toString();
+    // what else it holds goes on without the title, which named the buttons
+    tuck(section->findChild<QLabel *>(QString(), Qt::FindDirectChildrenOnly));
+    auto update = [section, collection, id]() {
+        section->setPrimaryWidgetVisible(false);
+        collection->setWidgetVisible(id, section->numberOfVisibleWidgets() > 0);
+    };
+    update();
+    // a fill with a pattern shows its scale and turn there
+    Q_FOREACH (KoGroupButton *button, strip->buttons()) {
+        QObject::connect(button, &QAbstractButton::toggled, section, update);
+    }
+}
+
+/// True for a control a person can change
+bool isInput(const QWidget *widget)
+{
+    return qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QAbstractSpinBox *>(widget)
+           || qobject_cast<const QComboBox *>(widget) || qobject_cast<const QAbstractSlider *>(widget)
+           || qobject_cast<const QLineEdit *>(widget);
+}
+
 } // namespace
 
 KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
@@ -497,6 +590,7 @@ KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
 
 void KisStudioToolStrip::clear()
 {
+    m_more = nullptr;
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
             // hide it so it doesn't cover the new buttons until it is deleted
@@ -559,6 +653,12 @@ void KisStudioToolStrip::addTransformModes(QWidget *options)
             button->setToolTip(mode.second);
         }
     }
+
+    // the bar shows the modes, so the options keep only the chosen one's own
+    if (QAbstractButton *free = options->findChild<QAbstractButton *>(QStringLiteral("freeTransformButton"))) {
+        if (free->parentWidget() != options) tuck(free->parentWidget());
+    }
+    tuck(options->findChild<QWidget *>(QStringLiteral("lblTransformType")));
 
     QList<QPointer<QAbstractButton>> others;
     for (const char *name : {"perspectiveTransformButton", "warpButton", "cageButton", "meshButton"}) {
@@ -666,6 +766,8 @@ void KisStudioToolStrip::mirrorSpin(QSpinBox *spin, int kind, const QString &too
         if (target) target->setValue(qRound(value));
     });
     m_layout->addWidget(scrubber);
+    // a row of the options of its own
+    if (spin->parentWidget() && spin->parentWidget()->property("id").isValid()) tuck(spin->parentWidget());
 }
 
 void KisStudioToolStrip::addCropAspects(QWidget *options)
@@ -894,10 +996,7 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
             connect(eye, &QAction::toggled, button, &QToolButton::setChecked);
         }
     }
-    QToolButton *more = addButton(KisIconUtils::loadIcon(QStringLiteral("studio_more")), i18nc("@info:tooltip more for guides", "More"));
-    more->setCheckable(false);
-    more->setPopupMode(QToolButton::InstantPopup);
-    auto *menu = new QMenu(more);
+    QMenu *menu = addMore();
     auto clickOn = [menu, options](const QString &text, const char *name) {
         QPointer<QAbstractButton> source = options->findChild<QAbstractButton *>(QLatin1String(name));
         if (!source) return;
@@ -911,12 +1010,13 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
     clickOn(i18nc("guides: save them as a set", "Save…"), "saveAssistantButton");
     menu->addSeparator();
     clickOn(i18nc("guides: remove every guide", "Delete all"), "deleteAllAssistantsButton");
-    more->setMenu(menu);
 }
 
 void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widgets)
 {
     clear();
+    m_options = widgets;
+    QObject *text = nullptr;
     // full contrast, so the small icons' shapes read at a glance
     const QColor ink = palette().color(QPalette::ButtonText);
     const QColor paper = palette().color(QPalette::Window).darker(170);
@@ -942,6 +1042,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 for (int index : {0, 2, 3, 1}) {
                     mirror(actions->button(index));
                 }
+                tuckSection(actions);
             }
             addSelectionAdjust();
             // selecting by color: how alike counts as one, changed all the time
@@ -1019,6 +1120,16 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             }
         }
 
+        if (widget->findChild<QAbstractButton *>(QStringLiteral("bnAddReferenceImage"))) {
+            addReferenceImages(widget);
+        }
+
+        if (widget->findChild<QWidget *>(QStringLiteral("optionButtonStripToolMode"))) {
+            addGutter(widget);
+        }
+
+        if (QObject *manager = widget->property("studioTextOptions").value<QObject *>()) text = manager;
+
         // guides: their kinds, the chosen one's switches, showing them
         if (QComboBox *types = widget->findChild<QComboBox *>(QStringLiteral("availableAssistantsComboBox"))) {
             addGuides(widget, types);
@@ -1043,6 +1154,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 Q_FOREACH (KoGroupButton *button, strip->buttons()) {
                     mirror(button);
                 }
+                tuckSection(strip);
             }
         }
         // the fill's threshold, the one setting changed all the time
@@ -1056,6 +1168,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
 
     // the text tool's options are Krita's own panel: its font, the setting changed most, written in itself
     if (KisStudioTools::activeToolId() == QLatin1String("SvgTextTool")) addFontChip();
+    if (text) addTextCommands(text);
 
     m_hasOptions = m_layout->count() > 0;
     updateGeometry();
@@ -1104,4 +1217,153 @@ void KisStudioToolStrip::addFontChip()
         picker->popupBeside(chip, Qt::BottomEdge);
     });
     m_layout->addWidget(chip);
+}
+
+QMenu *KisStudioToolStrip::addMore()
+{
+    QToolButton *more = addButton(KisIconUtils::loadIcon(QStringLiteral("studio_more")), i18nc("@info:tooltip more of the tool's commands", "More"));
+    more->setCheckable(false);
+    more->setPopupMode(QToolButton::InstantPopup);
+    auto *menu = new QMenu(more);
+    more->setMenu(menu);
+    m_more = more;
+    return menu;
+}
+
+bool KisStudioToolStrip::optionsLeft() const
+{
+    Q_FOREACH (const QPointer<QWidget> &root, m_options) {
+        if (!root) continue;
+        Q_FOREACH (QWidget *widget, root->findChildren<QWidget *>()) {
+            if (isInput(widget) && widget->isVisibleTo(root)) return true;
+        }
+    }
+    return false;
+}
+
+void KisStudioToolStrip::showMore()
+{
+    if (m_more) m_more->showMenu();
+}
+
+void KisStudioToolStrip::addReferenceImages(QWidget *options)
+{
+    // adding one is the tool's first use, so it's on the bar; the options keep what changes the chosen ones
+    addGap();
+    const QList<QPair<const char *, QString>> adds = {
+        {"bnAddReferenceImage", i18nc("@info:tooltip add a reference image", "From a file")},
+        {"bnPasteReferenceImage", i18nc("@info:tooltip add a reference image", "Paste")},
+        {"bnAddReferenceImageFromCurrentLayer", i18nc("@info:tooltip add a reference image", "From the layer")},
+        {"bnAddReferenceImageFromVisible", i18nc("@info:tooltip add a reference image", "From the image")},
+    };
+    for (const auto &add : adds) {
+        QAbstractButton *source = options->findChild<QAbstractButton *>(QLatin1String(add.first));
+        if (QToolButton *button = mirror(source)) {
+            button->setCheckable(false);
+            button->setToolTip(add.second);
+            new FollowEnabled(source, button);
+        }
+        tuck(source);
+    }
+    QMenu *menu = addMore();
+    QPointer<QWidget> root = options;
+    auto clickOn = [this, menu, root](const QString &text, const char *name) {
+        QPointer<QAbstractButton> source = root->findChild<QAbstractButton *>(QLatin1String(name));
+        if (!source) return;
+        connect(menu->addAction(text), &QAction::triggered, source, [source]() {
+            if (source) source->click();
+        });
+        tuck(source);
+    };
+    clickOn(i18nc("reference images: open a saved set", "Open…"), "bnLoad");
+    clickOn(i18nc("reference images: save them as a set", "Save…"), "bnSave");
+    menu->addSeparator();
+    clickOn(i18nc("reference images: remove every one", "Delete all"), "bnDelete");
+    for (const char *name : {"label", "label1", "referenceImageOptionsLabel"}) {
+        tuck(options->findChild<QWidget *>(QLatin1String(name)));
+    }
+    Q_FOREACH (QFrame *line, options->findChildren<QFrame *>(QStringLiteral("line"))) tuck(line);
+}
+
+void KisStudioToolStrip::addGutter(QWidget *options)
+{
+    // cutting is the tool and Alt joins, so its modes go, and so does its form of gap kinds and units
+    if (auto *modes = options->findChild<KisOptionButtonStrip *>(QStringLiteral("optionButtonStripToolMode"))) {
+        if (modes->button(0) && !modes->button(0)->isChecked()) modes->button(0)->click();
+        tuck(modes);
+    }
+    tuck(options->findChild<QWidget *>(QStringLiteral("warningLabel")));
+    tuck(options->findChild<QWidget *>(QStringLiteral("gapOptionsWidget")));
+
+    // the width of the kind of gap in use
+    const QList<QPair<const char *, const char *>> kinds = {
+        {"thickGapWidthRadioButton", "thickGapWidth"}, {"thinGapWidthRadioButton", "thinGapWidth"}, {"specialGapWidthRadioButton", "customGapWidth"}};
+    QDoubleSpinBox *width = nullptr;
+    for (const auto &kind : kinds) {
+        QAbstractButton *chosen = options->findChild<QAbstractButton *>(QLatin1String(kind.first));
+        if (chosen && chosen->isChecked()) width = options->findChild<QDoubleSpinBox *>(QLatin1String(kind.second));
+    }
+    if (!width) return;
+    addGap();
+    QPointer<QDoubleSpinBox> target = width;
+    auto *scrubber = new KisStudioScrubber(KisStudioScrubber::Kind::Size, i18nc("@info:tooltip the width of the gaps between comic panels", "Gutter"), this);
+    scrubber->setRange(qMax(1.0, width->minimum()), qMin(200.0, width->maximum()));
+    scrubber->setValue(width->value());
+    auto set = [target](qreal value) {
+        if (target) target->setValue(value);
+    };
+    connect(scrubber, &KisStudioScrubber::valueCommitted, this, set);
+    connect(scrubber, &KisStudioScrubber::valueChanging, this, set);
+    connect(width, QOverload<double>::of(&QDoubleSpinBox::valueChanged), scrubber, [scrubber](double value) { scrubber->setValue(value); });
+    m_layout->addWidget(scrubber);
+}
+
+void KisStudioToolStrip::addTextCommands(QObject *manager)
+{
+    // Krita's text options are a page of their own: the font is on the bar, the rest behind ⋯
+    QPointer<QObject> options = manager;
+    addGap();
+    QMenu *menu = addMore();
+    connect(menu, &QMenu::aboutToShow, this, [menu, options]() {
+        menu->clear();
+        if (!options) return;
+        auto command = [menu](const QString &text, std::function<void()> run) {
+            QObject::connect(menu->addAction(text), &QAction::triggered, menu, run);
+        };
+        auto toggle = [menu, options](const QString &text, const char *property) {
+            QAction *action = menu->addAction(text);
+            action->setCheckable(true);
+            action->setChecked(options->property(property).toBool());
+            QObject::connect(action, &QAction::triggered, menu, [options, property](bool on) {
+                if (options) options->setProperty(property, on);
+            });
+        };
+        if (options->property("showTextPropertyButton").toBool()) {
+            toggle(i18nc("text tool: show the text properties panel", "Text properties"), "textPropertiesOpen");
+        }
+        command(i18nc("text tool: pick a character from the font", "Glyphs…"), [options]() {
+            if (options) QMetaObject::invokeMethod(options, "emitGlyphPalette");
+        });
+        command(i18nc("text tool: edit the text's SVG", "Edit SVG…"), [options]() {
+            if (options) QMetaObject::invokeMethod(options, "emitOpenTextEditor");
+        });
+        toggle(i18nc("text tool: drag single letters to place them", "Move letters"), "typeSettingMode");
+
+        // what the chosen text is: lines as typed, wrapped in a width, or placed letter by letter as SVG 1.1 does
+        const int type = options->property("textType").toInt();
+        if (type < 0) return;
+        menu->addSeparator();
+        const QList<QPair<int, QString>> types = {{1, i18nc("text tool: a text's kind", "Lines as typed")},
+                                                  {2, i18nc("text tool: a text's kind", "Wrapped")},
+                                                  {0, i18nc("text tool: a text's kind, as SVG 1.1 writes it", "Placed by letter")}};
+        for (const auto &kind : types) {
+            QAction *action = menu->addAction(kind.second);
+            action->setCheckable(true);
+            action->setChecked(type == kind.first);
+            const int value = kind.first;
+            QObject::connect(action, &QAction::triggered, menu, [options, value]() {
+                if (options) options->setProperty("textType", value);
+            });
+        }
+    });
 }

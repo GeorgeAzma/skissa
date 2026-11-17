@@ -115,22 +115,13 @@ QImage drawnStroke(const QString &engine, qreal size, const QColor &ink)
     painter.setPen(Qt::NoPen);
     const qreal w = strokeWidth, h = strokeHeight;
     if (engine == QLatin1String("experimentbrush")) {
-        // a loop drawn by hand round what it fills, its ends crossing, the inside filled
-        QPainterPath loop(QPointF(w * 0.2, h * 0.7));
-        loop.cubicTo(QPointF(w * 0.1, h * 0.36), QPointF(w * 0.3, h * 0.1), QPointF(w * 0.52, h * 0.12));
-        loop.cubicTo(QPointF(w * 0.74, h * 0.14), QPointF(w * 0.86, h * 0.36), QPointF(w * 0.78, h * 0.62));
-        loop.cubicTo(QPointF(w * 0.7, h * 0.86), QPointF(w * 0.42, h * 0.92), QPointF(w * 0.27, h * 0.8));
-        loop.cubicTo(QPointF(w * 0.2, h * 0.74), QPointF(w * 0.17, h * 0.6), QPointF(w * 0.24, h * 0.46));
-        QColor inside = ink;
-        inside.setAlphaF(0.35);
-        painter.setBrush(inside);
-        painter.drawPath(loop);
-        // the line goes on past where it began, as a hand closing a loop does
-        loop.cubicTo(QPointF(w * 0.27, h * 0.38), QPointF(w * 0.31, h * 0.32), QPointF(w * 0.36, h * 0.28));
-        QPen line(ink, 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-        painter.setPen(line);
-        painter.setBrush(Qt::NoBrush);
-        painter.drawPath(loop);
+        // what a lasso along the wave and back leaves: one solid shape, its ends pointed where the hand turned
+        QPainterPath shape(QPointF(w * 0.07, h * 0.7));
+        shape.cubicTo(QPointF(w * 0.2, h * 0.1), QPointF(w * 0.36, h * 0.12), QPointF(w * 0.52, h * 0.4));
+        shape.cubicTo(QPointF(w * 0.64, h * 0.62), QPointF(w * 0.8, h * 0.66), QPointF(w * 0.93, h * 0.3));
+        shape.cubicTo(QPointF(w * 0.8, h * 0.95), QPointF(w * 0.3, h * 0.95), QPointF(w * 0.07, h * 0.7));
+        painter.setBrush(ink);
+        painter.drawPath(shape);
         return image;
     }
     const bool soft = engine == QLatin1String("filter");

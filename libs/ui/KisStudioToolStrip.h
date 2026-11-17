@@ -15,6 +15,7 @@ class QHBoxLayout;
 class QComboBox;
 class QToolButton;
 class QSpinBox;
+class QMenu;
 class KisStudioSelectionAdjust;
 
 /**
@@ -33,6 +34,10 @@ public:
     /// Rebuilds the strip from the option widgets the active tool just provided
     void setOptionWidgets(const QList<QPointer<QWidget>> &widgets);
     bool hasOptions() const { return m_hasOptions; }
+    /// False when the bar holds all of the tool's options, and so its options panel would be empty
+    bool optionsLeft() const;
+    /// Opens the tool's ⋯ menu, if it has one
+    void showMore();
 
 private:
     void clear();
@@ -56,6 +61,17 @@ private:
     /// The guides tool: its kinds as pictures, each with its ways, the chosen one's switches, showing them, the rest
     void addGuides(QWidget *options, QComboBox *types);
 
+    /// A ⋯ button whose menu is returned to fill
+    QMenu *addMore();
+    /// Ways to add reference images, and their sets behind ⋯
+    void addReferenceImages(QWidget *options);
+    /// The comic panel tool's gutter width
+    void addGutter(QWidget *options);
+    /// The text tool's commands behind ⋯, on the object Krita's text options page uses
+    void addTextCommands(QObject *manager);
+
+    QList<QPointer<QWidget>> m_options;
+    QPointer<QToolButton> m_more;
     QHBoxLayout *m_layout {nullptr};
     KisStudioSelectionAdjust *m_adjust {nullptr};
     bool m_hasOptions {false};
