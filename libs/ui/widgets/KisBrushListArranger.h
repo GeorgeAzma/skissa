@@ -14,9 +14,8 @@
 
 class KisResourceItemChooser;
 class KisTagChooserWidget;
-class QBoxLayout;
 class QDropEvent;
-class QLabel;
+class QToolButton;
 class QModelIndex;
 class QWidget;
 
@@ -29,7 +28,7 @@ class KisBrushListArranger : public QObject
 {
     Q_OBJECT
 public:
-    KisBrushListArranger(KisResourceItemChooser *chooser, QBoxLayout *layout, QObject *parent);
+    KisBrushListArranger(KisResourceItemChooser *chooser, QObject *parent);
 
     /// While adding: 1 for a brush in the tag, 0 for one that isn't; -1 otherwise
     int markOf(const QModelIndex &index) const;
@@ -49,6 +48,8 @@ private:
     /// The tag shown, if its brushes keep an order: the user's, or All
     KisTagSP orderedTag() const;
     void toggle(const QModelIndex &index);
+    /// The + as a ✓ and Import beside it while adding
+    void showAdding(bool adding);
     /// The row a drop at \p pos goes before; the line showing it
     int dropRowAt(const QPoint &pos) const;
     void showDropLine(const QPoint &pos);
@@ -62,8 +63,7 @@ private:
     /// The tag brushes are being added to, and the ids of those in it
     KisTagSP m_adding;
     QSet<int> m_members;
-    QWidget *m_header {nullptr};
-    QLabel *m_headerName {nullptr};
+    QToolButton *m_import {nullptr};
     QWidget *m_dropLine {nullptr};
     /// The brush pressed: while adding, the click toggles it on release
     int m_pressedRow {-1};

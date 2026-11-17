@@ -53,6 +53,8 @@ public:
 
     /// A + beside the tag, shown while the tag is one of the user's: \p add puts things in it
     void setAddButton(const QString &toolTip, const std::function<void()> &add);
+    /// While adding, the + is a ✓ that ends it, with \p extra (if any) shown beside it
+    void setAdding(bool adding, const QString &toolTip, QWidget *extra = nullptr);
 
 Q_SIGNALS:
 

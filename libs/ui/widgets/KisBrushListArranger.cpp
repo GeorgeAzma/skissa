@@ -5,13 +5,11 @@
  */
 #include "KisBrushListArranger.h"
 
-#include <QBoxLayout>
 #include <QContextMenuEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QKeyEvent>
-#include <QLabel>
 #include <QMenu>
 #include <QMimeData>
 #include <QToolButton>
@@ -56,7 +54,7 @@ QStringList importableFiles(const QMimeData *mime)
 
 } // namespace
 
-KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBoxLayout *layout, QObject *parent)
+KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QObject *parent)
     : QObject(parent)
     , m_chooser(chooser)
 {
@@ -71,32 +69,14 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBox
     viewport->installEventFilter(this);
     chooser->itemView()->installEventFilter(this);
 
-    // while adding: the tag's name and Done above the list
-    m_header = new QWidget(chooser->parentWidget());
-    auto *row = new QHBoxLayout(m_header);
-    row->setContentsMargins(KisModernStyle::space2, KisModernStyle::space1, KisModernStyle::space1, KisModernStyle::space1);
-    row->setSpacing(KisModernStyle::space2);
-    m_headerName = new QLabel(m_header);
-    QFont bold = m_headerName->font();
-    bold.setWeight(QFont::DemiBold);
-    m_headerName->setFont(bold);
-    row->addWidget(m_headerName, 1);
-    auto *import = new QToolButton(m_header);
-    import->setText(i18nc("@action:button", "Import…"));
-    import->setAutoRaise(true);
-    import->setFocusPolicy(Qt::NoFocus);
-    import->setToolTip(i18nc("@info:tooltip", "Brushes, bundles and Photoshop brushes"));
-    connect(import, &QToolButton::clicked, this, &KisBrushListArranger::chooseFilesToImport);
-    row->addWidget(import);
-    auto *done = new QToolButton(m_header);
-    done->setText(i18nc("@action:button stop adding brushes to the tag", "Done"));
-    done->setAutoRaise(true);
-    done->setFocusPolicy(Qt::NoFocus);
-    done->setFont(bold);
-    connect(done, &QToolButton::clicked, this, &KisBrushListArranger::stopAdding);
-    row->addWidget(done);
-    m_header->hide();
-    layout->insertWidget(0, m_header);
+    // while adding: Import beside the +, which ends adding
+    m_import = new QToolButton(m_tags ? static_cast<QWidget *>(m_tags) : chooser);
+    m_import->setText(i18nc("@action:button", "Import…"));
+    m_import->setAutoRaise(true);
+    m_import->setFocusPolicy(Qt::NoFocus);
+    m_import->setToolTip(i18nc("@info:tooltip", "Brushes, bundles and Photoshop brushes"));
+    connect(m_import, &QToolButton::clicked, this, &KisBrushListArranger::chooseFilesToImport);
+    m_import->hide();
 
     if (m_tags) {
         m_tags->setAddButton(i18nc("@info:tooltip", "Add brushes"), [this]() {
@@ -108,7 +88,7 @@ KisBrushListArranger::KisBrushListArranger(KisResourceItemChooser *chooser, QBox
             if (isAdding() && (!tag || tag->url() != m_adding->url())) {
                 m_adding.clear();
                 m_chooser->tagFilterModel()->setHidesPutAway(true);
-                m_header->hide();
+                showAdding(false);
                 m_chooser->itemView()->viewport()->update();
             }
         });
@@ -145,7 +125,6 @@ void KisBrushListArranger::startAdding()
         for (int row = 0; row < inTag.rowCount(); row++) {
             m_members.insert(inTag.data(inTag.index(row, 0), Qt::UserRole + KisAbstractResourceModel::Id).toInt());
         }
-        m_headerName->setText(i18nc("@title brushes are being added to the tag %1", "Add to %1", tag->name()));
     } else {
         // All: every brush not put away
         const QStringList away = KisResourceOrder::putAway(ResourceType::PaintOpPresets);
@@ -156,9 +135,8 @@ void KisBrushListArranger::startAdding()
                 m_members.insert(index.data(Qt::UserRole + KisAbstractResourceModel::Id).toInt());
             }
         }
-        m_headerName->setText(i18nc("@title choosing which brushes the list shows", "Your brushes"));
     }
-    m_header->show();
+    showAdding(true);
     // every brush, the tag's among them
     m_chooser->tagFilterModel()->setHidesPutAway(false);
     m_chooser->tagFilterModel()->setTagFilter(KisTagSP());
@@ -170,11 +148,18 @@ void KisBrushListArranger::stopAdding()
     if (!isAdding()) return;
     const KisTagSP tag = m_adding;
     m_adding.clear();
-    m_header->hide();
+    showAdding(false);
     m_chooser->tagFilterModel()->setHidesPutAway(true);
     m_chooser->tagFilterModel()->setTagFilter(tag);
     m_chooser->itemView()->viewport()->update();
     KisStudioTools::focusCanvas();
+}
+
+void KisBrushListArranger::showAdding(bool adding)
+{
+    if (m_tags) {
+        m_tags->setAdding(adding, adding ? i18nc("@info:tooltip stop adding brushes", "Done") : i18nc("@info:tooltip", "Add brushes"), m_import);
+    }
 }
 
 void KisBrushListArranger::toggle(const QModelIndex &index)

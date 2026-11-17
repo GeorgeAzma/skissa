@@ -690,6 +690,18 @@ void KisTagChooserWidget::setAddButton(const QString &toolTip, const std::functi
     connect(d->addButton, &QToolButton::clicked, this, add);
 }
 
+void KisTagChooserWidget::setAdding(bool adding, const QString &toolTip, QWidget *extra)
+{
+    if (!d->addButton) return;
+    d->addButton->setIcon(KisIconUtils::loadIcon(adding ? QStringLiteral("studio_done") : QStringLiteral("studio_add")));
+    d->addButton->setToolTip(toolTip);
+    if (extra) {
+        auto *row = static_cast<QHBoxLayout *>(layout());
+        if (row->indexOf(extra) < 0) row->insertWidget(row->indexOf(d->addButton) + 1, extra);
+        extra->setVisible(adding);
+    }
+}
+
 void KisTagChooserWidget::updateIcons()
 {
     d->undoButton->setIcon(koIcon("edit-undo"));

@@ -433,7 +433,7 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     m_chooser->itemView()->setDragKey(KisStudioShortcuts::itemMimeType(), QStringLiteral("brush:"));
     layout->addWidget(m_chooser);
     // brushes dragged into an order, added to a tag, imported
-    auto *arranger = new KisBrushListArranger(m_chooser, layout, this);
+    auto *arranger = new KisBrushListArranger(m_chooser, this);
     m_delegate->mark = [arranger](const QModelIndex &index) { return arranger->markOf(index); };
 
     connect(m_chooser, SIGNAL(resourceSelected(KoResourceSP )),
