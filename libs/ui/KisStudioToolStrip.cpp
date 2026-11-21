@@ -621,7 +621,7 @@ QToolButton *KisStudioToolStrip::addButton(const QIcon &icon, const QString &too
     button->setAutoRaise(true);
     button->setCheckable(true);
     button->setFocusPolicy(Qt::NoFocus);
-    button->setIconSize(QSize(20, 20));
+    button->setIconSize(KisModernStyle::fit(QSize(20, 20)));
     button->setIcon(icon);
     button->setToolTip(QString(toolTip).remove(QLatin1Char('&')));
     m_layout->addWidget(button);
@@ -1246,7 +1246,7 @@ void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)
     auto *chip = new QToolButton(this);
     chip->setAutoRaise(true);
     chip->setFocusPolicy(Qt::NoFocus);
-    chip->setIconSize(QSize(20, 20));
+    chip->setIconSize(KisModernStyle::fit(QSize(20, 20)));
     chip->setToolTip(i18nc("@info:tooltip the pattern a fill paints with", "Pattern"));
     auto show = [chip](KoPatternSP pattern) {
         // the pattern's own picture, in a tile as a swatch is

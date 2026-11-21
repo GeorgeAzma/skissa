@@ -42,6 +42,7 @@ These come from the owner's feedback over many sessions. They decide most questi
 All tokens live in `libs/widgetutils/KisModernStyle.h`. Use them; don't invent numbers.
 
 - **Spacing:** `hairline` 2, `space1` 4, `space2` 8, `space3` 12, `space4` 16. Nothing else.
+- **Screen fit:** on a screen with few pixels to the inch (a 27-inch 1080p) the interface is drawn smaller, down to 0.8 (`KisModernStyle::screenFit`, from the screen's reported density; a scale set in Windows already counts). The default font follows it (`KisUiFont::normalFont`; a size the user chose stays), and fixed sizes of the chrome go through `KisModernStyle::fit` (buttons, icons). Qt's own scale can't go below 1 (see lessons). `KRITA_DEV_SCREEN_PPI` pretends a density.
 - **Corners:** squircles everywhere (`KisModernStyle::squircle`). Radii: `cornerRadius` 5 (controls), `tileRadius` 8, `cardRadius` 10, `panelRadius` 14. Checkboxes, swatches, switches and segmented controls are squircles (`fullSquircleRadius` for checkboxes). Radio buttons stay circles, and so do the paint colors on the rail (the color chip and colors pinned beside it): a drop of paint, the owner's call.
 - **Motion:** one curve, an exponential ease-out (`motionCurve()`), and three durations: `enterDuration` 180 ms, `exitDuration` 120 ms, `changeDuration` 160 ms. Things that move glide, they don't jump.
 - **Hover after scrolling:** a wheel turn tells the window the pointer moved where it rests (`WheelLatch::rehoverSoon`), so what scrolled under it lights and what scrolled away doesn't.

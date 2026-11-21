@@ -132,7 +132,7 @@ public:
     {
         setAutoRaise(true);
         setFocusPolicy(Qt::NoFocus);
-        setIconSize(QSize(20, 20));
+        setIconSize(KisModernStyle::fit(QSize(20, 20)));
         setToolButtonStyle(Qt::ToolButtonIconOnly);
         // its card is the bar's, with Remove, not Find's
         setProperty("ownContextMenu", true);
@@ -357,7 +357,7 @@ void KisStudioBarButtons::rebuild()
             continue;
         }
         auto *button = new BarButton(this);
-        if (d->place == ViewPill) button->setIconSize(QSize(16, 16));
+        if (d->place == ViewPill) button->setIconSize(KisModernStyle::fit(QSize(16, 16)));
         // named by its item, so Find knows the button and its shortcut
         button->setObjectName(prefix + QString(key).replace(QLatin1Char(':'), QLatin1Char('_')));
 
@@ -688,7 +688,7 @@ QMenu *KisStudioBarButtons::symmetryMenu()
         button->setCheckable(true);
         button->setAutoRaise(true);
         button->setIcon(icon);
-        button->setIconSize(QSize(20, 20));
+        button->setIconSize(KisModernStyle::fit(QSize(20, 20)));
         button->setText(text);
         button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         button->setFocusPolicy(Qt::NoFocus);

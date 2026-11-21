@@ -26,6 +26,7 @@
 #include <QToolButton>
 #include <QHash>
 #include <QApplication>
+#include <QScreen>
 #include <QStyleHints>
 #include <QMouseEvent>
 #include <QComboBox>
@@ -668,6 +669,34 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     painter->setFont(font);
     painter->drawText(face, Qt::AlignCenter, keyCapShown(text, state));
     painter->restore();
+}
+
+qreal KisModernStyle::screenFit()
+{
+    // once: what was sized at the start keeps its size
+    static const qreal fit = []() {
+        if (qEnvironmentVariableIsSet("KRITA_DEV_SCREEN_PPI")) {
+            return qBound(0.8, qEnvironmentVariable("KRITA_DEV_SCREEN_PPI").toDouble() / 100.0, 1.0);
+        }
+        const QScreen *screen = QGuiApplication::primaryScreen();
+        if (!screen) return 1.0;
+        // in Qt's own pixels, so a scale set in Windows already counts
+        const qreal ppi = screen->physicalDotsPerInch();
+        // a size the screen doesn't report, or a projector's or TV's, says nothing about how near it is seen
+        if (ppi < 50 || ppi > 400) return 1.0;
+        return qBound(0.8, ppi / 100.0, 1.0);
+    }();
+    return fit;
+}
+
+int KisModernStyle::fit(int px)
+{
+    return qRound(px * screenFit());
+}
+
+QSize KisModernStyle::fit(const QSize &size)
+{
+    return QSize(fit(size.width()), fit(size.height()));
 }
 
 int KisModernStyle::dragDistance(const QInputEvent *event)

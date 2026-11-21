@@ -40,7 +40,7 @@ public:
     WindowButton(WindowButtonKind kind, QMainWindow *window, QWidget *parent)
         : QAbstractButton(parent), m_kind(kind), m_window(window)
     {
-        setFixedSize(46, 32);
+        setFixedSize(KisModernStyle::fit(QSize(46, 32)));
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
         window->installEventFilter(this);

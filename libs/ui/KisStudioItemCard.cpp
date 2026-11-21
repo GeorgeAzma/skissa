@@ -112,7 +112,7 @@ public:
     ChoiceTile(const KisStudioItemCard::Choice &choice, QWidget *parent)
         : QAbstractButton(parent), m_choice(choice)
     {
-        setFixedSize(40, 40);
+        setFixedSize(KisModernStyle::fit(QSize(40, 40)));
         setToolTip(choice.title);
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);

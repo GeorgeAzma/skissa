@@ -572,7 +572,7 @@ public:
 
     explicit ColorChip(QWidget *parent) : QWidget(parent)
     {
-        setFixedSize(40, 40);
+        setFixedSize(KisModernStyle::fit(QSize(40, 40)));
         setCursor(Qt::PointingHandCursor);
         setToolTip(i18nc("@info:tooltip the color chip on the tool rail", "Colors\nDrag onto the image: fill\nClick the back one: swap\nRight-click: change it"));
     }

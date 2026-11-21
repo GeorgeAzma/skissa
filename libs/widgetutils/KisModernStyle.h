@@ -124,6 +124,16 @@ public:
 
     /// How far a press may move and still be a click: the system's drag distance, twice that when \p event came
     /// from a pen or a finger, which wobble as they land
+    /**
+     * How much smaller the interface is drawn on a screen with few pixels to the inch, so it looks about as large
+     * as on one with about 100 (a 27-inch 1440p screen at 100%): from 0.8 (a 27-inch 1080p screen) to 1, where
+     * Windows' own scale already sizes it. KRITA_DEV_SCREEN_PPI pretends a density, for testing.
+     */
+    static qreal screenFit();
+    /// A size of the interface's own (a button, an icon) at the screen's fit
+    static int fit(int px);
+    static QSize fit(const QSize &size);
+
     static int dragDistance(const QInputEvent *event = nullptr);
     /// How far a press on a value (a slider, a scrubber) moves before it drags: half the drag distance, as a click
     /// there only types or does nothing, and the value counts from the press so nothing is lost to it

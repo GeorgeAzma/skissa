@@ -679,7 +679,7 @@ struct Builder {
         auto *pin = new QToolButton(row);
         pin->setAutoRaise(true);
         pin->setCheckable(true);
-        pin->setFixedSize(24, 24);
+        pin->setFixedSize(KisModernStyle::fit(QSize(24, 24)));
 
         const QString key = KisStudioControls::settingKey(id);
         KisMainWindow *mainWindow = window;
@@ -1310,7 +1310,7 @@ QVector<CardDef> makeCards()
             auto *add = new QToolButton(b.card);
             add->setAutoRaise(true);
             add->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
-            add->setIconSize(QSize(14, 14));
+            add->setIconSize(KisModernStyle::fit(QSize(14, 14)));
             add->setToolTip(i18nc("@info:tooltip", "New theme"));
             QObject::connect(add, &QToolButton::clicked, add, []() { KisStudioTheme::add(); });
             b.header->addWidget(add);

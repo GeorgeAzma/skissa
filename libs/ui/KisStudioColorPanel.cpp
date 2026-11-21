@@ -1086,7 +1086,7 @@ public:
     {
         setMouseTracking(true);
         setAttribute(Qt::WA_Hover);
-        setFixedSize(48, 26);
+        setFixedSize(KisModernStyle::fit(QSize(48, 26)));
         setCursor(Qt::SizeHorCursor);
     }
 
@@ -1537,7 +1537,7 @@ KisStudioColorPanel::KisStudioColorPanel()
     d->styleButton = new QToolButton(contents);
     d->styleButton->setAutoRaise(true);
     d->styleButton->setFocusPolicy(Qt::NoFocus);
-    d->styleButton->setIconSize(QSize(20, 20));
+    d->styleButton->setIconSize(KisModernStyle::fit(QSize(20, 20)));
     d->styleButton->setToolTip(i18nc("@info:tooltip", "Picker style"));
     auto *styles = new QMenu(d->styleButton);
     // Krita hides menu icons, but these are what tells the pickers apart

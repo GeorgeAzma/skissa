@@ -223,8 +223,8 @@ public:
     {
         setAutoRaise(true);
         setCheckable(true);
-        setFixedSize(40, 40);
-        setIconSize(QSize(22, 22));
+        setFixedSize(KisModernStyle::fit(QSize(40, 40)));
+        setIconSize(KisModernStyle::fit(QSize(22, 22)));
         setFocusPolicy(Qt::NoFocus);
     }
 
@@ -490,7 +490,7 @@ public:
 
     explicit PlusButton(QWidget *parent) : QToolButton(parent)
     {
-        setFixedSize(30, 30);
+        setFixedSize(KisModernStyle::fit(QSize(30, 30)));
         setAttribute(Qt::WA_Hover);
         setFocusPolicy(Qt::NoFocus);
         setCursor(Qt::PointingHandCursor);
@@ -1168,7 +1168,7 @@ void KisStudioToolRail::rebuild()
 
         auto *button = new RailButton(this);
         if (pinned || key.startsWith(colorPrefix)) {
-            button->setIconSize(QSize(28, 28));
+            button->setIconSize(KisModernStyle::fit(QSize(28, 28)));
         }
         // a color is picked, not a place to be in: it never stays lit
         if (key.startsWith(colorPrefix)) button->setCheckable(false);

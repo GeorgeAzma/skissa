@@ -13,6 +13,7 @@
 #include "KisUiFont.h"
 
 #include <kis_config.h>
+#include <KisModernStyle.h>
 
 #include <boost/optional.hpp>
 
@@ -98,6 +99,9 @@ QFont normalFont()
             font.setPointSizeF(qMax(font.pointSizeF(), 10.0));
         }
 #endif
+        // a size chosen by the user stays as chosen
+        if (font.pixelSize() == -1) font.setPointSizeF(font.pointSizeF() * KisModernStyle::screenFit());
+        else font.setPixelSize(qRound(font.pixelSize() * KisModernStyle::screenFit()));
     }
 #ifdef Q_OS_WIN
     /**
