@@ -82,6 +82,7 @@ void KisUndoModel::setStack(KUndo2QStack *stack)
     }
 
     m_stack = stack;
+    m_openedImage = QImage();
 
     if (m_stack != 0) {
         connect(m_stack, SIGNAL(canRedoChanged(bool)), this, SLOT(stackChanged()));
@@ -212,7 +213,10 @@ QVariant KisUndoModel::data(const QModelIndex &index, int role) const
             text;
     }
     else if (role == Qt::DecorationRole) {
-        if (index.row() > 0) {
+        if (index.row() == 0) {
+            const_cast<KisUndoModel *>(this)->keepOpenedImage();
+            if (!m_openedImage.isNull()) return m_openedImage;
+        } else {
             const KUndo2Command* currentCommand = m_stack->command(index.row() - 1);
             if (m_imageMap.contains(currentCommand)) {
                 return m_imageMap[currentCommand];
@@ -247,6 +251,24 @@ QIcon KisUndoModel::cleanIcon() const
 void KisUndoModel::setCanvas(KisCanvas2 *canvas)
 {
     m_canvas = canvas;
+    m_openedImage = QImage();
+}
+
+QImage KisUndoModel::thumbnail() const
+{
+    if (!m_canvas || !m_canvas->image()) return QImage();
+    const QSize size = QSize(32, 32) * m_devicePixelRatioF;
+    QImage image = m_canvas->image()->projection()->createThumbnail(size.width(), size.height(), KisThumbnailBoundsMode::Coarse);
+    image.setDevicePixelRatio(m_devicePixelRatioF);
+    return image;
+}
+
+void KisUndoModel::keepOpenedImage()
+{
+    // once, when first shown while the image is as it was before any step: undoing runs in the background, so
+    // right after everything is undone the image may not be back yet
+    if (!m_stack || m_stack->index() != 0 || !m_openedImage.isNull()) return;
+    m_openedImage = thumbnail();
 }
 
 void KisUndoModel::addImage(int idx)
@@ -258,12 +280,7 @@ void KisUndoModel::addImage(int idx)
 
     const KUndo2Command* currentCommand = m_stack->command(idx-1);
     if (m_stack->count() == idx && !m_imageMap.contains(currentCommand)) {
-        KisImageSP historyImage = m_canvas->image();
-        KisPaintDeviceSP paintDevice = historyImage->projection();
-        QSize size = QSize(32, 32)*m_devicePixelRatioF;
-        QImage image = paintDevice->createThumbnail(size.width(), size.height(), KisThumbnailBoundsMode::Coarse);
-        image.setDevicePixelRatio(m_devicePixelRatioF);
-        m_imageMap[currentCommand] = image;
+        m_imageMap[currentCommand] = thumbnail();
     }
 
     QList<const KUndo2Command*> list;

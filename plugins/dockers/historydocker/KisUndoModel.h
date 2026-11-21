@@ -105,6 +105,11 @@ private:
     QIcon m_clean_icon;
     QPointer<KisCanvas2> m_canvas;
     QMap<const KUndo2Command*, QImage> m_imageMap;
+    /// The image before any step, taken when the list first shows it while the history is there
+    QImage m_openedImage;
     qreal m_devicePixelRatioF {1.0};
+
+    QImage thumbnail() const;
+    void keepOpenedImage();
 };
 #endif
