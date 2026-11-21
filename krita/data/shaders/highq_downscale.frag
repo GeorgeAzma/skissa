@@ -120,7 +120,7 @@ int axisTaps(float center, float scale, float radius, out float at[MAX_TAPS], ou
 }
 
 /**
- * The image made smaller by a Lanczos-3 filter, as photo editors shrink images: sharper than mipmaps alone, with
+ * The image made smaller, or up to twice as large, by a Lanczos-3 filter, as photo editors shrink images: sharper than mipmaps alone, with
  * faint rings by hard edges. It filters the finest mipmap level at most twice as large as the screen, so a pixel
  * reads at most about 7 x 7 fetches; the kernel is kept inside the texels a tile shares with its neighbors, or tiles
  * would show seams (from 25% down it is cut short there, and gets a little softer).
@@ -135,6 +135,8 @@ vec4 filterLanczos(sampler2D tex, vec2 texcoord)
         scale *= 2.0;
         level += 1.0;
     }
+    // magnified, the kernel stays as wide as a texel
+    scale = min(scale, 1.0);
     float size = texelSize * exp2(level);
     float radius = min(3.0 / scale, max(texelBorder / exp2(level), 1.0));
     vec2 center = texcoord / size - 0.5;
@@ -174,7 +176,8 @@ void main() {
     } else
 #endif /* DIRECT_LOD_FETCH */
 #ifdef HIGHQ_SCALING
-    if (viewportScale < 1.0 - eps) {
+    // from 200% each pixel shows as a square (the canvas switches to nearest there)
+    if (viewportScale < 2.0 - eps) {
         col = filterLanczos(texture0, v_textureCoordinate.st);
     } else
 #endif /* HIGHQ_SCALING */
