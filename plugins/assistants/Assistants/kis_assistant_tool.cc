@@ -781,6 +781,11 @@ void KisAssistantTool::endActionImpl(KoPointerEvent *event)
         KisPaintingAssistantSP selectedAssistant = m_canvas->paintingAssistantsDecoration()->selectedAssistant();
         QPointF currentOffset = selectedAssistant->editorWidgetOffset();
         selectedAssistant->setEditorWidgetOffset(currentOffset + (event->point - m_dragEnd));
+    } else if (m_internalMode == MODE_CREATION && m_newAssistant && m_newAssistant->handles().size() == 2) {
+        // one drag makes the whole guide, its points then moved as they are, rather than a click for each point
+        // with the next one following the pointer until it is placed
+        completeNewAssistant(m_newAssistant);
+        addAssistant();
     }
     else {
         event->ignore();
@@ -849,6 +854,58 @@ void KisAssistantTool::addAssistant()
     updateToolOptionsUI(); // vanishing point assistant will get an extra option
 
     m_newAssistant.clear();
+}
+
+void KisAssistantTool::completeNewAssistant(KisPaintingAssistantSP guide)
+{
+    QList<KisPaintingAssistantHandleSP> handles = guide->handles();
+    QPointF from = *handles[0];
+    QPointF to = *handles[1];
+    const QTransform toWidget = m_canvas->coordinatesConverter()->documentToWidgetTransform();
+    const QTransform toImage = toWidget.inverted();
+    // a click, not a drag: a guide a quarter of the view wide around it
+    const qreal size = QLineF(toImage.map(QPointF(0, 0)), toImage.map(QPointF(m_canvas->canvasWidget()->width() / 4.0, 0))).length();
+    if (QLineF(toWidget.map(from), toWidget.map(to)).length() < 8) {
+        to = from + QPointF(size / 2, 0);
+        from -= QPointF(size / 2, 0);
+    }
+    // what is drawn inside a box (ellipses, planes) is never flat: at least half as tall as wide, or as wide as tall
+    QRectF box = QRectF(from, to).normalized();
+    if (box.height() < box.width() / 2) box.adjust(0, -(box.width() / 2 - box.height()) / 2, 0, (box.width() / 2 - box.height()) / 2);
+    if (box.width() < box.height() / 2) box.adjust(-(box.height() / 2 - box.width()) / 2, 0, (box.height() / 2 - box.width()) / 2, 0);
+
+    const QString id = guide->id();
+    QVector<QPointF> points;
+    if (id == QLatin1String("ellipse") || id == QLatin1String("concentric ellipse") || id == QLatin1String("fisheye-point")) {
+        // the long axis across the box, a point on its top
+        points = {QPointF(box.left(), box.center().y()), QPointF(box.right(), box.center().y()), QPointF(box.center().x(), box.top())};
+    } else if (id == QLatin1String("perspective") || id == QLatin1String("perspective ellipse")) {
+        points = {box.topLeft(), box.topRight(), box.bottomRight(), box.bottomLeft()};
+    } else if (id == QLatin1String("spline")) {
+        // a gentle S from the start to the end, its bends a third of the way in
+        const QPointF along = to - from;
+        const QPointF across = QPointF(-along.y(), along.x()) * 0.25;
+        points = {from, to, from + along / 3 + across, from + along * 2 / 3 - across};
+    } else if (id == QLatin1String("two point")) {
+        // the horizon dragged from one vanishing point to the other, the middle of vision halfway
+        points = {from, to, (from + to) / 2};
+    } else if (id == QLatin1String("vanishing point")) {
+        // the area dragged, its vanishing point on the horizon above it
+        points = {QPointF(box.center().x(), box.top() - box.height())};
+    } else {
+        points = {from, to};
+    }
+    if (guide->isLocal()) {
+        const QRectF area = box.adjusted(-box.width() / 4, -box.height() / 4, box.width() / 4, box.height() / 4);
+        points << area.topLeft() << area.bottomRight();
+    }
+
+    // the two handles of the drag become the first two points
+    *handles[0] = points.value(0);
+    *handles[1] = points.value(1, points.value(0));
+    for (int i = 2; i < points.size() && guide->handles().size() < guide->numHandles(); i++) {
+        guide->addHandle(new KisPaintingAssistantHandle(points[i]), HandleType::NORMAL);
+    }
 }
 
 void KisAssistantTool::updateEditorWidgetData()
@@ -1377,12 +1434,20 @@ void KisAssistantTool::paint(QPainter& _gc, const KoViewConverter &_converter)
 
     // show special display while a new assistant is in the process of being created
     if (m_newAssistant) {
+        // while its first drag goes on, the whole guide it will make
+        KisPaintingAssistantSP shown = m_newAssistant;
+        if (m_internalMode == MODE_CREATION && m_newAssistant->handles().size() == 2 && mode() == KisTool::PAINT_MODE) {
+            QMap<KisPaintingAssistantHandleSP, KisPaintingAssistantHandleSP> handleMap;
+            shown = m_newAssistant->clone(handleMap);
+            shown->copySharedData(m_newAssistant);
+            completeNewAssistant(shown);
+        }
 
-        QColor assistantColor = m_canvas->displayRendererInterface()->convertColorToDisplayColorSpace(KoColor(m_newAssistant->effectiveAssistantColor(), KoColorSpaceRegistry::instance()->rgb8()));
+        QColor assistantColor = m_canvas->displayRendererInterface()->convertColorToDisplayColorSpace(KoColor(shown->effectiveAssistantColor(), KoColorSpaceRegistry::instance()->rgb8()));
         assistantColor.setAlpha(80);
 
-        m_newAssistant->drawAssistant(_gc, canvasSize, m_canvas->coordinatesConverter(), m_canvas->displayRendererInterface(), false, m_canvas, true, false);
-        Q_FOREACH (const KisPaintingAssistantHandleSP handle, m_newAssistant->handles()) {
+        shown->drawAssistant(_gc, canvasSize, m_canvas->coordinatesConverter(), m_canvas->displayRendererInterface(), false, m_canvas, true, false);
+        Q_FOREACH (const KisPaintingAssistantHandleSP handle, shown->handles()) {
             QPainterPath path;
             path.addEllipse(QRectF(_converter.documentToView(*handle) -  QPointF(m_handleSize * 0.5, m_handleSize * 0.5), QSizeF(m_handleSize, m_handleSize)));
 

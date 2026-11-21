@@ -79,6 +79,8 @@ private:
     // this is event is forwarded to the kis_painting_decoration class
     // perspective grids seem to be managed in two places with these calls
     void addAssistant();
+    /// \p guide, being made, whole from the box of its first drag (or a click's default box)
+    void completeNewAssistant(KisPaintingAssistantSP guide);
     void removeAssistant(KisPaintingAssistantSP assistant);
 
     void assistantSelected(KisPaintingAssistantSP assistant);
