@@ -267,6 +267,11 @@ void KisCompositeOpComboBox::pick(const KoID &op)
 
 void KisCompositeOpComboBox::showPopup()
 {
+    showPopupBelow(this);
+}
+
+void KisCompositeOpComboBox::showPopupBelow(QWidget *anchor)
+{
     // layer styles allow only a few modes: the plain list fits them better
     if (m_limitToLayerStyles) {
         KisSqueezedComboBox::showPopup();
@@ -282,12 +287,13 @@ void KisCompositeOpComboBox::showPopup()
         }
     }
 
-    auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, this,
+    // a child of what it opens under, so a popup holding that counts the picker as part of it
+    auto *picker = new KisBlendModePicker(selectedCompositeOp().id(), available, anchor,
                                           m_pictures ? m_pictures() : KisBlendModePicker::Pictures(), m_forBrush);
     connect(picker, &KisBlendModePicker::previewed, this, &KisCompositeOpComboBox::sigPreviewBlendMode);
     // reported even when the box shows it already: the preview may have synced the box, not the layer
     connect(picker, &KisBlendModePicker::picked, this, &KisCompositeOpComboBox::pick);
-    picker->popupBelow(this);
+    picker->popupBelow(anchor);
 }
 
 void KisCompositeOpComboBox::slotNextBlendingMode()

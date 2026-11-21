@@ -510,6 +510,16 @@
         <file>light_hamburger_menu_dots.svg</file>
         <file>dark_hamburger_menu.svg</file>
         <file>light_hamburger_menu.svg</file>
+        <file>dark_studio_duplicate.svg</file>
+        <file>light_studio_duplicate.svg</file>
+        <file>dark_studio_merge_down.svg</file>
+        <file>light_studio_merge_down.svg</file>
+        <file>dark_studio_group.svg</file>
+        <file>light_studio_group.svg</file>
+        <file>dark_studio_ungroup.svg</file>
+        <file>light_studio_ungroup.svg</file>
+        <file>dark_studio_copy.svg</file>
+        <file>light_studio_copy.svg</file>
         <file>dark_studio_timeline.svg</file>
         <file>light_studio_timeline.svg</file>
         <file>dark_studio_anim_curves.svg</file>

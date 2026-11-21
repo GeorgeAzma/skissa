@@ -50,8 +50,6 @@ class KisNodeModel;
 class KisNodeFilterProxyModel;
 class Ui_WdgLayerBox;
 class KisNodeJugglerCompressed;
-class KisColorLabelSelectorWidgetMenuWrapper;
-class QWidgetAction;
 class KisKeyframeChannel;
 class KisSelectionActionsAdapter;
 class KisScreenMigrationTracker;
@@ -67,6 +65,9 @@ class KRITALAYERDOCKER_EXPORT LayerBox : public QDockWidget, public KisMainwindo
 {
 
     Q_OBJECT
+
+    // the card is the layer's right click, made of the panel's own commands and menus
+    friend class LayerCard;
 
 public:
 
@@ -124,7 +125,6 @@ private Q_SLOTS:
     void slotColorLabelChanged(int index);
     void slotUpdateIcons();
     void toggleActiveLayerSolo();
-    void updateLayerOpMenu(const QModelIndex &index, QMenu &menu);
 
     void slotAddLayerBnClicked();
 
@@ -167,6 +167,8 @@ private:
     QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
     /// "New": every kind of layer and mask, and a paint layer below the current one if \p below
     void addNewLayerMenu(QMenu *menu, bool below);
+    /// The kinds of layer and mask that can be added, into \p kinds
+    void fillNewLayerMenu(QMenu *kinds, bool below);
     // reimp from KisNodeManager
     qint32 convertOpacityToInt(qreal opacity);
 
@@ -180,8 +182,6 @@ private:
     QPointer<KisNodeModel> m_nodeModel;
     QPointer<KisNodeFilterProxyModel> m_filteringModel;
     QPointer<KisNodeManager> m_nodeManager;
-    QPointer<KisColorLabelSelectorWidgetMenuWrapper> m_colorSelector;
-    QPointer<QWidgetAction> m_colorSelectorAction;
     Ui_WdgLayerBox* m_wdgLayerBox;
     qreal m_newOpacity {100};
     KisNodeSP m_changedOpacityNode;

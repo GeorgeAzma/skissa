@@ -88,8 +88,6 @@
 #include "kis_config.h"
 #include "KisView.h"
 #include "krita_utils.h"
-#include "kis_color_label_selector_widget.h"
-#include "kis_signals_blocker.h"
 #include "kis_color_filter_combo.h"
 #include "kis_node_filter_proxy_model.h"
 #include <KisSpinBoxI18nHelper.h>
@@ -106,6 +104,7 @@
 #include "kis_layer_utils.h"
 
 #include "ui_WdgLayerBox.h"
+#include "LayerCard.h"
 #include "NodeView.h"
 #include "SyncButtonAndAction.h"
 #include "KisModernStyle.h"
@@ -489,13 +488,6 @@ LayerBox::LayerBox()
     connect(m_showGlobalSelectionMask, SIGNAL(triggered(bool)), SLOT(slotEditGlobalSelection(bool)));
 
     m_showGlobalSelectionMask->setChecked(cfg.showGlobalSelection());
-
-    m_colorSelector = new KisColorLabelSelectorWidgetMenuWrapper(this);
-    MouseClickIgnore* mouseEater = new MouseClickIgnore(this);
-    m_colorSelector->installEventFilter(mouseEater);
-    connect(m_colorSelector->colorLabelSelector(), SIGNAL(currentIndexChanged(int)), SLOT(slotColorLabelChanged(int)));
-    m_colorSelectorAction = new QWidgetAction(this);
-    m_colorSelectorAction->setDefaultWidget(m_colorSelector);
 
     connect(m_nodeModel, SIGNAL(dataChanged(QModelIndex,QModelIndex)),
             &m_colorLabelCompressor, SLOT(start()));
@@ -1010,10 +1002,18 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
     KisNodeList nodes = m_nodeManager->selectedNodes();
     KisNodeSP activeNode = m_nodeManager->activeNode();
 
+    KisNodeSP node = index.isValid() ? m_filteringModel->nodeFromIndex(index) : KisNodeSP();
+    if (node && !nodes.isEmpty() && activeNode) {
+        // a layer's right click is its card
+        NodeView *view = m_wdgLayerBox->listLayers;
+        if (node != activeNode) view->setCurrentIndex(index);
+        const QRect row = view->visualRect(index.sibling(index.row(), NodeView::DEFAULT_COL));
+        auto *card = new LayerCard(this, node);
+        card->popupBesideRow(QRect(view->viewport()->mapToGlobal(row.topLeft()), row.size()), this);
+        return;
+    }
     QMenu menu;
-    if (index.isValid() && !nodes.isEmpty() && activeNode) {
-        updateLayerOpMenu(index, menu);
-    } else {
+    {
         addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
         addNewLayerMenu(&menu, false);
         addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
@@ -1061,7 +1061,11 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, const QString &id, const QString &l
 
 void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
 {
-    QMenu *kinds = menu->addMenu(KisSentenceCase::of(i18nc("@title:menu other kinds of layer", "New")));
+    fillNewLayerMenu(menu->addMenu(KisSentenceCase::of(i18nc("@title:menu other kinds of layer", "New"))), below);
+}
+
+void LayerBox::fillNewLayerMenu(QMenu *kinds, bool below)
+{
     addMenuEntry(kinds, "add_new_paint_layer", i18nc("@action:inmenu", "Paint Layer"));
     if (below) {
         QAction *entry = kinds->addAction(i18nc("@action:inmenu", "Paint Layer Below"));
@@ -1870,109 +1874,6 @@ void LayerBox::slotImageTimeChanged(int time)
 {
     Q_UNUSED(time);
     updateUI();
-}
-
-void LayerBox::updateLayerOpMenu(const QModelIndex &index, QMenu &menu) {
-
-    KisNodeList nodes = m_nodeManager->selectedNodes();
-    KisNodeSP activeNode = m_nodeManager->activeNode();
-    const bool singleNode = nodes.size() == 1;
-
-    if (!index.isValid()) {
-        return;
-    }
-
-    // the everyday actions at the top, the rest in submenus
-    addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
-    addNewLayerMenu(&menu, true);
-    menu.addSeparator();
-
-    addMenuEntry(&menu, "duplicatelayer", i18nc("@action:inmenu", "Duplicate"));
-    addMenuEntry(&menu, "merge_layer", i18nc("@action:inmenu", "Merge Down"));
-    addMenuEntry(&menu, "create_quick_group", i18nc("@action:inmenu", "Group"));
-    if (singleNode && activeNode->inherits("KisGroupLayer")) {
-        addMenuEntry(&menu, "quick_ungroup", i18nc("@action:inmenu", "Ungroup"));
-    }
-    addMenuEntry(&menu, m_removeAction, i18nc("@action:inmenu", "Delete"));
-    menu.addSeparator();
-
-    addMenuEntry(&menu, "copy_layer_clipboard", i18nc("@action:inmenu", "Copy"));
-    addMenuEntry(&menu, "cut_layer_clipboard", i18nc("@action:inmenu", "Cut"));
-    addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
-    menu.addSeparator();
-
-    addMenuEntry(&menu, m_propertiesAction, i18nc("@action:inmenu", "Properties…"));
-    KisLayerSP singleLayer = dynamic_cast<KisLayer*>(activeNode.data());
-    if (singleLayer) {
-        QMenu *style = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu layer style", "Style")));
-        addMenuEntry(style, "layer_style", i18nc("@action:inmenu layer style", "Edit…"));
-        if (singleLayer->layerStyle()) {
-            addMenuEntry(style, "copy_layer_style", i18nc("@action:inmenu layer style", "Copy"));
-        }
-        if (KisClipboard::instance()->hasLayerStyles()) {
-            addMenuEntry(style, "paste_layer_style", i18nc("@action:inmenu layer style", "Paste"));
-        }
-    }
-    {
-        KisSignalsBlocker b(m_colorSelector->colorLabelSelector());
-        m_colorSelector->colorLabelSelector()->setCurrentIndex(singleNode ? activeNode->colorLabelIndex() : -1);
-    }
-    menu.addAction(m_colorSelectorAction);
-    menu.addSeparator();
-
-    QMenu *select = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Select")));
-    addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
-    addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
-    addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
-    addMenuEntry(select, "select_locked_layers", i18nc("@action:inmenu select layers", "Locked"));
-    addMenuEntry(select, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
-    if (singleNode) {
-        select->addSeparator();
-        addMenuEntry(select, "selectopaque", i18nc("@action:inmenu", "Opaque Pixels"));
-    }
-
-    // only what applies to this layer, no disabled entries
-    if (singleNode) {
-        QMenu *convert = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Convert")));
-        addMenuEntry(convert, "convert_to_paint_layer", i18nc("@action:inmenu convert to", "To Paint Layer"), true);
-        addMenuEntry(convert, "convert_to_transparency_mask", i18nc("@action:inmenu convert to", "To Transparency Mask"), true);
-        addMenuEntry(convert, "convert_to_filter_mask", i18nc("@action:inmenu convert to", "To Filter Mask"), true);
-        addMenuEntry(convert, "convert_to_selection_mask", i18nc("@action:inmenu convert to", "To Local Selection"), true);
-        addMenuEntry(convert, "convert_to_file_layer", i18nc("@action:inmenu convert to", "To File Layer"), true);
-        addMenuEntry(convert, "convert_group_to_animated", i18nc("@action:inmenu convert to", "To Animated Layer"), true);
-        addMenuEntry(convert, "layercolorspaceconversion", i18nc("@action:inmenu", "Color Space…"), true);
-        convert->addSeparator();
-        addMenuEntry(convert, "split_alpha_into_mask", i18nc("@action:inmenu", "Alpha into Mask"), true);
-        addMenuEntry(convert, "split_alpha_write", i18nc("@action:inmenu", "Write as Alpha"), true);
-        addMenuEntry(convert, "split_alpha_save_merged", i18nc("@action:inmenu", "Save Merged…"), true);
-    }
-
-    QMenu *more = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "More")));
-    addMenuEntry(more, "create_quick_clipping_group", i18nc("@action:inmenu", "Clipping Group"));
-    if (singleNode) {
-        addMenuEntry(more, "flatten_layer", i18nc("@action:inmenu", "Flatten Layer"));
-        addMenuEntry(more, "flatten_image", i18nc("@action:inmenu", "Flatten Image"));
-    }
-    Q_FOREACH(KisNodeSP node, nodes) {
-        if (node && node->inherits("KisCloneLayer")) {
-            addMenuEntry(more, m_changeCloneSourceAction, i18nc("@action:inmenu", "Clone Source…"));
-            break;
-        }
-    }
-    more->addSeparator();
-    addMenuEntry(more, "toggle_layer_visibility", i18nc("@action:inmenu", "Show or Hide"));
-    addMenuEntry(more, "toggle_layer_lock", i18nc("@action:inmenu", "Lock or Unlock"));
-    addMenuEntry(more, "toggle_layer_inherit_alpha", i18nc("@action:inmenu", "Clip to Layer Below"));
-    addMenuEntry(more, "toggle_layer_alpha_lock", i18nc("@action:inmenu", "Lock Alpha"));
-    more->addSeparator();
-    if (singleNode) {
-        KisNodeSP node = m_filteringModel->nodeFromIndex(index);
-        if (node && !node->inherits("KisTransformMask")) {
-            addMenuEntry(more, "isolate_active_layer", i18nc("@action:inmenu", "Isolate Layer"));
-            addMenuEntry(more, "isolate_active_group", i18nc("@action:inmenu", "Isolate Group"));
-        }
-    }
-    addMenuEntry(more, "pin_to_timeline", i18nc("@action:inmenu", "Pin to Timeline"));
 }
 
 void LayerBox::slotForgetAboutSavedNodeBeforeEditSelectionMode()

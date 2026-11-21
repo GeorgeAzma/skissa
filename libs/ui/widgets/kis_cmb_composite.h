@@ -52,6 +52,8 @@ public:
 
     /// The blend mode picker instead of the plain list, but for layer styles
     void showPopup() override;
+    /// The picker under \p anchor rather than the box (shown elsewhere, or hidden)
+    void showPopupBelow(QWidget *anchor);
 
     void validate(const KoColorSpace *cs);
     void selectCompositeOp(const KoID &op);
