@@ -599,7 +599,15 @@ KisStudioPanelColumn *KisStudioLayout::groupColumn(int group)
     // it has no panel buttons to drag it by; a tap folds its panels
     auto *grip = new DragGrip(column);
     grip->setObjectName(QStringLiteral("studioGroupGrip"));
-    grip->setToolTip(i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold"));
+    grip->setToolTip(i18nc("@info:tooltip a group of panels' grip", "Drag: move\nClick: fold\nRight-click: close"));
+    // closes its panels; their buttons open them here again
+    grip->rightClicked = [this, group]() {
+        KisStudioPanelColumn *own = d->groupColumns.value(group);
+        if (!own) return;
+        Q_FOREACH (QDockWidget *dock, own->panels()) {
+            if (!dock->isHidden()) togglePanel(dock, false);
+        }
+    };
     column->setStrip(grip);
     column->tapped = [this, group]() { foldGroup(group); };
     column->setSpot(readSpot(spotKey), readSpotHeight(spotKey));

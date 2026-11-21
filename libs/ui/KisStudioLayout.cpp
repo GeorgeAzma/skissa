@@ -372,9 +372,8 @@ void KisStudioLayout::enter()
         grip->dropped = [this, id](const QPoint &pos) {
             QTimer::singleShot(0, this, [this, id, pos]() { dropPanel(id, pos, false); });
         };
-        QPointer<PanelGrip> gripPointer = grip;
-        grip->cardRequested = [this, id, gripPointer]() {
-            if (gripPointer) showPanelCard(id, gripPointer);
+        grip->closeRequested = [this, id]() {
+            if (QDockWidget *panel = d->mainWindow->dockWidget(id)) togglePanel(panel, false);
         };
         grip->clicked = [this, id]() { gripClicked(id); };
         d->grips.insert(id, grip);

@@ -88,6 +88,8 @@ public:
                 // the Studio's own pickers and the brush editor are plain actions of the window
                 if (!action) action = window->actionCollection()->action(id);
                 if (!action) action = window->viewManager()->actionCollection()->action(id);
+                // the panels' toggles ("studio_panel_PaletteDocker") are only the window's children
+                if (!action) action = window->findChild<QAction *>(id);
                 if (action) action->trigger();
             }
             return true;

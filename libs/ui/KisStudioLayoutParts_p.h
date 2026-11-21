@@ -276,20 +276,20 @@ inline QString railIconName(const QString &id)
     return icons.value(id);
 }
 
-/// A panel's title bar: drag to move the panel, click to fold it, right-click for its card
+/// A panel's title bar: drag to move the panel, click to fold it, right-click to close it
 class PanelGrip : public QWidget
 {
 public:
     std::function<void(const QPoint &globalPos)> dragged;
     std::function<void(const QPoint &globalPos)> dropped;
-    std::function<void()> cardRequested;
+    std::function<void()> closeRequested;
     std::function<void()> clicked;
 
     explicit PanelGrip(QWidget *parent) : QWidget(parent)
     {
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::OpenHandCursor);
-        setToolTip(i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold"));
+        setToolTip(i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold\nRight-click: close"));
         QObject::connect(KisTouchMode::instance(), &KisTouchMode::changed, this, [this]() { fit(); });
         fit();
     }
@@ -299,7 +299,8 @@ public:
     {
         m_folded = folded;
         m_title = title;
-        setToolTip(folded ? i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: unfold") : i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold"));
+        setToolTip(folded ? i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: unfold\nRight-click: close")
+                          : i18nc("@info:tooltip a panel's title bar", "Drag: move\nClick: fold\nRight-click: close"));
         fit();
         update();
     }
@@ -392,7 +393,8 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override
     {
         event->accept();
-        if (cardRequested) cardRequested();
+        // deferred: closing rearranges the panel and its grip
+        if (closeRequested) QTimer::singleShot(0, this, [this]() { if (closeRequested) closeRequested(); });
     }
 
 private:
@@ -751,6 +753,9 @@ inline void paintGlass(QPainter &painter, QWidget *widget, qreal radius, qreal r
 class DragGrip : public QWidget
 {
 public:
+    /// A right click on it; without one the parent gets it
+    std::function<void()> rightClicked;
+
     explicit DragGrip(QWidget *parent)
         : QWidget(parent)
     {
@@ -787,6 +792,17 @@ protected:
 
     void enterEvent(QEvent *) override { update(); }
     void leaveEvent(QEvent *) override { update(); }
+
+    void contextMenuEvent(QContextMenuEvent *event) override
+    {
+        if (!rightClicked) {
+            event->ignore();
+            return;
+        }
+        event->accept();
+        // deferred: what it does may rearrange or remove the grip
+        QTimer::singleShot(0, this, [this]() { if (rightClicked) rightClicked(); });
+    }
 };
 
 /// The top bar's grip: dragging moves the bar, a tap tucks it away

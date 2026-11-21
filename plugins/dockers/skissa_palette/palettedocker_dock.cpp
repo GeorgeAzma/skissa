@@ -95,24 +95,36 @@ QPixmap swatchPixmap(const QColor &color, int size, qreal radius, qreal dpr)
     return pixmap;
 }
 
-/// A swatch's color, with a ring that reads on any color when it is the one painted with, or an outline when pointed at
-void paintSwatch(QPainter &painter, const QRectF &rect, qreal radius, const QColor &color, bool current, bool hovered, const QColor &ink)
+/// A swatch's shape: a squircle, or round for a drop of paint (the colors painted with, as on the rail)
+QPainterPath swatchShape(const QRectF &rect, qreal radius, bool round)
+{
+    if (!round) return KisModernStyle::squircle(rect, radius);
+    QPainterPath path;
+    const qreal side = qMin(rect.width(), rect.height());
+    path.addEllipse(QRectF(rect.center() - QPointF(side, side) / 2, QSizeF(side, side)));
+    return path;
+}
+
+/// A swatch's color, edged faintly so white and pale colors keep their shape on light glass, with a ring that reads
+/// on any color when it is the one painted with, or an outline when pointed at
+void paintSwatch(QPainter &painter, const QRectF &rect, qreal radius, const QColor &color, bool current, bool hovered, const QColor &ink,
+                 bool round = false)
 {
     painter.setPen(Qt::NoPen);
     painter.setBrush(color);
-    painter.drawPath(KisModernStyle::squircle(rect, radius));
+    painter.drawPath(swatchShape(rect, radius, round));
     painter.setBrush(Qt::NoBrush);
     if (current) {
-        const QPainterPath ring = KisModernStyle::squircle(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius);
+        const QPainterPath ring = swatchShape(rect.adjusted(1.5, 1.5, -1.5, -1.5), radius, round);
         painter.setPen(QPen(QColor(0, 0, 0, 170), 3));
         painter.drawPath(ring);
         painter.setPen(QPen(Qt::white, 1.5));
         painter.drawPath(ring);
-    } else if (hovered) {
+    } else {
         QColor outline = ink;
-        outline.setAlphaF(0.6);
+        outline.setAlphaF(hovered ? 0.6 : 0.12);
         painter.setPen(QPen(outline, 1));
-        painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
+        painter.drawPath(swatchShape(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius, round));
     }
 }
 
@@ -278,16 +290,17 @@ protected:
                              fontMetrics().elidedText(header.name, Qt::ElideRight, header.rect.width() - 4));
         }
 
+        // empty places are only outlined: a fill read as a pale color on glass
         QColor empty = ink;
-        empty.setAlphaF(0.05);
+        empty.setAlphaF(0.08);
         const qreal radius = qMin(4.0, m_cell / 5.0);
         Q_FOREACH (const Cell &cell, m_cells) {
             if (!cell.rect.intersects(exposed)) continue;
             const QRectF rect = QRectF(cell.rect).adjusted(1, 1, -1, -1);
             if (!isOccupied(cell.index)) {
-                painter.setPen(Qt::NoPen);
-                painter.setBrush(empty);
-                painter.drawPath(KisModernStyle::squircle(rect, radius));
+                painter.setPen(QPen(empty, 1));
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPath(KisModernStyle::squircle(rect.adjusted(0.5, 0.5, -0.5, -0.5), radius));
                 continue;
             }
             painter.setOpacity(m_dragging && cell.index == m_press ? 0.3 : 1.0);
@@ -298,11 +311,13 @@ protected:
         }
 
         if (!m_next.isNull()) {
-            // where the next color dropped goes: an empty place, edged so it reads as one
+            // where the next color dropped goes: an empty place, its edge dashed so it reads as one
             QColor edge = ink;
-            edge.setAlphaF(0.22);
-            painter.setPen(QPen(edge, 1));
-            painter.setBrush(empty);
+            edge.setAlphaF(0.35);
+            QPen dashed(edge, 1, Qt::CustomDashLine);
+            dashed.setDashPattern({3, 2});
+            painter.setPen(dashed);
+            painter.setBrush(Qt::NoBrush);
             painter.drawPath(KisModernStyle::squircle(QRectF(m_next).adjusted(1.5, 1.5, -1.5, -1.5), radius));
         }
 
@@ -615,7 +630,7 @@ protected:
         const QColor ink = palette().color(QPalette::WindowText);
         for (int i = 0; i < m_colors.size() && i < m_columns; i++) {
             const QRectF rect = QRectF(m_left + i * m_cell, 0, m_cell, m_cell).adjusted(1, 1, -1, -1);
-            paintSwatch(painter, rect, radius, m_colors[i], m_colors[i].rgb() == m_current, i == m_hover, ink);
+            paintSwatch(painter, rect, radius, m_colors[i], m_colors[i].rgb() == m_current, i == m_hover, ink, true);
         }
         // a hairline between the colors used and the palette
         QColor line = ink;
