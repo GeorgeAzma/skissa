@@ -147,12 +147,16 @@ void KisStudioHistoryScrubber::paintEvent(QPaintEvent *)
     const qreal left = xOf(0);
     const qreal right = width() - KisModernStyle::space2;
     const qreal at = xOf(current);
+    // with one step there is nothing to go along: only the snapshots kept from a history that is gone
+    const bool line = count > 1;
 
     // what is done, and fainter what was undone and can still be redone
-    painter.setPen(QPen(ink(0.16), 2, Qt::SolidLine, Qt::RoundCap));
-    painter.drawLine(QPointF(left, trackY), QPointF(right, trackY));
-    painter.setPen(QPen(ink(0.55), 2, Qt::SolidLine, Qt::RoundCap));
-    if (at > left) painter.drawLine(QPointF(left, trackY), QPointF(at, trackY));
+    if (line) {
+        painter.setPen(QPen(ink(0.16), 2, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(QPointF(left, trackY), QPointF(right, trackY));
+        painter.setPen(QPen(ink(0.55), 2, Qt::SolidLine, Qt::RoundCap));
+        if (at > left) painter.drawLine(QPointF(left, trackY), QPointF(at, trackY));
+    }
 
     // each step a dot while there is room for them
     if (count > 1 && (right - left) / (count - 1) >= 5) {
@@ -172,6 +176,7 @@ void KisStudioHistoryScrubber::paintEvent(QPaintEvent *)
         painter.drawEllipse(markAtPoint(i), markRadius, markRadius);
     }
 
+    if (!line) return;
     // where the image is now
     const QRectF knob(at - 4, trackY - 7, 8, 14);
     painter.setPen(Qt::NoPen);
