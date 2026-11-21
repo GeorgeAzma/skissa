@@ -367,10 +367,23 @@ bool KisStudioLayout::joinAt(KisStudioPanelColumn *column, const QRect &placed, 
     QRect indicator;
     int nearest = snap + 1;
     Q_FOREACH (KisStudioPanelColumn *other, d->columns()) {
-        if (other == column || other->isHidden() || !other->panelsShown() || other->panels().isEmpty()) continue;
-        // the column with the panel buttons and the one across from it keep to their sides
-        if ((column->group <= 1 && other->group <= 1)) continue;
+        // the panel buttons with none of their panels open
+        const bool bare = other == d->panelColumn && !other->panelsShown() && !d->panelsTucked && !arePanelsHidden();
+        if (other == column || other->isHidden() || (!bare && (!other->panelsShown() || other->panels().isEmpty()))) continue;
         const QRect them = other->targetGeometry();
+        if (bare) {
+            // what is dropped under them becomes their panels
+            const int across = qMin(placed.right(), them.right()) - qMax(placed.left(), them.left());
+            const int distance = placed.top() - them.bottom() - 1;
+            if (qAbs(distance) < nearest && across >= alongAtLeast) {
+                nearest = qAbs(distance);
+                to = other;
+                edge = Qt::BottomEdge;
+                lane = 0;
+                indicator = QRect(them.left() + 4, them.bottom() - 1, them.width() - 8, 3);
+            }
+            continue;
+        }
         const int upright = qMin(placed.bottom(), them.bottom()) - qMax(placed.top(), them.top());
         const int across = qMin(placed.right(), them.right()) - qMax(placed.left(), them.left());
         auto consider = [&](Qt::Edge side, int distance, int along, int toLane, const QRect &bar) {
@@ -440,6 +453,13 @@ void KisStudioLayout::joinGroups(KisStudioPanelColumn *from, KisStudioPanelColum
     if (edge == Qt::RightEdge || edge == Qt::LeftEdge) {
         lanes = edge == Qt::RightEdge ? staying + moving : moving + staying;
         widths = edge == Qt::RightEdge ? stayingWidths + movingWidths : movingWidths + stayingWidths;
+    } else if (!to->panelsShown()) {
+        // the panel buttons alone: the lanes become theirs, the closed panels they keep staying in the first
+        lanes = moving;
+        widths = movingWidths;
+        QStringList closed;
+        for (const QStringList &ids : staying) closed += ids;
+        if (!lanes.isEmpty()) lanes[0] = closed + lanes[0];
     } else {
         lanes = staying;
         widths = stayingWidths;
