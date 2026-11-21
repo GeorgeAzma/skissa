@@ -71,6 +71,12 @@ public:
 
     QList<QModelIndex> shiftClickedIndexes;
 
+    /// A switch pressed on a row: it flips when let go there, unless the press became a drag (the row's opacity)
+    QPersistentModelIndex switchPress;
+    QString switchPressId;
+    QPoint switchPressPos;
+    Qt::KeyboardModifiers switchPressModifiers;
+
     enum StasisOperation {
         Record,
         Review,
@@ -150,8 +156,8 @@ QRect NodeDelegate::inlineControlsRect(const QModelIndex &index, const QRect &ro
         KisNodeViewColorScheme scm;
         const QRect name = textRect(option, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
         const QRect line = lineOf(row, d->rowHeight, lineHeight(d->view), 1);
-        const int start = direction == Qt::RightToLeft ? row.left() + scm.border() : name.left() - 2;
-        const int end = direction == Qt::RightToLeft ? name.right() + 2 : row.right() - scm.border() - 2;
+        const int start = direction == Qt::RightToLeft ? icons.right() + 2 : name.left() - 2;
+        const int end = direction == Qt::RightToLeft ? name.right() + 2 : icons.left() - 2;
         return QRect(start, line.top(), end - start, line.height());
     }
     const int width = d->view->property("rowControlsWidth").toInt();
@@ -464,9 +470,10 @@ QRect NodeDelegate::iconsRect(const QStyleOptionViewItem &option, const QModelIn
     // Move to current index
     fitRect.moveTop(option.rect.topLeft().y());
     if (isTall()) {
-        const QRect line = lineOf(option.rect, d->rowHeight, lineHeight(d->view), 0);
-        fitRect.setTop(line.top());
-        fitRect.setHeight(line.height());
+        // in the row's middle, as the thumbnail and the eye are, beside both lines
+        const int height = lineHeight(d->view);
+        fitRect.setTop(option.rect.top() + (d->rowHeight - height) / 2);
+        fitRect.setHeight(height);
     }
     // Move to correct location.
     if (option.direction == Qt::RightToLeft) {
@@ -1009,11 +1016,6 @@ QRect NodeDelegate::visibilityClickRect(const QStyleOptionViewItem &option, cons
 
     // Move to current index
     rc.moveCenter(option.rect.center());
-    if (isTall()) {
-        const QRect line = lineOf(QRect(option.rect.topLeft(), QSize(option.rect.width(), d->rowHeight)), d->rowHeight, lineHeight(d->view), 0);
-        rc.setHeight(line.height());
-        rc.moveTop(line.top());
-    }
     // Move to correct location.
     if (option.direction == Qt::RightToLeft) {
         rc.moveRight(option.rect.right());
@@ -1265,6 +1267,16 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         //For some reason qt5 doesn't give us which button was released, From my testing i couldn't get a release event on rmb, so we assume that it's lmb
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
         auto clickedProperty = d->propForMousePos(index, mouseEvent->pos(), option);
+        if (d->switchPress.isValid()) {
+            const bool same = d->switchPress == index && clickedProperty && clickedProperty->id == d->switchPressId;
+            const bool still = (mouseEvent->pos() - d->switchPressPos).manhattanLength() < 3 * KisModernStyle::dragDistance(mouseEvent);
+            d->switchPress = QPersistentModelIndex();
+            if (same && still) {
+                KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
+                d->toggleProperty(props, &(*clickedProperty), d->switchPressModifiers, index);
+            }
+            return true;
+        }
         if (!clickedProperty && mouseEvent->modifiers() == Qt::ControlModifier) {
             changeSelectionAndCurrentIndex(index);
             return true;
@@ -1278,6 +1290,7 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
         && (index.flags() & Qt::ItemIsEnabled))
     {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        d->switchPress = QPersistentModelIndex();
 
         const bool leftButton = mouseEvent->buttons() & Qt::LeftButton;
         const bool altButton = mouseEvent->modifiers() & Qt::AltModifier;
@@ -1389,8 +1402,11 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
                 if (!marksShown && !clickedProperty->state.toBool()) {
                     return false;
                 }
-                KisBaseNode::PropertyList props = index.data(KisNodeModel::PropertiesRole).value<KisBaseNode::PropertyList>();
-                d->toggleProperty(props, &(*clickedProperty), mouseEvent->modifiers(), index);
+                // flipped when let go: dragged sideways from here, it is the row's opacity
+                d->switchPress = index;
+                d->switchPressId = clickedProperty->id;
+                d->switchPressPos = mouseEvent->pos();
+                d->switchPressModifiers = mouseEvent->modifiers();
                 return true;
             }
         }

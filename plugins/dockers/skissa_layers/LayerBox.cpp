@@ -1118,6 +1118,10 @@ void LayerBox::placeRowControls()
         if (delegate && !delegate->isTall()) {
             const QRect opacity = delegate->opacityRect(main, row, view->layoutDirection());
             if (!opacity.isEmpty()) rect.moveLeft(rtl ? opacity.right() + 1 : opacity.left() - m_modeWidth);
+        } else {
+            // a tall row's line is as tall as its text: the box's margins go outside it, or "Multiply" loses its tails
+            const QMargins margins = m_rowControls->layout()->contentsMargins();
+            rect.adjust(0, -margins.top(), 0, margins.bottom());
         }
     }
     if (rect.isEmpty() || !view->property("rowModeShown").toBool()) {
