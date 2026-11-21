@@ -866,8 +866,21 @@ bool KisStudioToolRail::hasMissingItems() const
 
 void KisStudioToolRail::addItem(const QString &key)
 {
-    if (!d->items.contains(key)) {
-        setItems(d->items + QStringList{key});
+    QString item = key;
+    // a tool of a slot that isn't on the rail comes back as that slot, with its variants, the tool picked in it
+    if (key.startsWith(toolPrefix)) {
+        const QString toolId = key.mid(toolPrefix.size());
+        Q_FOREACH (const ToolSlot &slot, toolSlots()) {
+            if (!d->slots.value(slot.id).tools.contains(toolId)) continue;
+            if (!d->items.contains(slotPrefix + slot.id) && d->slots.value(slot.id).tools.size() > 1) {
+                item = slotPrefix + slot.id;
+                d->currentTool.insert(slot.id, toolId);
+            }
+            break;
+        }
+    }
+    if (!d->items.contains(item)) {
+        setItems(d->items + QStringList{item});
     }
 }
 
