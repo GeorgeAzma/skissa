@@ -1026,6 +1026,7 @@ void KisOpenGLCanvasRenderer::drawImage(const QRect &updateRect)
 
     d->displayShader->setUniformValue(d->displayShader->location(Uniform::ViewportScale), (GLfloat) scaleX);
     d->displayShader->setUniformValue(d->displayShader->location(Uniform::TexelSize), (GLfloat) d->openGLImageTextures->texelSize());
+    d->displayShader->setUniformValue("texelBorder", (GLfloat) d->openGLImageTextures->textureBorder());
 
     QRect ir = d->openGLImageTextures->storedImageBounds();
     QRect wr = widgetRectInImagePixels.toAlignedRect();

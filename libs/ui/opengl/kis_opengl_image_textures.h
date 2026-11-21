@@ -153,6 +153,11 @@ public:
         return 1.0 / m_texturesInfo.width;
     }
 
+    /// The texels each tile repeats from its neighbors
+    inline int textureBorder() const {
+        return m_texturesInfo.border;
+    }
+
     KisOpenGLUpdateInfoSP updateCache(const QRect& rect, KisImageSP srcImage);
     KisOpenGLUpdateInfoSP updateCacheNoConversion(const QRect& rect);
 

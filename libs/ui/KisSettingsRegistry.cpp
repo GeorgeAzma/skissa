@@ -566,7 +566,7 @@ QVector<Setting> describeAll()
                       {{0, i18nc("canvas scaling", "Pixels"), i18nc("@info:tooltip canvas scaling", "Nearest neighbor: every pixel a sharp square")},
                        {1, i18nc("canvas scaling", "Fast"), i18nc("@info:tooltip canvas scaling", "Bilinear: fine lines shimmer when zoomed out")},
                        {2, i18nc("canvas scaling", "Smooth"), i18nc("@info:tooltip canvas scaling", "Trilinear: smooth at any zoom, a little soft")},
-                       {3, i18nc("canvas scaling", "Best"), i18nc("@info:tooltip canvas scaling", "High quality: smooth and sharpest at any zoom")}},
+                       {3, i18nc("canvas scaling", "Best"), i18nc("@info:tooltip canvas scaling", "Lanczos: sharpest when zoomed out")}},
                       i18nc("setting", "Scaling"), R::Machine);
     }
 
