@@ -429,7 +429,8 @@ extern "C" MAIN_EXPORT int MAIN_FN(int argc, char **argv)
         }
 #endif
 #if defined(Q_OS_WIN) && defined(HAVE_HIGH_DPI_SCALE_FACTOR_ROUNDING_POLICY)
-        if (kritarc.value("EnableHiDPIFractionalScaling", false).toBool()) {
+        // Skissa: the screen's own scale, never rounded (150% to 200% made everything a third too large)
+        if (kritarc.value("EnableHiDPIFractionalScaling", true).toBool()) {
             QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
         }
 #endif

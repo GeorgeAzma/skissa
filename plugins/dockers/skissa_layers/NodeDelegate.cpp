@@ -562,10 +562,10 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
             const QRect percentRect(line.right() - percentWidth - 2, line.top(), percentWidth, line.height());
             if (!controls) p->drawText(modeRect, Qt::AlignLeft | Qt::AlignVCenter, shownMode);
             p->drawText(percentRect, Qt::AlignRight | Qt::AlignVCenter, percent);
-            // the opacity as a hairline filled to it, like the current layer's slider
+            // the opacity as a hairline filled to it when the layer is see-through, or under the pointer on the current layer
             const QRectF track(modeWidth ? modeRect.right() + 10 : line.left() + 2, line.center().y(),
                                (percentWidth ? percentRect.left() - 10 : line.right() - 2) - (modeWidth ? modeRect.right() + 10 : line.left() + 2), 2);
-            if (track.width() > 8) {
+            if ((opacity < 100 || (controls && shownOpacity)) && track.width() > 8) {
                 QColor ink = option.palette.color(QPalette::Text);
                 p->save();
                 p->setRenderHint(QPainter::Antialiasing, true);

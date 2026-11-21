@@ -1340,11 +1340,6 @@ QVector<CardDef> makeCards()
             b.showWhen(b.toggle(QStringLiteral("PresetStrokePictures")), b.isOn(QStringLiteral("PresetStrokeThumbnails")));
             b.showWhen(b.toggle(QStringLiteral("PresetStrokeNames")), b.isOn(QStringLiteral("PresetStrokeThumbnails")));
         });
-    if (R::instance()->setting(QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"))) {
-        addToggle(QStringLiteral("appearance"), QStringLiteral("screen"), i18nc("settings card", "Exact screen scale"),
-                  QStringLiteral("kritadisplayrc EnableHiDPIFractionalScaling"),
-                  QStringLiteral("fractional hidpi scaling dpi screen scale interface size too small too large 125% 150% 175%"));
-    }
 
     // ---- Canvas
     add(QStringLiteral("canvas"), QStringLiteral("cursor"), i18nc("settings card", "Brush cursor"),
