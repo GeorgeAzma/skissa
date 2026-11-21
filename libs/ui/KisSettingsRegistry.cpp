@@ -232,12 +232,12 @@ QVector<Choice> renderers()
     add(KisOpenGL::RendererAuto, i18nc("canvas renderer", "Auto"));
     if (supported & KisOpenGL::RendererDesktopGL) add(KisOpenGL::RendererDesktopGL, i18nc("canvas renderer", "OpenGL"));
 #ifdef Q_OS_WIN
-    if (supported & KisOpenGL::RendererOpenGLES) add(KisOpenGL::RendererOpenGLES, i18nc("canvas renderer", "Direct3D (ANGLE)"));
+    if (supported & KisOpenGL::RendererOpenGLES) add(KisOpenGL::RendererOpenGLES, i18nc("canvas renderer", "Direct3D"));
 #else
     if (supported & KisOpenGL::RendererOpenGLES) add(KisOpenGL::RendererOpenGLES, i18nc("canvas renderer", "OpenGL ES"));
 #endif
     if (supported & KisOpenGL::RendererSoftware) add(KisOpenGL::RendererSoftware, i18nc("canvas renderer", "Software (slow)"));
-    add(KisOpenGL::RendererNone, i18nc("canvas renderer: no acceleration", "Off"));
+    add(KisOpenGL::RendererNone, i18nc("canvas renderer: no acceleration", "Basic"));
     return renderers;
 }
 
@@ -268,7 +268,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("StudioColorIntensity"), i18nc("@info:tooltip", "For painting past white in floating-point images")},
         {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "3 gives 100%, 125%, 150%, 200%")},
         {QStringLiteral("OpenGLFilterMode"),
-         i18nc("@info:tooltip", "Nearest is best for pixel art")},
+         i18nc("@info:tooltip", "Pixels is best for pixel art")},
         {QStringLiteral("kritadisplayrc useWin8PointerInput"),
          i18nc("@info:tooltip", "If pressure or tilt misbehaves, try switching this")},
         {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "Try this if your pen's buttons do nothing")},
@@ -302,7 +302,7 @@ QHash<QString, QString> explanations()
         {QStringLiteral("enableCanvasSurfaceColorSpaceManagement"),
          i18nc("@info:tooltip", "Needed for HDR and wide-gamut screens. Can be slower")},
         {QStringLiteral("canvasSurfaceBitDepthMode"), i18nc("@info:tooltip", "HDR needs 10 bit")},
-        {QStringLiteral("kritadisplayrc rootSurfaceFormat"), i18nc("@info:tooltip", "Pick HDR only with an HDR screen and HDR on in Windows")},
+        {QStringLiteral("kritadisplayrc rootSurfaceFormat"), i18nc("@info:tooltip", "Only with an HDR screen and HDR on in Windows")},
         {QStringLiteral("ExrDefaultColorProfile"), i18nc("@info:tooltip", "Used for EXR files that don't name one")},
         {QStringLiteral("kritadisplayrc OpenGLRenderer"), i18nc("@info:tooltip", "If the canvas is slow, flickers or has wrong colors, try another")},
         {QStringLiteral("memoryHardLimitPercent"), i18nc("@info:tooltip", "Past this, Skissa swaps to disk and slows down")},
@@ -565,8 +565,8 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("zoomSteps"), 3, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
         all << choice(QStringLiteral("OpenGLFilterMode"), 3,
-                      {{0, i18nc("canvas scaling", "Nearest")}, {1, i18nc("canvas scaling", "Bilinear")},
-                       {2, i18nc("canvas scaling", "Trilinear")}, {3, i18nc("canvas scaling", "High quality")}},
+                      {{0, i18nc("canvas scaling", "Pixels")}, {1, i18nc("canvas scaling", "Fast")},
+                       {2, i18nc("canvas scaling", "Smooth")}, {3, i18nc("canvas scaling", "Best")}},
                       i18nc("setting", "Scaling"), R::Machine);
     }
 
@@ -805,10 +805,10 @@ QVector<Setting> describeAll()
         // When the system manages color, it sets the window format too
         if (!osManaged) {
             Setting format = choice(QStringLiteral("rootSurfaceFormat"), int(KisConfig::BT709_G22),
-                                    {{int(KisConfig::BT709_G22), i18nc("screen format", "sRGB, 8 bit")},
-                                     {int(KisConfig::BT2020_PQ), i18nc("screen format", "HDR: Rec. 2020 PQ, 10 bit")},
-                                     {int(KisConfig::BT709_G10), i18nc("screen format", "HDR: Rec. 709 linear, 16 bit")}},
-                                    i18nc("setting", "Window format"), R::Machine | R::Restart);
+                                    {{int(KisConfig::BT709_G22), i18nc("screen format: no HDR", "Off")},
+                                     {int(KisConfig::BT2020_PQ), i18nc("screen format", "Rec. 2020 PQ, 10 bit")},
+                                     {int(KisConfig::BT709_G10), i18nc("screen format", "Rec. 709 linear, 16 bit")}},
+                                    i18nc("setting", "HDR"), R::Machine | R::Restart);
             format.id = QStringLiteral("kritadisplayrc rootSurfaceFormat");
             format.read = []() {
                 QSettings settings(displayrcPath(), QSettings::IniFormat);

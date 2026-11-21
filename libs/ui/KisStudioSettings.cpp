@@ -926,7 +926,7 @@ QString currentCardId(const QString &id)
     static const QHash<QString, QString> moved {
         {QStringLiteral("canvas.eraser"), QStringLiteral("canvas.cursor")},
         {QStringLiteral("canvas.sampler"), QStringLiteral("canvas.cursor")},
-        {QStringLiteral("canvas.pixelgrid"), QStringLiteral("canvas.checkerboard")},
+        {QStringLiteral("canvas.drawing"), QStringLiteral("canvas.zoom")},
         {QStringLiteral("pen.tilt"), QStringLiteral("pen.tablet")},
         {QStringLiteral("pen.kinetic"), QStringLiteral("pen.touch")},
         {QStringLiteral("color.newimages"), QStringLiteral("files.newimages")},
@@ -1424,11 +1424,9 @@ QVector<CardDef> makeCards()
             magnification.high = 30;
             b.showWhen(b.number(QStringLiteral("colorSamplerZoomPreviewScale"), magnification), magnified);
         });
-    add(QStringLiteral("canvas"), QStringLiteral("checkerboard"), i18nc("settings card", "Checkerboard and pixel grid"),
-        {QStringLiteral("checkerscolor"), QStringLiteral("checkerscolor2"), QStringLiteral("checksize"), QStringLiteral("pixelGridColor"),
-         QStringLiteral("pixelGridDrawingThreshold")},
-        QStringLiteral("transparency checkers background transparent squares other squares size grid pixels zoom color shown from zoom"), [](Builder &b) {
-            b.part(i18nc("settings", "Checkerboard"));
+    add(QStringLiteral("canvas"), QStringLiteral("checkerboard"), i18nc("settings card", "Checkerboard"),
+        {QStringLiteral("checkerscolor"), QStringLiteral("checkerscolor2"), QStringLiteral("checksize")},
+        QStringLiteral("transparency checkers background transparent squares other squares size"), [](Builder &b) {
             b.color(QStringLiteral("checkerscolor"), false, i18nc("checkerboard", "Squares"));
             b.color(QStringLiteral("checkerscolor2"), false, i18nc("checkerboard", "Other squares"));
             Number size(i18nc("checkerboard", "Size"), 1, 0, i18nc("unit", " px"));
@@ -1436,8 +1434,9 @@ QVector<CardDef> makeCards()
             size.high = 128;
             size.exponent = 2;
             b.number(QStringLiteral("checksize"), size);
-
-            b.part(i18nc("settings", "Pixel grid"));
+        });
+    add(QStringLiteral("canvas"), QStringLiteral("pixelgrid"), i18nc("settings card", "Pixel grid"),
+        {QStringLiteral("pixelGridColor"), QStringLiteral("pixelGridDrawingThreshold")}, QStringLiteral("grid pixels zoom color shown from zoom"), [](Builder &b) {
             b.color(QStringLiteral("pixelGridColor"), false, i18nc("pixel grid", "Color"));
             // below 100% there are no pixels to outline; past 3200% each pixel is already a big square
             Number from(i18nc("pixel grid", "Shown from zoom"), 100, 0, QStringLiteral("%"), 100);
@@ -1454,19 +1453,14 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("selectionActionBar"), i18nc("selection", "Actions bar"));
         });
     add(QStringLiteral("canvas"), QStringLiteral("zoom"), i18nc("settings card", "Zoom"),
-        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal"), QStringLiteral("StudioViewPill")},
-        QStringLiteral("zooming steps per doubling dragging sideways pill percent status bar corner"), [](Builder &b) {
-            Number steps(i18nc("zoom", "Steps per doubling"));
+        {QStringLiteral("zoomSteps"), QStringLiteral("zoomHorizontal"), QStringLiteral("StudioViewPill"), QStringLiteral("OpenGLFilterMode")},
+        QStringLiteral("zooming steps per doubling dragging sideways pill percent status bar corner scaling filtering smooth pixel art nearest"), [](Builder &b) {
+            b.choice(QStringLiteral("OpenGLFilterMode"), i18nc("zoom", "Zoomed image"));
+            Number steps(i18nc("zoom", "Steps"));
             steps.high = 8;
             b.number(QStringLiteral("zoomSteps"), steps);
             b.toggle(QStringLiteral("zoomHorizontal"));
             b.toggle(QStringLiteral("StudioViewPill"));
-        });
-    add(QStringLiteral("canvas"), QStringLiteral("drawing"), i18nc("settings card", "Drawing"),
-        {QStringLiteral("OpenGLFilterMode"), QStringLiteral("showSingleChannelAsColor")},
-        QStringLiteral("scaling filtering smooth pixel art nearest channels"), [](Builder &b) {
-            b.choice(QStringLiteral("OpenGLFilterMode"), i18nc("canvas", "Scaling"));
-            b.toggle(QStringLiteral("showSingleChannelAsColor"));
         });
     addToggle(QStringLiteral("canvas"), QStringLiteral("messages"), i18nc("settings card", "Messages on the canvas"),
               QStringLiteral("showOnCanvasMessages"), QStringLiteral("notifications floating messages popups"));
@@ -1530,14 +1524,13 @@ QVector<CardDef> makeCards()
             b.toggle(QStringLiteral("activateTransformToolAfterPaste"));
         });
     add(QStringLiteral("tools"), QStringLiteral("undo"), i18nc("settings card", "Undo"),
-        {QStringLiteral("undoStackLimit"), QStringLiteral("useCumulativeUndoRedo")},
-        QStringLiteral("history redo steps cumulative merge strokes"), [](Builder &b) {
+        {QStringLiteral("undoStackLimit")},
+        QStringLiteral("history redo steps"), [](Builder &b) {
             Number steps(i18nc("undo", "Steps"), 1, 0, QString(), 5);
             steps.low = 10;
             steps.exponent = 2;
             steps.onRelease = true;
             b.number(QStringLiteral("undoStackLimit"), steps);
-            b.toggle(QStringLiteral("useCumulativeUndoRedo"));
         });
     add(QStringLiteral("tools"), QStringLiteral("layers"), i18nc("settings card", "Layers"),
         {QStringLiteral("StudioLayersRememberBrushes"), QStringLiteral("ConvertToImageColorSpaceOnImport")},
@@ -1650,7 +1643,7 @@ QVector<CardDef> makeCards()
     add(QStringLiteral("files"), QStringLiteral("newimages"), i18nc("settings card", "New images"),
         {QStringLiteral("useDefaultColorSpace"), QStringLiteral("workingColorSpace")}, QStringLiteral("color model depth default working space new images"),
         [](Builder &b) {
-            b.toggle(QStringLiteral("useDefaultColorSpace"));
+            b.toggle(QStringLiteral("useDefaultColorSpace"), i18nc("new images", "Always the same color model"));
             b.showWhen(b.choice(QStringLiteral("workingColorSpace"), i18nc("new images", "Model")), b.isOn(QStringLiteral("useDefaultColorSpace")));
         });
     add(QStringLiteral("files"), QStringLiteral("pasting"), i18nc("settings card", "Pasting from other apps"),
@@ -1698,11 +1691,8 @@ QVector<CardDef> makeCards()
 
     // ---- System
     add(QStringLiteral("system"), QStringLiteral("speed"), i18nc("settings card", "Speed"),
-        {QStringLiteral("kritadisplayrc OpenGLRenderer"), QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit"), QStringLiteral("memoryHardLimitPercent"),
-         QStringLiteral("maxNumberOfThreads"), QStringLiteral("frameRenderingClones"), QStringLiteral("[filterdialog] forceLodMode"),
-         QStringLiteral("[KisToolTransform] forceLodMode"), QStringLiteral("[KritaTransform/KisToolMove] forceLodMode")},
-        QStringLiteral("performance opengl angle direct3d renderer gpu acceleration graphics drawing the canvas fps refresh hz frame rate ram memory limit "
-                       "cpu threads cores processor rendering frames lod level of detail instant preview fast effects transform move"),
+        {QStringLiteral("kritadisplayrc OpenGLRenderer"), QStringLiteral("detectFpsLimit"), QStringLiteral("fpsLimit"), QStringLiteral("memoryHardLimitPercent")},
+        QStringLiteral("performance opengl angle direct3d renderer gpu acceleration graphics drawing the canvas fps refresh hz frame rate ram memory limit"),
         [](Builder &b) {
             b.choice(QStringLiteral("kritadisplayrc OpenGLRenderer"), i18nc("speed", "Drawing the canvas"));
             // one slider for both: all the way down is the screen's own rate
@@ -1736,15 +1726,6 @@ QVector<CardDef> makeCards()
                 const QString ram = i18nc("@info:tooltip", "This computer has %1 GB.", QLocale().toString(KisImageConfig::totalRAM() / 1024.0, 'f', 1));
                 memory->setToolTip(memory->toolTip().isEmpty() ? ram : memory->toolTip() + QLatin1Char('\n') + ram);
             }
-            Number threads;
-            threads.onRelease = true;
-            b.number(QStringLiteral("maxNumberOfThreads"), threads);
-            b.number(QStringLiteral("frameRenderingClones"), threads);
-
-            b.part(i18nc("speed", "Instant preview"));
-            b.toggle(QStringLiteral("[filterdialog] forceLodMode"), i18nc("instant preview", "Effects"));
-            b.toggle(QStringLiteral("[KisToolTransform] forceLodMode"), i18nc("instant preview", "Transform"));
-            b.toggle(QStringLiteral("[KritaTransform/KisToolMove] forceLodMode"), i18nc("instant preview", "Move"));
         });
     {
         // Each screen's profile (or the canvas surface options when the system manages color), and the window format
@@ -1756,7 +1737,7 @@ QVector<CardDef> makeCards()
                 screenSettings << s.id;
             }
         }
-        screenSettings << QStringLiteral("renderIntent") << QStringLiteral("useBlackPointCompensation") << QStringLiteral("allowLCMSOptimization");
+        screenSettings << QStringLiteral("renderIntent") << QStringLiteral("useBlackPointCompensation");
         add(QStringLiteral("system"), QStringLiteral("screens"), i18nc("settings card", "Screens"), screenSettings,
             QStringLiteral("monitor profile screen display icc hdr calibration surface rendering intent black point lcms color management"),
             [screenSettings](Builder &b) {
@@ -1897,7 +1878,7 @@ struct UserSections {
         const KConfigGroup group = KSharedConfig::openConfig()->group(QString());
         if (!group.hasKey(sectionsKey)) {
             // Default Quick: the most commonly used cards
-            us.quick = QStringList{QStringLiteral("pen.pressure"), QStringLiteral("canvas.cursor"), QStringLiteral("appearance.glass"), QStringLiteral("canvas.checkerboard")};
+            us.quick = QStringList{QStringLiteral("pen.pressure"), QStringLiteral("canvas.cursor"), QStringLiteral("appearance.glass"), QStringLiteral("canvas.pixelgrid")};
             return us;
         }
         const QJsonObject root = QJsonDocument::fromJson(group.readEntry(sectionsKey, QString()).toUtf8()).object();
