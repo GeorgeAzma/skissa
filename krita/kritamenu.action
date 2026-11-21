@@ -1208,11 +1208,11 @@
       <icon></icon>
       <text>Trim to Current &amp;Layer</text>
       <whatsThis></whatsThis>
-      <toolTip>Trim to Current Layer</toolTip>
+      <toolTip>Crops to the selection while there is one</toolTip>
       <iconText>Trim to Current Layer</iconText>
       <activationFlags>100000</activationFlags>
       <activationConditions>0</activationConditions>
-      <shortcut></shortcut>
+      <shortcut>Ctrl+Shift+X</shortcut>
       <isCheckable>false</isCheckable>
       <statusTip></statusTip>
     </Action>

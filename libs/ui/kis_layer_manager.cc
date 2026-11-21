@@ -216,6 +216,12 @@ void KisLayerManager::imageResizeToActiveLayer()
     KisLayerSP layer;
     KisImageWSP image = m_view->image();
 
+    // one key for cropping: to the selection while there is one
+    if (image && m_view->selection() && m_view->selectionManager()) {
+        m_view->selectionManager()->imageResizeToSelection();
+        return;
+    }
+
     if (image && (layer = activeLayer())) {
         QRect cropRect = layer->projection()->nonDefaultPixelArea();
         if (!cropRect.isEmpty()) {
