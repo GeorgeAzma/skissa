@@ -16,6 +16,9 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QBoxLayout>
+#include <QFormLayout>
+#include <QGridLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QAbstractSlider>
@@ -486,6 +489,8 @@ public:
 
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        // hidden by Tucked, it still shows as far as its tool is concerned
+        if (event->type() == QEvent::HideToParent && watched->property("studioTucking").toBool()) return false;
         if (event->type() == QEvent::ShowToParent || event->type() == QEvent::HideToParent) {
             m_mirror->setVisible(event->type() == QEvent::ShowToParent);
         }
@@ -527,7 +532,7 @@ public:
         , m_widget(widget)
     {
         widget->installEventFilter(this);
-        widget->hide();
+        hide(widget);
     }
 
     bool eventFilter(QObject *, QEvent *event) override
@@ -535,7 +540,52 @@ public:
         if (event->type() == QEvent::ShowToParent) {
             QPointer<QWidget> widget = m_widget;
             QTimer::singleShot(0, m_widget, [widget]() {
-                if (widget) widget->hide();
+                if (widget) hide(widget);
+            });
+        }
+        return false;
+    }
+
+    /// Hidden so that a mirror following it (FollowShown) stays
+    static void hide(QWidget *widget)
+    {
+        widget->setProperty("studioTucking", true);
+        widget->hide();
+        widget->setProperty("studioTucking", false);
+    }
+
+private:
+    QWidget *m_widget;
+};
+
+/// Keeps a part of a tool's options out of sight while \p when holds; apply() after it may have changed
+class TuckedWhile : public QObject
+{
+public:
+    TuckedWhile(QWidget *widget, std::function<bool()> when)
+        : QObject(widget)
+        , m_widget(widget)
+        , m_when(when)
+    {
+        widget->installEventFilter(this);
+        apply();
+    }
+
+    void apply()
+    {
+        if (m_when()) {
+            Tucked::hide(m_widget);
+        } else {
+            m_widget->show();
+        }
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::ShowToParent && m_when()) {
+            QPointer<QWidget> widget = m_widget;
+            QTimer::singleShot(0, m_widget, [widget]() {
+                if (widget) Tucked::hide(widget);
             });
         }
         return false;
@@ -543,13 +593,52 @@ public:
 
 private:
     QWidget *m_widget;
+    std::function<bool()> m_when;
 };
+
+/// The title the tool options panel shows over \p widget, one of its options
+QLabel *headerOf(QWidget *widget)
+{
+    if (!widget || !widget->parentWidget() || widget->windowTitle().isEmpty()) return nullptr;
+    Q_FOREACH (QLabel *label, widget->parentWidget()->findChildren<QLabel *>(QString(), Qt::FindDirectChildrenOnly)) {
+        if (label->text() == widget->windowTitle()) return label;
+    }
+    return nullptr;
+}
 
 void tuck(QWidget *widget)
 {
     if (!widget || widget->property("studioTucked").toBool()) return;
     widget->setProperty("studioTucked", true);
     new Tucked(widget);
+}
+
+/// The label naming \p field in its row: a form's label, a grid's first column, or the label just before it in a row
+QLabel *captionOf(QWidget *field)
+{
+    QWidget *parent = field ? field->parentWidget() : nullptr;
+    if (!parent) return nullptr;
+    Q_FOREACH (QLayout *layout, parent->findChildren<QLayout *>()) {
+        const int at = layout->indexOf(field);
+        if (at < 0) continue;
+        if (auto *form = qobject_cast<QFormLayout *>(layout)) return qobject_cast<QLabel *>(form->labelForField(field));
+        if (auto *grid = qobject_cast<QGridLayout *>(layout)) {
+            int row = 0, column = 0, rows = 0, columns = 0;
+            grid->getItemPosition(at, &row, &column, &rows, &columns);
+            QLayoutItem *first = column > 0 ? grid->itemAtPosition(row, 0) : nullptr;
+            return first ? qobject_cast<QLabel *>(first->widget()) : nullptr;
+        }
+        if (qobject_cast<QBoxLayout *>(layout) && at > 0) return qobject_cast<QLabel *>(layout->itemAt(at - 1)->widget());
+    }
+    return nullptr;
+}
+
+/// Tucks \p field with the label naming it
+void tuckRow(QWidget *field)
+{
+    if (!field) return;
+    tuck(field);
+    tuck(captionOf(field));
 }
 
 /// Hides \p strip's section header, and the section with it while nothing else in it shows
@@ -1017,6 +1106,15 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
     clickOn(i18nc("guides: save them as a set", "Save…"), "saveAssistantButton");
     menu->addSeparator();
     clickOn(i18nc("guides: remove every guide", "Delete all"), "deleteAllAssistantsButton");
+
+    // the options keep what the chosen guide has of its own, and how strongly guides show; the rest is on the bar,
+    // and the box beside each guide has only its grip
+    for (const char *name : {"label", "availableAssistantsComboBox", "localAssistantCheckbox", "line_2", "twoPointUseVerticalCheckbox",
+                             "globalColorLabel", "assistantsColor", "dockerOptionsLine", "showDockerOptionsButton",
+                             "showDockerOptionsLabel", "showDockerOptionsPanel", "line", "loadAssistantButton",
+                             "saveAssistantButton", "deleteAllAssistantsButton"}) {
+        tuck(options->findChild<QWidget *>(QLatin1String(name)));
+    }
 }
 
 void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widgets)
@@ -1052,6 +1150,14 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 tuckSection(actions);
             }
             addSelectionAdjust();
+            // the bar's Grow and Soft do what Krita's grow and feather did (kept while set, so nothing set is hidden);
+            // the selection actions bar is a setting, not a tool's option
+            if (QCheckBox *bar = withId<QCheckBox>(selection, QStringLiteral("sapCheckBox"))) tuck(bar->parentWidget());
+            QWidget *grow = withId<QWidget>(selection, QStringLiteral("containerGrowSelection"));
+            QSpinBox *growBy = grow ? grow->findChild<QSpinBox *>() : nullptr;
+            if (grow && (!growBy || growBy->value() == 0)) tuck(grow->parentWidget());
+            QSpinBox *feather = withId<QSpinBox>(selection, QStringLiteral("sliderFeather"));
+            if (feather && feather->value() == 0) tuck(feather->parentWidget());
             // selecting by color: how alike counts as one, changed all the time
             if (QSpinBox *threshold = withId<QSpinBox>(widget, QStringLiteral("sliderThreshold"))) {
                 addGap();
@@ -1065,6 +1171,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
         if (QComboBox *sources = widget->findChild<QComboBox *>(QStringLiteral("cmbSources"))) {
             addGap();
             mirrorCombo(sources, {0, 1}, {imageIcon(ink), layersIcon(ink, false)});
+            tuckRow(sources);
             const QStringList names = {i18nc("@info:tooltip the color sampler takes the color as seen", "Image"),
                                        i18nc("@info:tooltip the color sampler takes the current layer's color", "Layer")};
             for (int i = 0; i < 2; i++) {
@@ -1075,6 +1182,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             if (QSpinBox *radius = widget->findChild<QSpinBox *>(QStringLiteral("radius"))) {
                 addGap();
                 mirrorSpin(radius, int(KisStudioScrubber::Kind::Size), i18nc("@info:tooltip the color sampler averages a patch this wide", "Sample size"), 1);
+                tuckRow(radius);
             }
         }
 
@@ -1106,10 +1214,24 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             QVector<QIcon> fills;
             for (int i = 0; i < 4; i++) fills << fillIcon(ink, paper, i);
             mirrorComboAsMenu(fill, fills, i18nc("@info:tooltip a shape's fill", "Fill"));
+            tuckRow(fill);
+            // what is left of them is the pattern's turn and scale: shown, title and all, while it fills with one
+            if (widget->findChild<QWidget *>(QStringLiteral("gbPatternTransform"))) {
+                QPointer<QComboBox> by = fill;
+                auto noPattern = [by]() { return by && by->currentIndex() != 3; };
+                QVector<TuckedWhile *> tucked;
+                for (QWidget *part : {static_cast<QWidget *>(widget.data()), static_cast<QWidget *>(headerOf(widget))}) {
+                    if (part) tucked << new TuckedWhile(part, noPattern);
+                }
+                connect(fill, QOverload<int>::of(&QComboBox::currentIndexChanged), widget, [tucked]() {
+                    for (TuckedWhile *part : tucked) part->apply();
+                });
+            }
             if (QComboBox *outline = widget->findChild<QComboBox *>(QStringLiteral("cmbOutline"))) {
                 QVector<QIcon> outlines;
                 for (int i = 0; i < 3; i++) outlines << outlineIcon(ink, paper, i);
                 mirrorComboAsMenu(outline, outlines, i18nc("@info:tooltip a shape's outline", "Outline"));
+                tuckRow(outline);
             }
         }
 
@@ -1148,9 +1270,11 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             QVector<QIcon> icons;
             for (int s = 0; s < 5; s++) icons << gradientShapeIcon(s, ink, paper);
             mirrorCombo(shape, {0, 1, 2, 3, 4}, icons);
+            tuckRow(shape);
             if (QCheckBox *reverse = widget->findChild<QCheckBox *>(QStringLiteral("reverse_check"))) {
                 addGap();
                 mirror(reverse, reverseIcon(ink));
+                tuckRow(reverse);
             }
         }
 
