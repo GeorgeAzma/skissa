@@ -49,7 +49,7 @@ public:
         : QWidget(canvasArea)
         , m_settled(++settledCount())
         , m_left(left)
-        , m_widths(widths.isEmpty() ? QVector<int>{270} : widths)
+        , m_widths(widths.isEmpty() ? QVector<int>{KisModernStyle::fit(270)} : widths)
     {
         setObjectName(QStringLiteral("studioPanels"));
         m_layout = new QVBoxLayout(this);
@@ -79,7 +79,7 @@ public:
     /// Its lanes' stacks, left to right
     QVector<PanelStack *> stacks() const { return m_stacks; }
     /// The width of its first lane (a new group's, until set)
-    int columnWidth() const { return m_widths.value(0, 270); }
+    int columnWidth() const { return m_widths.value(0, KisModernStyle::fit(270)); }
     /// Each lane's width, left to right, with what is outside its stack
     QVector<int> laneWidths() const { return m_widths; }
     bool isLeft() const { return m_left; }
@@ -390,7 +390,15 @@ protected:
 private:
     int laneWidth(int lane) const
     {
-        return qBound(minimumColumnWidth, m_widths.value(lane, columnWidth()), qMax(minimumColumnWidth, parentWidget()->width() / 2));
+        // never narrower than its panels can be: a narrower one runs them past its edge, cut off
+        int least = minimumColumnWidth;
+        if (lane < m_stacks.size()) {
+            const QMargins margins = m_layout->contentsMargins();
+            for (QDockWidget *dock : m_stacks[lane]->panels()) {
+                if (!dock->isHidden()) least = qMax(least, dock->minimumSizeHint().width() + margins.left() + margins.right());
+            }
+        }
+        return qBound(least, m_widths.value(lane, columnWidth()), qMax(least, parentWidget()->width() / 2));
     }
 
     /// All its lanes' widths and the lines between them

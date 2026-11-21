@@ -674,17 +674,20 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
 qreal KisModernStyle::screenFit()
 {
     // once: what was sized at the start keeps its size
+    // the density the interface was made on: a 26.5-inch 1440p screen at 100%
+    static constexpr qreal madeFor = 111.0;
     static const qreal fit = []() {
+        qreal ppi = 0;
         if (qEnvironmentVariableIsSet("KRITA_DEV_SCREEN_PPI")) {
-            return qBound(0.8, qEnvironmentVariable("KRITA_DEV_SCREEN_PPI").toDouble() / 100.0, 1.0);
+            ppi = qEnvironmentVariable("KRITA_DEV_SCREEN_PPI").toDouble();
+        } else if (const QScreen *screen = QGuiApplication::primaryScreen()) {
+            // in Qt's own pixels, so a scale set in Windows already counts
+            ppi = screen->physicalDotsPerInch();
         }
-        const QScreen *screen = QGuiApplication::primaryScreen();
-        if (!screen) return 1.0;
-        // in Qt's own pixels, so a scale set in Windows already counts
-        const qreal ppi = screen->physicalDotsPerInch();
         // a size the screen doesn't report, or a projector's or TV's, says nothing about how near it is seen
         if (ppi < 50 || ppi > 400) return 1.0;
-        return qBound(0.8, ppi / 100.0, 1.0);
+        // text much smaller than this has too few pixels to read well
+        return qBound(0.7, ppi / madeFor, 1.5);
     }();
     return fit;
 }

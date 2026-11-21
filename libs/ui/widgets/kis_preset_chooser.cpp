@@ -465,7 +465,8 @@ KisPresetChooser::KisPresetChooser(QWidget *parent)
     m_chooser->itemView()->installEventFilter(this);
 
     // the size the thumbnails were zoomed to (Ctrl+wheel), kept for the next run
-    setIconSize(KisConfig(true).presetIconSize());
+    // saved as it looks on the screen the interface was made on (see KisModernStyle::screenFit)
+    setIconSize(KisModernStyle::fit(KisConfig(true).presetIconSize()));
     connect(KisResourceItemChooserSync::instance(), &KisResourceItemChooserSync::baseLengthChanged, this, [this]() {
         saveIconSize();
         if (m_delegate->strokes()) compactStrokeRows();
@@ -638,8 +639,9 @@ int KisPresetChooser::iconSize()
 void KisPresetChooser::saveIconSize()
 {
     // save icon size, once for a run of wheel steps
-    if (KisConfig(true).presetIconSize() != iconSize()) {
-        KisSettingsRegistry::writeLater(QStringLiteral("presetIconSize"), iconSize());
+    const int saved = qRound(iconSize() / KisModernStyle::screenFit());
+    if (KisConfig(true).presetIconSize() != saved) {
+        KisSettingsRegistry::writeLater(QStringLiteral("presetIconSize"), saved);
     }
 }
 

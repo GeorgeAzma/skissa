@@ -551,7 +551,7 @@ LayerBox::LayerBox()
     thumbnailSizeSlider->setMinimumHeight(20);
     thumbnailSizeSlider->setMinimumWidth(40);
     thumbnailSizeSlider->setTickInterval(5);
-    m_nodeModel->setPreferredThumnalSize(cfg.layerThumbnailSize() * m_wdgLayerBox->listLayers->devicePixelRatioF());
+    m_nodeModel->setPreferredThumnalSize(KisModernStyle::fit(cfg.layerThumbnailSize()) * m_wdgLayerBox->listLayers->devicePixelRatioF());
 
     QWidgetAction *sliderAction= new QWidgetAction(this);
     sliderAction->setDefaultWidget(thumbnailSizeSlider);
@@ -2010,13 +2010,13 @@ void LayerBox::slotUpdateThumbnailIconSize()
     KisConfig cfg(false);
     cfg.setLayerThumbnailSize(thumbnailSizeSlider->value());
 
-    m_nodeModel->setPreferredThumnalSize(thumbnailSizeSlider->value() * m_wdgLayerBox->listLayers->devicePixelRatioF());
+    m_nodeModel->setPreferredThumnalSize(KisModernStyle::fit(thumbnailSizeSlider->value()) * m_wdgLayerBox->listLayers->devicePixelRatioF());
     m_wdgLayerBox->listLayers->slotConfigurationChanged();
 }
 
 void LayerBox::slotSyncThumbnailIconSize()
 {
-    m_nodeModel->setPreferredThumnalSize(thumbnailSizeSlider->value() * m_wdgLayerBox->listLayers->devicePixelRatioF());
+    m_nodeModel->setPreferredThumnalSize(KisModernStyle::fit(thumbnailSizeSlider->value()) * m_wdgLayerBox->listLayers->devicePixelRatioF());
 }
 
 void LayerBox::slotUpdateTreeIndentation()

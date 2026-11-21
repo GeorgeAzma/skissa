@@ -274,7 +274,8 @@ void KisStudioLayout::readArrangement()
     Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(heightsKey)) {
         const int separator = entry.lastIndexOf(QLatin1Char('='));
         if (separator > 0) {
-            d->heights.insert(entry.left(separator), entry.mid(separator + 1).toInt());
+            // saved as it looks on the screen the interface was made on (see KisModernStyle::screenFit)
+            d->heights.insert(entry.left(separator), KisModernStyle::fit(entry.mid(separator + 1).toInt()));
         }
     }
 }

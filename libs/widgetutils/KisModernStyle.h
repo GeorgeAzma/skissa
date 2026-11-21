@@ -125,9 +125,9 @@ public:
     /// How far a press may move and still be a click: the system's drag distance, twice that when \p event came
     /// from a pen or a finger, which wobble as they land
     /**
-     * How much smaller the interface is drawn on a screen with few pixels to the inch, so it looks about as large
-     * as on one with about 100 (a 27-inch 1440p screen at 100%): from 0.8 (a 27-inch 1080p screen) to 1, where
-     * Windows' own scale already sizes it. KRITA_DEV_SCREEN_PPI pretends a density, for testing.
+     * How large the interface is drawn so it looks as large on every screen as on the one it was made on (a
+     * 26.5-inch 1440p at 100%, 111 pixels to the inch): 0.74 on a 27-inch 1080p, 1.47 on a 27-inch 4K at 100%,
+     * about 1 wherever Windows' own scale already sizes it; 0.7 to 1.5. KRITA_DEV_SCREEN_PPI pretends a density.
      */
     static qreal screenFit();
     /// A size of the interface's own (a button, an icon) at the screen's fit
