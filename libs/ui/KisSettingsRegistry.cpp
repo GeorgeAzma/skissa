@@ -267,8 +267,6 @@ QHash<QString, QString> explanations()
         {QStringLiteral("showSingleChannelAsColor"), i18nc("@info:tooltip", "Shows the red channel in red instead of gray")},
         {QStringLiteral("StudioColorIntensity"), i18nc("@info:tooltip", "For painting past white in floating-point images")},
         {QStringLiteral("zoomSteps"), i18nc("@info:tooltip", "3 gives 100%, 125%, 150%, 200%")},
-        {QStringLiteral("OpenGLFilterMode"),
-         i18nc("@info:tooltip", "Pixels is best for pixel art")},
         {QStringLiteral("kritadisplayrc useWin8PointerInput"),
          i18nc("@info:tooltip", "If pressure or tilt misbehaves, try switching this")},
         {QStringLiteral("useRightMiddleTabletButtonWorkaround"), i18nc("@info:tooltip", "Try this if your pen's buttons do nothing")},
@@ -565,8 +563,10 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("zoomSteps"), 3, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
         all << choice(QStringLiteral("OpenGLFilterMode"), 3,
-                      {{0, i18nc("canvas scaling", "Pixels")}, {1, i18nc("canvas scaling", "Fast")},
-                       {2, i18nc("canvas scaling", "Smooth")}, {3, i18nc("canvas scaling", "Best")}},
+                      {{0, i18nc("canvas scaling", "Pixels"), i18nc("@info:tooltip canvas scaling", "Nearest neighbor: every pixel a sharp square, for pixel art")},
+                       {1, i18nc("canvas scaling", "Fast"), i18nc("@info:tooltip canvas scaling", "Bilinear: neighboring pixels blended; fine lines shimmer zoomed out")},
+                       {2, i18nc("canvas scaling", "Smooth"), i18nc("@info:tooltip canvas scaling", "Trilinear: smooth at every zoom, slightly soft")},
+                       {3, i18nc("canvas scaling", "Best"), i18nc("@info:tooltip canvas scaling", "High quality: sharp and smooth at every zoom; the most work for the graphics card")}},
                       i18nc("setting", "Scaling"), R::Machine);
     }
 

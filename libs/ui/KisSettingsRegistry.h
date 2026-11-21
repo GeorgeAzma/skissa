@@ -53,6 +53,7 @@ public:
     struct Choice {
         QVariant value;
         QString text;
+        QString tip; ///< what the choice is, when its short name can't say it
     };
 
     struct Setting {

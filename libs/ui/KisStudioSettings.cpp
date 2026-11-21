@@ -276,6 +276,9 @@ public:
         update();
     }
 
+    /// What each choice is, shown over it
+    void setTips(const QStringList &tips) { m_tips = tips; }
+
     QSize sizeHint() const override { return QSize(widthFor(m_texts, fontMetrics()), 26); }
 
 protected:
@@ -337,6 +340,19 @@ protected:
         update();
     }
 
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip && !m_tips.isEmpty()) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            const int i = at(help->pos());
+            const QString tip = i >= 0 ? m_tips.value(i) : QString();
+            if (tip.isEmpty()) QToolTip::hideText();
+            else QToolTip::showText(help->globalPos(), KisStudioTips::html(tip), this, part(i).toAlignedRect());
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
     void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() != Qt::LeftButton) return;
@@ -360,6 +376,7 @@ private:
     }
 
     QStringList m_texts;
+    QStringList m_tips;
     int m_current {-1};
     int m_hovered {-1};
 };
@@ -772,12 +789,18 @@ struct Builder {
         const QString name = label.isEmpty() ? s->label : label;
         if (choices.size() <= 4 && Segmented::widthFor(texts, card->fontMetrics()) <= 300) {
             auto *control = new Segmented(texts, card);
+            QStringList tips;
+            Q_FOREACH (const R::Choice &c, choices) tips << c.tip;
+            if (!tips.join(QString()).isEmpty()) control->setTips(tips);
             control->picked = [id, choices](int i) { R::instance()->setValue(id, choices[i].value); };
             follow([control, id, indexOf]() { control->setCurrent(indexOf(R::instance()->value(id))); });
             return row(name, control, id);
         }
         auto *combo = new QComboBox(card);
-        Q_FOREACH (const R::Choice &c, choices) combo->addItem(c.text, c.value);
+        Q_FOREACH (const R::Choice &c, choices) {
+            combo->addItem(c.text, c.value);
+            if (!c.tip.isEmpty()) combo->setItemData(combo->count() - 1, c.tip, Qt::ToolTipRole);
+        }
         combo->setMaximumWidth(controlWidth + 30);
         combo->setMinimumWidth(qMin(controlWidth, combo->sizeHint().width()));
         follow([combo, id, indexOf]() {
