@@ -330,15 +330,13 @@ QVector<int> KisStudioLayout::readWidths(int group) const
     const QString key = widthKeyOf(group);
     QVector<int> widths;
     Q_FOREACH (const QString &width, cfg.readEntry<QString>(key + QStringLiteral("Lanes"), QString()).split(QLatin1Char(','), Qt::SkipEmptyParts)) {
-        // saved as it looks on the screen the interface was made on (see KisModernStyle::screenFit)
-        widths << qMax(KisStudioPanelColumn::minimumColumnWidth, KisModernStyle::fit(width.toInt()));
+        widths << qMax(KisStudioPanelColumn::minimumColumnWidth, width.toInt());
     }
     if (!widths.isEmpty()) return widths;
     // as wide as the column with the panel buttons until its own width is set; that one falls back to the legacy key
-    const int own = cfg.readEntry<int>(key, -1);
-    if (own > 0) return {KisModernStyle::fit(own)};
-    if (group == 0) return {KisModernStyle::fit(cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270))};
-    return {d->panelColumn ? d->panelColumn->columnWidth() : KisModernStyle::fit(270)};
+    const int fallback = group == 0 ? cfg.readEntry<int>(QStringLiteral("StudioLayoutRightColumnWidth"), 270)
+                                    : d->panelColumn ? d->panelColumn->columnWidth() : 270;
+    return {cfg.readEntry<int>(key, fallback)};
 }
 
 void KisStudioLayout::saveWidths(int group)
@@ -346,10 +344,9 @@ void KisStudioLayout::saveWidths(int group)
     const QVector<int> widths = d->laneWidths.value(group);
     if (widths.isEmpty()) return;
     QStringList list;
-    const auto saved = [](int width) { return qRound(width / KisModernStyle::screenFit()); };
-    for (int width : widths) list << QString::number(saved(width));
+    for (int width : widths) list << QString::number(width);
     KisConfig cfg(false);
-    cfg.writeEntry(widthKeyOf(group), saved(widths.first()));
+    cfg.writeEntry(widthKeyOf(group), widths.first());
     cfg.writeEntry(widthKeyOf(group) + QStringLiteral("Lanes"), list.join(QLatin1Char(',')));
 }
 
@@ -641,7 +638,7 @@ int KisStudioLayout::newPanelGroup(const QPoint &windowPos)
     // where it was dropped, as the shares a column keeps (see shareOf()): its top middle under the pointer
     const QPoint at = area->mapFrom(d->mainWindow, windowPos);
     const bool left = at.x() < area->width() / 2;
-    const int width = d->panelColumn ? d->panelColumn->columnWidth() : KisModernStyle::fit(270);
+    const int width = d->panelColumn ? d->panelColumn->columnWidth() : 270;
     const int margin = KisStudioPanelColumn::margin;
     const int x = at.x() - width / 2;
     const int across = left ? x - margin : area->width() - margin - width - x;
@@ -970,7 +967,7 @@ void KisStudioLayout::saveHeights()
 {
     QStringList entries;
     for (auto it = d->heights.constBegin(); it != d->heights.constEnd(); ++it) {
-        entries << it.key() + QLatin1Char('=') + QString::number(qRound(it.value() / KisModernStyle::screenFit()));
+        entries << it.key() + QLatin1Char('=') + QString::number(it.value());
     }
     entries.sort();
     KisSettingsRegistry::writeLater(heightsKey, entries);
@@ -1113,7 +1110,7 @@ void KisStudioLayout::dropPanel(const QString &id, const QPoint &globalPos, bool
             if (other != id && d->groupOf(other) == group && d->laneOf(other) >= lane) d->lanes.insert(other, d->laneOf(other) + 1);
         }
         QVector<int> widths = d->laneWidths.value(group);
-        widths.insert(qBound(0, lane, int(widths.size())), d->panelColumn ? d->panelColumn->columnWidth() : KisModernStyle::fit(270));
+        widths.insert(qBound(0, lane, int(widths.size())), d->panelColumn ? d->panelColumn->columnWidth() : 270);
         d->laneWidths.insert(group, widths);
         saveWidths(group);
     }

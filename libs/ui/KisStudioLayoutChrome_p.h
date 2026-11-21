@@ -585,7 +585,7 @@ public:
         layout->setSizeConstraint(QLayout::SetFixedSize);
         if (!right) {
             m_grip = new TopGrip(this);
-            m_grip->setFixedSize(KisModernStyle::fit(QSize(22, 30)));
+            m_grip->setFixedSize(22, 30);
             layout->addWidget(m_grip);
             m_grip->pressed = [this](const QPoint &globalPos) { m_grab = mapFromGlobal(globalPos); };
             m_grip->dragged = [this](const QPoint &globalPos) { dragTo(globalPos); };
@@ -851,7 +851,7 @@ public:
         setCursor(Qt::PointingHandCursor);
         setFocusPolicy(Qt::NoFocus);
         setAttribute(Qt::WA_Hover);
-        setFixedSize(KisModernStyle::fit(QSize(34, 30)));
+        setFixedSize(34, 30);
         setToolTip(toolTip);
     }
 

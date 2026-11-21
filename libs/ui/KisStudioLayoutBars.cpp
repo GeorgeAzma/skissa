@@ -23,7 +23,7 @@ void KisStudioLayout::createRail()
     rail->setFloatable(false);
     rail->setOrientation(Qt::Horizontal);
     rail->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    rail->setIconSize(KisModernStyle::fit(QSize(20, 20)));
+    rail->setIconSize(QSize(20, 20));
     rail->setContextMenuPolicy(Qt::CustomContextMenu);
     KisStudioGlass::setSeeThrough(rail, true);
     connect(rail, &QWidget::customContextMenuRequested, this, &KisStudioLayout::showRailContextMenu);

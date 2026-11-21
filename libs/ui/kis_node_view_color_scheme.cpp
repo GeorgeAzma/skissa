@@ -5,7 +5,6 @@
  */
 
 #include "kis_node_view_color_scheme.h"
-#include <KisModernStyle.h>
 
 #include <QTreeView>
 #include <QStyle>
@@ -79,8 +78,7 @@ int KisNodeViewColorScheme::visibilityMargin() const
 int KisNodeViewColorScheme::thumbnailSize() const
 {
     KisConfig cfg(true);
-    // saved as it looks on the screen the interface was made on (see KisModernStyle::screenFit)
-    return KisModernStyle::fit(cfg.layerThumbnailSize(false));
+    return cfg.layerThumbnailSize(false);
 }
 
 int KisNodeViewColorScheme::thumbnailMargin() const
