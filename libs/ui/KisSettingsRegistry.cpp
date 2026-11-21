@@ -563,10 +563,10 @@ QVector<Setting> describeAll()
         all << number(QStringLiteral("zoomSteps"), 3, 1, 32, i18nc("setting", "Zoom steps"), R::NewViews);
         all << toggle(QStringLiteral("zoomHorizontal"), false, i18nc("setting", "Zoom by dragging sideways"));
         all << choice(QStringLiteral("OpenGLFilterMode"), 3,
-                      {{0, i18nc("canvas scaling", "Pixels"), i18nc("@info:tooltip canvas scaling", "Nearest neighbor: every pixel a sharp square, for pixel art")},
-                       {1, i18nc("canvas scaling", "Fast"), i18nc("@info:tooltip canvas scaling", "Bilinear: neighboring pixels blended; fine lines shimmer zoomed out")},
-                       {2, i18nc("canvas scaling", "Smooth"), i18nc("@info:tooltip canvas scaling", "Trilinear: smooth at every zoom, slightly soft")},
-                       {3, i18nc("canvas scaling", "Best"), i18nc("@info:tooltip canvas scaling", "High quality: sharp and smooth at every zoom; the most work for the graphics card")}},
+                      {{0, i18nc("canvas scaling", "Pixels"), i18nc("@info:tooltip canvas scaling", "Nearest neighbor: every pixel a sharp square")},
+                       {1, i18nc("canvas scaling", "Fast"), i18nc("@info:tooltip canvas scaling", "Bilinear: fine lines shimmer when zoomed out")},
+                       {2, i18nc("canvas scaling", "Smooth"), i18nc("@info:tooltip canvas scaling", "Trilinear: smooth at any zoom, a little soft")},
+                       {3, i18nc("canvas scaling", "Best"), i18nc("@info:tooltip canvas scaling", "High quality: smooth and sharpest at any zoom")}},
                       i18nc("setting", "Scaling"), R::Machine);
     }
 
