@@ -840,10 +840,9 @@ void KisStudioStrokePage::rebuild()
                 });
             });
         }
-        if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
-            addSwitch(i18nc("line smoothing measured on the screen, not the image", "Follows zoom"),
-                      i18nc("@info:tooltip", "Smoothing stays the same on screen as you zoom"), options->useScalableDistance(),
-                      [change](bool on) { change([on](KisSmoothingOptions &options) { options.setUseScalableDistance(on); }); });
+        // smoothing always measured on the screen, where the hand moves, so it feels the same at any zoom
+        if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING && !options->useScalableDistance()) {
+            options->setUseScalableDistance(true);
         }
         if (pixel) {
             addSwitch(i18nc("pixel art lines without doubled corners", "Pixel perfect"), i18nc("@info:tooltip", "No doubled pixels at corners"),
