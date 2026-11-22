@@ -305,8 +305,11 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
     };
     auto trigger = [this](const QString &id) {
         QPointer<QAction> action(d->action(id));
+        // once the card is gone: a popup opened while it closes would close with it
         return [action](QWidget *) {
-            if (action) action->trigger();
+            QTimer::singleShot(0, action, [action]() {
+                if (action) action->trigger();
+            });
         };
     };
     addRow(QStringLiteral("studio_add"), i18nc("@action:button new layers, in a layer's card", "New"), [this](QMenu *menu) {
@@ -335,16 +338,14 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
         addRow(QStringLiteral("studio_select"), i18nc("@action:button a layer's command", "Select its pixels"), nullptr, trigger(QStringLiteral("selectopaque")));
     }
     if (qobject_cast<KisLayer *>(node.data())) {
-        addRow(QStringLiteral("studio_effects"), i18nc("@action:button a layer's menu", "Style"), [this](QMenu *menu) {
-            LayerBox *box = d->box;
-            KisLayer *layer = qobject_cast<KisLayer *>(d->node.data());
-            box->addMenuEntry(menu, "layer_style", i18nc("@action:inmenu layer style", "Edit…"));
-            if (layer && layer->layerStyle()) box->addMenuEntry(menu, "copy_layer_style", i18nc("@action:inmenu layer style", "Copy"));
-            if (KisClipboard::instance()->hasLayerStyles()) box->addMenuEntry(menu, "paste_layer_style", i18nc("@action:inmenu layer style", "Paste"));
-        });
+        addRow(QStringLiteral("studio_effects"), i18nc("@action:button a layer's command", "Style"), nullptr, trigger(QStringLiteral("layer_style")));
     }
     if (node) addRow(QStringLiteral("studio_more"), i18nc("@action:button a layer's menu", "More"), [this](QMenu *menu) {
         LayerBox *box = d->box;
+        if (KisLayer *layer = qobject_cast<KisLayer *>(d->node.data())) {
+            if (layer->layerStyle()) box->addMenuEntry(menu, "copy_layer_style", i18nc("@action:inmenu", "Copy style"));
+            if (KisClipboard::instance()->hasLayerStyles()) box->addMenuEntry(menu, "paste_layer_style", i18nc("@action:inmenu", "Paste style"));
+        }
         box->addMenuEntry(menu, "create_quick_clipping_group", i18nc("@action:inmenu", "Clipping group"));
         box->addMenuEntry(menu, "flatten_layer", i18nc("@action:inmenu", "Flatten layer"));
         box->addMenuEntry(menu, "flatten_image", i18nc("@action:inmenu", "Flatten image"));
