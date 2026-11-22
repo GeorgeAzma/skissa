@@ -77,9 +77,19 @@ public:
         m_since.start();
     }
 
+    /// A press swallowed on \p widget: its release is too, or what opens on a release opens again
+    void swallowRelease(QWidget *widget)
+    {
+        m_release = widget;
+    }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        if (m_release && event->type() == QEvent::MouseButtonRelease && watched == m_release) {
+            m_release = nullptr;
+            return true;
+        }
         if (!m_anchor || (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::TabletPress)) return false;
         if (m_since.elapsed() > 400) {
             m_anchor = nullptr;
@@ -89,7 +99,10 @@ protected:
         if (!widget || (widget != m_anchor && !m_anchor->isAncestorOf(widget))) return false;
         if (!closeTo(globalPosOf(event), m_at, m_reach)) return false;
         // the mouse press made from a tablet press comes next
-        if (event->type() == QEvent::MouseButtonPress) m_anchor = nullptr;
+        if (event->type() == QEvent::MouseButtonPress) {
+            m_anchor = nullptr;
+            m_release = widget;
+        }
         return true;
     }
 
@@ -97,6 +110,7 @@ private:
     using QObject::QObject;
 
     QPointer<QWidget> m_anchor;
+    QPointer<QWidget> m_release;
     QPoint m_at;
     int m_reach {-1};
     QElapsedTimer m_since;
@@ -360,6 +374,7 @@ bool KisPopupCloser::eventFilter(QObject *watched, QEvent *event)
         const bool onAnchor = m_anchor && (widget == m_anchor || m_anchor->isAncestorOf(widget)) && closeTo(globalPosOf(event), m_shownAt, m_reach);
         // the mouse press Windows makes from a pen's comes after the popup is gone: it must not open it again
         if (onAnchor && event->type() == QEvent::TabletPress) AnchorGuard::instance()->arm(m_anchor, m_shownAt, m_reach);
+        if (onAnchor && event->type() == QEvent::MouseButtonPress) AnchorGuard::instance()->swallowRelease(widget);
         m_popup->close();
         return onAnchor;
     }
