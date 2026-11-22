@@ -115,6 +115,12 @@ void KisStudioLayout::reloadArrangement()
             parkPanel(dock);
         }
     }
+    // the rail first: the groups keep clear of it where it is now, not where it was
+    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) {
+        rail->setFlat(d->toolRailFlat);
+        rail->setTucked(d->toolRailTucked);
+        rail->setPlace(d->toolRailLeft, d->toolRailSpot);
+    }
     // the groups take their places, sides and widths again
     d->laneWidths.clear();
     if (d->panelColumn) {
@@ -134,11 +140,6 @@ void KisStudioLayout::reloadArrangement()
     arrangePinned();
     Q_FOREACH (const QString &id, d->pinned) applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id));
     setPanelsTucked(d->panelsTucked);
-    if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) {
-        rail->setFlat(d->toolRailFlat);
-        rail->setTucked(d->toolRailTucked);
-        rail->setPlace(d->toolRailLeft, d->toolRailSpot);
-    }
     if (d->topPill) {
         d->topPill->setTucked(d->topBarTucked);
         d->topPill->setSpot(d->topBarSpot, readSpotHeight(topBarSpotKey));
@@ -902,7 +903,10 @@ void KisStudioLayout::normalize()
         }
         if (!d->pinned.contains(dock->objectName())) {
             dock->hide();
-        } else if (!panelsHidden && !d->hiddenPinned.contains(dock->objectName())) {
+        } else if (d->hiddenPinned.contains(dock->objectName())) {
+            // put away: a restored state showing it again left it out of what an undo puts back
+            dock->hide();
+        } else if (!panelsHidden) {
             dock->show();
         }
     }
