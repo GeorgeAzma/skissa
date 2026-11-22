@@ -24,6 +24,9 @@ class KisStudioEffectBrush : public QWidget
 public:
     /// Starts painting \p config (an effect named \p name) on \p layer in \p mainWindow
     static void start(KisMainWindow *mainWindow, KisLayerSP layer, KisFilterConfigurationSP config, const QString &name);
+    /// \p mask's effect written into its paint layer's pixels where the mask lets it through, and the mask gone: one
+    /// step; false if its layer has no pixels of its own to take it
+    static bool bake(KisImageSP image, KisNodeSP mask);
 
     ~KisStudioEffectBrush() override;
 

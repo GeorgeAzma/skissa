@@ -81,6 +81,7 @@
 #include "kis_selection_manager.h"
 #include "kis_statusbar.h"
 #include "KisViewManager.h"
+#include "KisStudioEffectBrush.h"
 #include "kis_zoom_manager.h"
 #include "canvas/kis_canvas2.h"
 #include "widgets/kis_meta_data_merge_strategy_chooser_widget.h"
@@ -920,6 +921,23 @@ void KisLayerManager::mergeLayer()
 {
     KisImageSP image = m_view->image();
     if (!image) return;
+
+    // on filter masks: each one's effect into its own layer's pixels, the mask gone (its layer merged down is never meant)
+    KisNodeList masks;
+    Q_FOREACH (KisNodeSP node, m_view->nodeManager()->selectedNodes()) {
+        if (node->inherits("KisFilterMask")) masks << node;
+    }
+    if (!masks.isEmpty()) {
+        if (!m_view->blockUntilOperationsFinished(image)) return;
+        bool refused = false;
+        Q_FOREACH (KisNodeSP mask, masks) refused |= !KisStudioEffectBrush::bake(image, mask);
+        if (refused) {
+            m_view->showFloatingMessage(i18nc("floating message: a filter mask on a group or vector layer can't be merged into it",
+                                              "Only a paint layer can take an effect into its pixels"),
+                                        QIcon(), 2500, KisFloatingMessage::Low);
+        }
+        return;
+    }
 
     KisLayerSP layer = activeLayer();
     if (!layer) return;

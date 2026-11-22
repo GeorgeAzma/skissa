@@ -160,15 +160,24 @@ void KisStudioEffectBrush::apply()
 {
     KisViewManager *view = d->mainWindow ? d->mainWindow->viewManager() : nullptr;
     KisImageSP image = view ? view->image() : nullptr;
-    KisFilterConfigurationSP config = d->mask->filter();
-    KisFilterSP filter = config ? KisFilterRegistry::instance()->value(config->name()) : nullptr;
-    auto *layer = qobject_cast<KisPaintLayer *>(d->layer.data());
-    if (!image || !filter || !layer) return;
-    KisSelectionSP selection = d->mask->selection();
-    const QRect rect = selection->selectedExactRect();
-    KisNodeSP node = d->layer;
+    if (!image || !qobject_cast<KisPaintLayer *>(d->layer.data())) return;
     KisNodeSP mask = d->mask;
     finish(true);
+    bake(image, mask);
+}
+
+bool KisStudioEffectBrush::bake(KisImageSP image, KisNodeSP maskNode)
+{
+    auto *filterMask = dynamic_cast<KisFilterMask *>(maskNode.data());
+    KisNodeSP node = maskNode ? maskNode->parent() : KisNodeSP();
+    if (!image || !filterMask || !qobject_cast<KisPaintLayer *>(node.data()) || !node->paintDevice()) return false;
+    KisFilterConfigurationSP config = filterMask->filter();
+    KisFilterSP filter = config ? KisFilterRegistry::instance()->value(config->name()) : nullptr;
+    if (!filter) return false;
+    // where the mask lets the effect through; a mask without a selection lets it through everywhere
+    KisSelectionSP selection = filterMask->selection();
+    const QRect rect = selection ? selection->selectedExactRect() : node->paintDevice()->exactBounds();
+    KisNodeSP mask = maskNode;
 
     // the effect where it was painted, as the layer's pixels, and the mask gone: one step
     KisStrokeStrategyUndoCommandBased *strategy = new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Apply Effect"), false, image.data());
@@ -188,6 +197,7 @@ void KisStudioEffectBrush::apply()
     image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(KUndo2CommandSP(new KisImageLayerRemoveCommand(image, mask)), false,
                                                                      KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
     image->endStroke(stroke);
+    return true;
 }
 
 void KisStudioEffectBrush::keep()
