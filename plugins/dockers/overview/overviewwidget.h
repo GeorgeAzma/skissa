@@ -18,6 +18,7 @@
 
 class KisSignalCompressor;
 class KoCanvasBase;
+class OverviewLive;
 
 class OverviewWidget : public KisWidgetWithIdleTask<QWidget>
 {
@@ -86,6 +87,10 @@ private:
     QPointF m_lastPos {QPointF(0, 0)};
 
     QColor m_outlineColor;
+
+    // Skissa: the picture kept up while the image changes (OverviewLive.cpp)
+    friend class OverviewLive;
+    OverviewLive *m_live {nullptr};
 };
 
 

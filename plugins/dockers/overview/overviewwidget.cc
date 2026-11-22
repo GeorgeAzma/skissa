@@ -25,6 +25,7 @@
 #include <KisMainWindow.h>
 #include "KisIdleTasksManager.h"
 #include <KisDisplayConfig.h>
+#include "OverviewLive.h"
 
 
 OverviewWidget::OverviewWidget(QWidget * parent)
@@ -38,6 +39,7 @@ OverviewWidget::OverviewWidget(QWidget * parent)
     KisConfig cfg(true);
     slotThemeChanged();
     recalculatePreviewDimensions();
+    m_live = new OverviewLive(this);
 }
 
 OverviewWidget::~OverviewWidget()
@@ -52,6 +54,7 @@ void OverviewWidget::setCanvas(KisCanvas2 *canvas)
     }
 
     KisWidgetWithIdleTask<QWidget>::setCanvas(canvas);
+    m_live->setCanvas(m_canvas);
 
     if (m_canvas) {
         connect(m_canvas->displayColorConverter(), SIGNAL(displayConfigurationChanged()), SLOT(startUpdateCanvasProjection()));
