@@ -124,6 +124,7 @@ const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
 const QString pushItem = QStringLiteral("action:KisToolTransformLiquify");
 const QString pushOfferedKey = QStringLiteral("StudioRailPushOffered");
 
+const QString blendSlotBackKey = QStringLiteral("StudioRailBlendSlotBack");
 enum class BrushMode {
     None,
     Paint,
@@ -188,11 +189,7 @@ QString blendingBrush()
 
 QStringList defaultItems()
 {
-    // blending is a brush pinned there, the Blend slot only when there is no such brush
-    const QString blender = blendingBrush();
-    return {slotPrefix + QStringLiteral("paint"),
-            blender.isEmpty() ? slotPrefix + QStringLiteral("blend") : brushPrefix + blender,
-            slotPrefix + QStringLiteral("erase"),
+    return {slotPrefix + QStringLiteral("paint"), slotPrefix + QStringLiteral("blend"), slotPrefix + QStringLiteral("erase"),
             spacePrefix, pushItem,
             slotPrefix + QStringLiteral("select"), slotPrefix + QStringLiteral("move"), slotPrefix + QStringLiteral("fill"),
             slotPrefix + QStringLiteral("shape"), slotPrefix + QStringLiteral("text"), slotPrefix + QStringLiteral("guides"),
@@ -795,18 +792,18 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
     const QStringList shared = cfg.readEntry<QStringList>(sharedSizeKey, QStringList());
     d->sharedSize = QSet<QString>(shared.begin(), shared.end());
-    if (!KSharedConfig::openConfig()->group(QString()).hasKey(itemsKey)) {
-        // never arranged: a rail that has used its Blend slot keeps it (and the brush it chose); a new one pins a
-        // blending brush. Written down, so the brush found first doesn't change from one start to the next
-        QStringList items = defaultItems();
-        if (!cfg.readEntry<QString>(QStringLiteral("StudioBrushPreset_blend"), QString()).isEmpty()) {
-            for (QString &item : items) {
-                if (item.startsWith(brushPrefix)) item = slotPrefix + QStringLiteral("blend");
-            }
-        }
-        KisSettingsRegistry::writeLater(itemsKey, items);
-    }
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
+    // the blending brush a first start used to pin goes back to being the Blend slot, once
+    if (!cfg.readEntry<bool>(blendSlotBackKey, false)) {
+        KisConfig writable(false);
+        const QString pinned = brushPrefix + blendingBrush();
+        const int at = d->items.indexOf(pinned);
+        if (at >= 0 && !d->items.contains(slotPrefix + QStringLiteral("blend"))) {
+            d->items[at] = slotPrefix + QStringLiteral("blend");
+            writable.writeEntry(itemsKey, d->items);
+        }
+        writable.writeEntry(blendSlotBackKey, true);
+    }
     // add the effects button only once, so removing it sticks
     if (!cfg.readEntry<bool>(effectsOfferedKey, false)) {
         KisConfig writable(false);
