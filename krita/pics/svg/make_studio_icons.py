@@ -281,6 +281,12 @@ ICONS = {
     'timelapse_on': solid('M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0ZM9.4 7.4v9.2l7.6-4.6Z'),
     'shapes_on': solid('M3.5 8.2a4.7 4.7 0 1 0 9.4 0a4.7 4.7 0 1 0-9.4 0Z') + solid(outline_of(sq(12.3, 12.3, 8.2, 8.2, 2))),
     'tool_options_on': p('M7 3.5v3M7 10.5v10M12 3.5v10M12 17.5v3M17 3.5v6M17 13.5v7') + dot(7, 8.5, 2.6) + dot(12, 15.5, 2.6) + dot(17, 11.5, 2.6),
+    # the part in view cut out of the whole picture
+    'overview_on': solid(outline_of(sq(3.5, 4.5, 17, 15, 2.4)) + outline_of(sq(8, 8.5, 8, 7, 1))),
+    'symbols_on': solid('M12 4c4.7 0 8.5 3 8.5 6.8s-3.8 6.7-8.5 6.7c-1 0-2-.1-2.9-.4L4.5 19.5l1.4-3.9C4.4 14.4 3.5 12.7 3.5 10.8 3.5 7 7.3 4 12 4Z'),
+    # the frames solid, cut apart where they meet and where the playhead is
+    'timeline_on': (solid(outline_of(sq(3.5, 9.5, 17, 10, 2.2)) + 'M7.4 9.5h1.2v10h-1.2ZM15.4 9.5h1.2v10h-1.2ZM11.4 9.5h1.2v10h-1.2Z')
+                    + p('M12 6v3.5') + '<path d="M9.5 3h5L12 6Z" fill="INK"/>'),
     'find': c(10.5, 10.5, 7) + p('m20.5 20.5-5-5'),
     'more': dot(5.5, 12, 1.6) + dot(12, 12, 1.6) + dot(18.5, 12, 1.6),
 
