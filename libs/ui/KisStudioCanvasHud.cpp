@@ -4,6 +4,8 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
+#include <kis_image.h>
+#include <kis_image_animation_interface.h>
 #include "KisStudioGlide.h"
 
 #include <QAction>
@@ -167,7 +169,7 @@ struct KisStudioCanvasHud::Private
     QWidget *progressBox {nullptr};
     QPointer<QWidget> progress;
 
-    /// A mode that changes what a stroke does; shown while on, and a click turns it off
+    /// A mode that changes what a stroke does or what the view shows; shown while on, and a click turns it off
     struct Badge {
         QToolButton *button {nullptr};
         QPointer<QAction> action;
@@ -175,6 +177,15 @@ struct KisStudioCanvasHud::Private
     Badge alphaLock;
     Badge mirrorX;
     Badge mirrorY;
+    Badge isolateLayer;
+    Badge isolateGroup;
+    Badge wrapAround;
+    Badge softProof;
+    Badge grid;
+    /// The pixel grid shown or not, while zoomed in far enough to see it
+    QToolButton *pixelGrid {nullptr};
+    /// Onion skins turned on or off, while the image is animated
+    QToolButton *onionSkins {nullptr};
     /// The selection's outline shown or not, while there is a selection
     QToolButton *selectionOutline {nullptr};
     /// The image's guides shown or not, while it has some
@@ -293,7 +304,12 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
 
     for (auto [badge, name, tip] : {std::make_tuple(&d->alphaLock, "preserve_alpha", i18nc("@info:tooltip", "Alpha lock: paints only on what's already painted")),
                                     std::make_tuple(&d->mirrorX, "hmirror_action", i18nc("@info:tooltip", "Mirrored painting, across")),
-                                    std::make_tuple(&d->mirrorY, "vmirror_action", i18nc("@info:tooltip", "Mirrored painting, up and down"))}) {
+                                    std::make_tuple(&d->mirrorY, "vmirror_action", i18nc("@info:tooltip", "Mirrored painting, up and down")),
+                                    std::make_tuple(&d->isolateLayer, "isolate_active_layer", i18nc("@info:tooltip", "Only this layer shows")),
+                                    std::make_tuple(&d->isolateGroup, "isolate_active_group", i18nc("@info:tooltip", "Only this group shows")),
+                                    std::make_tuple(&d->wrapAround, "wrap_around_mode", i18nc("@info:tooltip", "Wrap around: the image tiles")),
+                                    std::make_tuple(&d->softProof, "softProof", i18nc("@info:tooltip", "Soft proofing: colors as printed")),
+                                    std::make_tuple(&d->grid, "view_grid", i18nc("@info:tooltip", "Grid"))}) {
         badge->action = d->action(name);
         badge->button = hudButton(this);
         badge->button->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -308,6 +324,26 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         }
         layout->addWidget(badge->button);
     }
+    // what is only seen sometimes: shown when it can be, lit while on
+    d->pixelGrid = hudButton(this);
+    d->pixelGrid->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->pixelGrid->setCheckable(true);
+    d->pixelGrid->setToolTip(i18nc("@info:tooltip", "Pixel grid"));
+    d->pixelGrid->hide();
+    if (QAction *show = d->action("view_pixel_grid")) {
+        d->pixelGrid->setIcon(show->icon());
+        connect(d->pixelGrid, &QToolButton::clicked, show, [show]() { show->trigger(); });
+        connect(show, &QAction::toggled, this, &KisStudioCanvasHud::updateBadges);
+    }
+    layout->addWidget(d->pixelGrid);
+    d->onionSkins = hudButton(this);
+    d->onionSkins->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->onionSkins->setToolTip(i18nc("@info:tooltip", "Onion skins on or off"));
+    d->onionSkins->hide();
+    connect(d->onionSkins, &QToolButton::clicked, this, [this]() {
+        if (QAction *toggle = d->action("toggle_onion_skin")) toggle->trigger();
+    });
+    layout->addWidget(d->onionSkins);
     d->selectionOutline = hudButton(this);
     d->selectionOutline->setToolButtonStyle(Qt::ToolButtonIconOnly);
     d->selectionOutline->setCheckable(true);
@@ -398,7 +434,9 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->zoom);
 
     // a drag on any of its own buttons moves the pill
-    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionOutline, d->guides, d->mirror, d->value, d->rotation}) {
+    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->isolateLayer.button, d->isolateGroup.button,
+                                d->wrapAround.button, d->softProof.button, d->grid.button, d->pixelGrid, d->onionSkins, d->selectionOutline,
+                                d->guides, d->mirror, d->value, d->rotation}) {
         button->installEventFilter(this);
     }
     d->spot = savedSpot(d->spot);
@@ -520,9 +558,16 @@ void KisStudioCanvasHud::updateBadges()
         button->setVisible(on);
         changed = true;
     };
-    for (const Private::Badge *badge : {&d->alphaLock, &d->mirrorX, &d->mirrorY}) {
+    for (const Private::Badge *badge : {&d->alphaLock, &d->mirrorX, &d->mirrorY, &d->isolateLayer, &d->isolateGroup, &d->wrapAround, &d->softProof, &d->grid}) {
         showIf(badge->button, badge->action && badge->action->isChecked());
     }
+    QAction *pixelGrid = d->action("view_pixel_grid");
+    showIf(d->pixelGrid, pixelGrid && d->zoomLevel >= KisConfig(true).getPixelGridDrawingThreshold());
+    if (pixelGrid) d->pixelGrid->setChecked(pixelGrid->isChecked());
+    QAction *onion = d->action("toggle_onion_skin");
+    KisImageSP image = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->image() : nullptr;
+    showIf(d->onionSkins, onion && image && image->animationInterface()->hasAnimation());
+    if (onion && d->onionSkins->icon().isNull()) d->onionSkins->setIcon(onion->icon());
     KisSelectionManager *selections = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->selectionManager() : nullptr;
     // like the guides: there while there is a selection, lit while its outline shows
     const bool hasSelection = selections && selections->haveAnySelectionWithPixels();
@@ -546,7 +591,10 @@ void KisStudioCanvasHud::updateBadges()
 
 void KisStudioCanvasHud::updateZoom(qreal zoom)
 {
+    const bool pixelsBefore = d->zoomLevel >= KisConfig(true).getPixelGridDrawingThreshold();
     d->zoomLevel = zoom;
+    // the pixel grid's button comes and goes with the zoom it shows at
+    if ((zoom >= KisConfig(true).getPixelGridDrawingThreshold()) != pixelsBefore) updateBadges();
     // a zoom gesture reports every step, most of them showing the same number
     const QString text = i18nc("zoom level, %1 is the percentage", "%1%", QString::number(zoom * 100.0, 'f', zoom < 0.1 ? 1 : 0));
     if (text == d->zoom->text()) return;
