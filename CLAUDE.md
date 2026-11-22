@@ -43,7 +43,7 @@ All tokens live in `libs/widgetutils/KisModernStyle.h`. Use them; don't invent n
 
 - **Spacing:** `hairline` 2, `space1` 4, `space2` 8, `space3` 12, `space4` 16. Nothing else.
 - **Corners:** squircles everywhere (`KisModernStyle::squircle`). Radii: `cornerRadius` 5 (controls), `tileRadius` 8, `cardRadius` 10, `panelRadius` 14. Checkboxes, swatches, switches and segmented controls are squircles (`fullSquircleRadius` for checkboxes). Radio buttons stay circles, and so do the paint colors on the rail (the color chip and colors pinned beside it): a drop of paint, the owner's call.
-- **Motion:** one curve, an exponential ease-out (`motionCurve()`), and three durations: `enterDuration` 180 ms, `exitDuration` 120 ms, `changeDuration` 160 ms. Things that move glide, they don't jump.
+- **Motion:** one curve, an exponential ease-out (`motionCurve()`), and three durations: `enterDuration` 180 ms, `exitDuration` 120 ms, `changeDuration` 160 ms. Things that move glide, they don't jump. What a click opens appears at once, whole (`KisStudioMotion::showFaded`); only leaving fades: a fade-in made clicks feel ignored.
 - **Hover after scrolling:** a wheel turn tells the window the pointer moved where it rests (`WheelLatch::rehoverSoon`), so what scrolled under it lights and what scrolled away doesn't.
 - **Fields:** a framed combo box is drawn as a field too (an opaque button fill read as old and pasted on). A text field is a soft fill of the text's color at low alpha with `tileRadius` corners, as value rows are (an opaque Button fill read as a pasted-on box on glass); focused, a little more of it with a soft edge, never a bright accent ring.
 - **Ink:** text in the palette's text color; quiet values in `secondaryInk()`; fills and tracks as text color at low alpha (works on any theme and on glass). The accent is optional (themes can have none).
@@ -83,7 +83,7 @@ A map of where things are. Files are in `libs/ui/` unless noted.
 - **What Studio leaves out**: classic-only menu items are hidden while Studio is on (`hiddenToolbarActions`) and Find skips hidden actions. Panel plugins the Studio covers and the G'MIC bridge aren't built (`plugins/dockers/CMakeLists.txt`; sources stay for merges); the toolbox is only hidden (`KisStudioPanelPicker::isRetired`). After dropping a plugin, delete its DLL from the install: `cmake --install` never removes files.
 ## Dev workflow (Windows)
 
-**Save tokens:** look at captures through `devtools\shot.ps1 -Out f.png -X -Y -W -H [-Scale 0.5]` (crop and shrink; never read full-size captures); read only the `docs/skissa/` file for the area at hand; grep with line numbers and read slices, not whole files; build with `dev.ps1 2>&1 | Select-Object -Last 3`.
+**Save tokens:** look at captures through `devtools\shot.ps1 -Out f.png -X -Y -W -H [-Scale 0.5]` (crop and shrink; never read full-size captures); read only the `docs/skissa/` file for the area at hand; grep with line numbers and read slices, not whole files; build with `dev.ps1 2>&1 | Select-Object -Last 3`. Batch several changes per build and run it in the background; never poll its output (the notification comes). Don't reread files already read this session, dump whole diffs or search the session transcript; keep progress notes to a line and the final report short. Test only what is new or risky, all in one launch.
 
 The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, KDE's prebuilt Qt5 deps in `env\_install`, the build dir `build`, helper scripts in `devtools`, and in its root `run-krita.bat`, `profile.py`, `baseline-tests.bat` and `known-failing-tests.txt`.
 
@@ -149,6 +149,32 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 - **Pen pressure:** a tablet driver can refuse WinTab to every program (seen with an XP-Pen, cause unknown). Skissa defaults to Windows Ink (`useWin8PointerInput`) and falls back to it for the session when WinTab is refused (`KisWinTab::refused()`, `krita/KisWinTab.cpp`). Test the app side with `pen.ps1`; for a real pen, log whether the canvas gets tablet or mouse presses.
 - **Left from the November 2026 review:** Light's and Radial blur's light isn't reclipped (a white plateau near white lamps; a look the owner tuned); Detail, Blur and Smooth average in the image's encoding, not linear light; the picker can only make sRGB colors; Krita's Feather (and so the Fill tool's) is a gaussian of sigma N cut at one sigma, unlike Soft (changing it changes Krita's selection tests); a Find of a group or vector layer's effect does nothing silently (the picker says why). Not undoable though arranged by hand: rings, picker groups, the color picker's style, symmetry's settings.
 - **Ideas weighed and left:** handles to nudge a snapped shape, time-lapse trimming, a theme taken from the image, a canvas flip gesture, lasso fill (Krita's Freehand Path brush does it).
+
+## Backlog
+
+Proposed and not built yet; build from the top when there is nothing else, remove what is done or declined.
+
+- **Approved by the owner (November 2026), in this order:**
+  1. Drag onto what it should change: colors, gradients, patterns, brushes, effects and layer styles as draggable tiles; on the canvas they act on what is under the pointer, on a layer on that layer, on a selection inside it (replaces Fill with, Apply to layer, New fill layer).
+  2. Right-click card for what is under the pointer (layers, selections, guides, swatches, canvas areas): its few actions, picture, key, reset. Only where it is better than what is there.
+  3. Previews instead of names: hovering an image-changing command previews it (Flatten, Merge down, Crop to selection, Fill, Clear); layer styles redesigned like the Shape effect, with previews; resampling and dithering choices as pictures.
+  4. One value control everywhere: every number a draggable row, right click resets (all pills too), wheel changes; convert the remaining spin boxes and sliders (find them with the UI tour).
+  5. History: the scrubber gets labeled thumbnails; holding over a step previews the image there.
+  6. Handles on the canvas: canvas size, crop, image resize, guides, gradients, pattern placement, text boxes, selection grow and soften, symmetry axis.
+  7. Retire Krita dialogs: Image size, Layer properties, Color space conversion, Export options, Preferences pages Settings doesn't cover; each a popup of value rows with a live preview, or gone.
+  8. Defaults that learn: last value per task (fill threshold, effect settings, smoothing per brush); use counts order the pickers' Recent sections.
+  9. Cut text nobody needs: headers inside small popups, labels repeated in tooltips, "Options" titles; a sweep with the UI tour photos.
+- **One Fill tool (next):** a click fills one area, an open drag fills what it passes over, a drag that ends near its start fills everything inside it (Enclose and fill's job); Enclose and fill leaves the Fill slot.
+- **Gradients as paint:** the strip edited in place (click adds a stop, drag moves, drag off removes, colors dropped on it); gradient tiles dragged like swatches (canvas: fill along a default direction; layer: gradient map; a gradient map effect: its gradient; a selection's outline: fill it); on-canvas handles that stay until something else is done; two gradients that follow the current colors (color to transparent, color to back color); one strip control everywhere gradients appear, and a gradient strip in the color panel so gradients are never hidden (the owner asked for all of it, November 2026).
+- **Patterns the same way:** tiles dragged onto the canvas, a selection or a layer (a pattern fill layer); scale, turn and shift with on-canvas handles; a Tint switch that paints the pattern in the current color, its lightness as coverage.
+- **Text tool redesign:** Krita's tool with a QML options page; large. Wanted: minimal, direct, Skissa-like.
+- **Selections:** one Select tool chosen by gesture (freehand lasso, clicked polygon, rough box or circle snapping clean, a tap for similar color); a dimmed outside instead of marching ants; handles to edit it until it is used; dragging inside moves its pixels; its edge flashes when painting outside it does nothing. Magnetic selection replaced by a lasso that follows edges: a soft band around the pointer (pressure or wheel sets its width) where the line takes the strongest edge live, drawing back erases, letting go closes along edges, no edge means the line stays where drawn; plus "Snap to edges" on any selection.
+- **Shortcuts:** keys offered on a command's card once it is used often; about 15 left-hand defaults; no three-modifier chords.
+- **Layer styles redesign.**
+- **Perspective from two lines** drawn along edges in a photo.
+- **Time-lapse export:** lossless and frames.
+- **Fewer settings:** merge the five eraser cursor settings into one; eraser's own size and opacity into one; the three instant previews into one; brushes as strokes/pictures/names into one choice; tooltips into its delay (with never). Remove the three layer-name suffixes, Channels in color, Faster color conversion, the checkerboard's colors (from the theme), sampler magnification, selection mask color. Proofing, EXR profile, frames at once, threads, memory, renderer and bit depth under an Advanced fold.
+- **Vector layers (low):** the owner never uses them. Quick wins only: vector choices out of new-layer menus and Find until a file has a vector layer; Convert to paint layer on a vector layer's card.
 
 ## Lessons
 
