@@ -355,7 +355,9 @@ void KisAssistantTool::beginActionImpl(KoPointerEvent *event)
     
     // find control widgets pressed...
     Q_FOREACH (KisPaintingAssistantSP assistant, m_canvas->paintingAssistantsDecoration()->assistants()) {
-        
+        // only the chosen guide shows its box
+        if (assistant != m_canvas->paintingAssistantsDecoration()->selectedAssistant()) continue;
+
         QPointF actionsPosition = initialTransform.map(assistant->viewportConstrainedEditorPosition(converter, globalEditorWidgetData.boundingSize));
                 
         // first we must find if the click event intersects any assistant control widget rectangles.
@@ -498,6 +500,14 @@ void KisAssistantTool::beginActionImpl(KoPointerEvent *event)
             m_newAssistant->setLocal(m_options.localAssistantCheckbox->isChecked());
         }
         m_internalMode = MODE_CREATION;
+        m_clickLetsGo = bool(canvasDecoration->selectedAssistant());
+        // a guide of one point is made at the press: with another chosen, the press only lets that one go
+        if (m_clickLetsGo && m_newAssistant->numHandles() <= 1) {
+            m_newAssistant.clear();
+            canvasDecoration->deselectAssistant();
+            m_canvas->updateCanvas();
+            return;
+        }
         m_newAssistant->addHandle(new KisPaintingAssistantHandle(canvasDecoration->snapToGuide(event, QPointF(), false)), HandleType::NORMAL);
         if (m_newAssistant->numHandles() <= 1) {
             addAssistant();
@@ -781,6 +791,13 @@ void KisAssistantTool::endActionImpl(KoPointerEvent *event)
         KisPaintingAssistantSP selectedAssistant = m_canvas->paintingAssistantsDecoration()->selectedAssistant();
         QPointF currentOffset = selectedAssistant->editorWidgetOffset();
         selectedAssistant->setEditorWidgetOffset(currentOffset + (event->point - m_dragEnd));
+    } else if (m_internalMode == MODE_CREATION && m_newAssistant && m_newAssistant->handles().size() == 2 && m_clickLetsGo
+               && QLineF(m_canvas->coordinatesConverter()->documentToWidget(QPointF(*m_newAssistant->handles()[0])),
+                         m_canvas->coordinatesConverter()->documentToWidget(QPointF(*m_newAssistant->handles()[1]))).length() < 8) {
+        // a click beside the chosen guide lets it go, rather than making a new one
+        m_newAssistant.clear();
+        m_canvas->paintingAssistantsDecoration()->deselectAssistant();
+        updateToolOptionsUI();
     } else if (m_internalMode == MODE_CREATION && m_newAssistant && m_newAssistant->handles().size() == 2) {
         // one drag makes the whole guide, its points then moved as they are, rather than a click for each point
         // with the next one following the pointer until it is placed

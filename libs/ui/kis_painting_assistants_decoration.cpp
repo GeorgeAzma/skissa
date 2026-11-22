@@ -460,12 +460,11 @@ void KisPaintingAssistantsDecoration::drawDecoration(QPainter& gc, const QRectF&
         }
     }
 
-    // draw editor controls on top of all assistant lines (why this code is last)
-    if (isEditingAssistants()) {
-        Q_FOREACH (KisPaintingAssistantSP assistant, assistants()) {
-            drawEditorWidget(assistant, gc, converter, canvas->displayRendererInterface());
-        }
-     }
+    // draw editor controls on top of all assistant lines (why this code is last); only the chosen guide's: a box
+    // beside every guide crowded the picture
+    if (isEditingAssistants() && selectedAssistant()) {
+        drawEditorWidget(selectedAssistant(), gc, converter, canvas->displayRendererInterface());
+    }
 }
 
 void KisPaintingAssistantsDecoration::drawHandles(KisPaintingAssistantSP assistant, QPainter& gc, const KisCoordinatesConverter *converter, const KoColorDisplayRendererInterface *renderInterface)

@@ -81,6 +81,9 @@ private:
     void addAssistant();
     /// \p guide, being made, whole from the box of its first drag (or a click's default box)
     void completeNewAssistant(KisPaintingAssistantSP guide);
+    /// The press that began the guide being made came while another was chosen: let go as a click, it only lets
+    /// that one go
+    bool m_clickLetsGo {false};
     void removeAssistant(KisPaintingAssistantSP assistant);
 
     void assistantSelected(KisPaintingAssistantSP assistant);

@@ -38,7 +38,7 @@ QMenu *KisAssistantTool::popupActionsMenu()
                 hit = assistant;
             }
         }
-        if (!assistant->isAssistantComplete() || !editor.widgetActivated) continue;
+        if (!assistant->isAssistantComplete() || !editor.widgetActivated || assistant != decoration->selectedAssistant()) continue;
         const QPointF box = toWidget.map(assistant->viewportConstrainedEditorPosition(converter, editor.boundingSize))
             + QPointF(editor.widgetOffset, editor.widgetOffset);
         if (QRectF(box, editor.boundingSize).contains(at)) hit = assistant;

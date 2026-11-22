@@ -370,6 +370,12 @@ void KisPaintingAssistant::drawPath(QPainter& painter, const QPainterPath &path,
     }
 
     painter.save();
+    // a soft dark edge under the line, so it reads on light and dark parts of the picture alike
+    QColor edge(0, 0, 0, qRound(0.35 * paintingColor.alpha()));
+    QPen pen_edge(edge, d->mainLineWidth * d->decorationThickness + 2);
+    pen_edge.setCosmetic(true);
+    painter.setPen(pen_edge);
+    painter.drawPath(path);
     QPen pen_a(paintingColor, d->mainLineWidth * d->decorationThickness);
     pen_a.setCosmetic(true);
     painter.setPen(pen_a);
