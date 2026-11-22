@@ -289,8 +289,9 @@ void KisToolFill::beginFilling(const QPoint &seedPoint)
 
     KisPaintDeviceSP referencePaintDevice = nullptr;
     if (m_effectiveFillMode != FillMode_FillSelection) {
-        if (m_reference == Reference_CurrentLayer && KisColorDrop::isColorsLayer(from)) {
-            // a layer of fills is filled from the picture: by itself it holds no lines
+        if (m_reference == Reference_CurrentLayer
+            && (KisColorDrop::isColorsLayer(from) || !from->paintDevice() || from->paintDevice()->exactBounds().isEmpty())) {
+            // a layer of fills, or an empty one, is filled from the picture: by itself it holds no lines
             referencePaintDevice = currentImage()->projection();
         } else if (m_reference == Reference_CurrentLayer) {
             referencePaintDevice = from->paintDevice();
@@ -404,7 +405,8 @@ void KisToolFill::addFillingOperation(const QVector<QPoint> &seedPoints)
                                  !m_antiAlias && m_sizemod == 0 && m_feather == 0 &&
                                  m_effectiveCloseGap == 0 &&
                                  m_reference == Reference_CurrentLayer &&
-                                 m_fillNode == currentNode();
+                                 m_fillNode == currentNode() &&
+                                 m_referencePaintDevice == m_fillNode->paintDevice();
 
         visitor->setSeedPoints(seedPoints);
         visitor->setUseFastMode(useFastMode);

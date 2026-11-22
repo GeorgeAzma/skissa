@@ -288,8 +288,10 @@ void KisToolEncloseAndFill::slot_delegateTool_enclosingMaskProduced(KisPixelSele
     // a new layer is empty: with Preserve Alpha the fill would show nowhere
     if (fillNode != currentNode()) resources->setGlobalAlphaLock(false);
 
-    if (m_reference == CurrentLayer && KisColorDrop::isColorsLayer(currentNode())) {
-        // a layer of fills is filled from the picture: by itself it holds no lines
+    if (m_reference == CurrentLayer
+        && (KisColorDrop::isColorsLayer(currentNode()) || !currentNode()->paintDevice()
+            || currentNode()->paintDevice()->exactBounds().isEmpty())) {
+        // a layer of fills, or an empty one, is filled from the picture: by itself it holds no lines
         m_referencePaintDevice = currentImage()->projection();
     } else if (m_reference == CurrentLayer) {
         m_referencePaintDevice = currentNode()->paintDevice();
