@@ -29,6 +29,7 @@
 #include "kis_global.h"
 #include <KisModernStyle.h>
 #include <KisFrameRate.h>
+#include <KisLanczos.h>
 
 
 // on glass, the canvas behind shows through already: the message itself is not see-through
@@ -204,9 +205,9 @@ QRect KisFloatingMessage::determineMetrics( const int M )
     if (!m_icon.isNull()) {
         const int availableWidth = max.width() - rect.width() - M; //WILL be >= (minImageSize.width() - M)
 
-        m_scaledIcon = QPixmap::fromImage(m_icon.scaled(qMin(availableWidth, m_icon.width()),
+        m_scaledIcon = QPixmap::fromImage(KisLanczos::scaled(m_icon, qMin(availableWidth, m_icon.width()),
                                                         qMin( rect.height(), m_icon.height()),
-                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                                                        Qt::KeepAspectRatio));
 
         const int widthIncludingImage = rect.width() + m_scaledIcon.width() + M; //margin between text + image
         rect.setWidth( widthIncludingImage );

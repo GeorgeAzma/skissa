@@ -44,6 +44,7 @@
 
 #include "KisAutoBrushModel.h"
 #include "KisPredefinedBrushModel.h"
+#include <KisLanczos.h>
 
 using namespace KisBrushModel;
 
@@ -1899,7 +1900,7 @@ void KisBrushTipQuickPage::updateShapes()
             const KisBrushSP match = source.bestMatch(md5, QString(), QString());
             if (!match) continue;
             const enumBrushType kind = match->brushType();
-            const QImage small = match->brushTipImage().scaled(64, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            const QImage small = KisLanczos::scaled(match->brushTipImage(), 64, 64, Qt::KeepAspectRatio);
             d->tipPictures.insert(md5, tinted(small, ink, kind == MASK || kind == PIPE_MASK));
             d->tipNames.insert(md5, match->name());
         }

@@ -20,6 +20,7 @@
 #include <kis_painting_tweaks.h>
 #include <kis_debug.h>
 #include <KisStaticInitializer.h>
+#include <KisLanczos.h>
 
 namespace
 {
@@ -44,9 +45,9 @@ QIcon createIcon(const QImage &source, const QSize &iconSize)
         int scaleInt = qRound(scale);
         result = source.scaled(scaleInt*source.size(), Qt::KeepAspectRatio, Qt::FastTransformation);
         // them with smooth transformation to make sure the whole icon is filled in
-        result = result.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        result = KisLanczos::scaled(result, iconSize, Qt::KeepAspectRatio);
     } else {
-        result = source.scaled(iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        result = KisLanczos::scaled(source, iconSize, Qt::KeepAspectRatio);
     }
 
     // The cropping here centers the image with the difference

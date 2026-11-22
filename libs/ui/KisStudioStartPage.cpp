@@ -69,6 +69,7 @@
 
 #include "KisDocument.h"
 #include "KisMainWindow.h"
+#include "KisSkissaUpdater.h"
 #include "KisPart.h"
 #include "KisStudioGlass.h"
 #include "KisView.h"
@@ -79,6 +80,7 @@
 #include "widgets/KisStudioChips.h"
 #include "widgets/KisStudioInlineEdit.h"
 #include "widgets/KisStudioValueRow.h"
+#include <KisLanczos.h>
 
 namespace
 {
@@ -174,7 +176,7 @@ QImage readPicture(const QString &path, int longest)
         }
     }
     if (!image.isNull() && qMax(image.width(), image.height()) > longest) {
-        image = image.scaled(longest, longest, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        image = KisLanczos::scaled(image, longest, longest, Qt::KeepAspectRatio);
     }
     return image;
 }
@@ -1460,7 +1462,7 @@ protected:
             const QRectF local(QPointF(), rect.size());
             painter.fillPath(KisModernStyle::squircle(local, radius), Qt::white);
             painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-            painter.drawImage(local, picture);
+            painter.drawImage(local, KisLanczos::scaled(picture, (rect.size() * ratio).toSize()));
         }
         if (m_tiles.size() > 64) m_tiles.clear();
         m_tiles.insert(key, made);
@@ -1900,7 +1902,34 @@ private:
         } else {
             groups.append({QString(), shown});
         }
+        // groups too short to fill a row share one, side by side, each under its heading
+        const qreal apart = KisModernStyle::space4 * 2;
+        qreal shelfX = -1;
+        qreal shelfY = 0;
         for (const auto &group : groups) {
+            qreal length = gap * (group.second.size() - 1);
+            for (int i : group.second) length += rowHeight * aspectOf(i);
+            const qreal heading = group.first.isEmpty() ? 0 : headingHeight();
+            const qreal span = qMax(length, qreal(QFontMetrics(KisModernStyle::textFont(font(), 1.0, QFont::DemiBold)).horizontalAdvance(group.first)));
+            if (span <= width && !group.first.isEmpty()) {
+                if (shelfX < 0 || shelfX + apart + span > width) {
+                    shelfX = 0;
+                    shelfY = y;
+                    y += heading + rowHeight + gap + KisModernStyle::space3;
+                } else {
+                    shelfX += apart;
+                }
+                out.headings.append({group.first, QRectF(shelfX, shelfY, span, heading), false});
+                qreal x = shelfX;
+                for (int i : group.second) {
+                    const qreal w = rowHeight * aspectOf(i);
+                    out.placed.append({i, QRectF(x, shelfY + heading, w, rowHeight), false});
+                    x += w + gap;
+                }
+                shelfX += span;
+                continue;
+            }
+            shelfX = -1;
             if (!group.first.isEmpty()) {
                 out.headings.append({group.first, QRectF(0, y, width, headingHeight()), false});
                 y += headingHeight();
@@ -1996,7 +2025,7 @@ private:
         data->setImageData(picture);
         auto *drag = new QDrag(this);
         drag->setMimeData(data);
-        drag->setPixmap(QPixmap::fromImage(picture.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+        drag->setPixmap(QPixmap::fromImage(KisLanczos::scaled(picture, 160, 160, Qt::KeepAspectRatio)));
         drag->exec(Qt::CopyAction);
     }
     int m_selected {0};
@@ -2029,23 +2058,37 @@ protected:
 class FootLink : public QAbstractButton
 {
 public:
-    enum Mark { Heart, Home, Issue };
+    enum Mark { Heart, Home, Issue, Update };
 
     FootLink(const QString &text, Mark mark, const QUrl &url, QWidget *parent)
+        : FootLink(text, mark, [url]() { QDesktopServices::openUrl(url); }, parent)
+    {
+        setToolTip(url.toString());
+    }
+
+    FootLink(const QString &text, Mark mark, std::function<void()> run, QWidget *parent)
         : QAbstractButton(parent)
         , m_mark(mark)
     {
         setText(text);
-        setToolTip(url.toString());
         setCursor(Qt::PointingHandCursor);
         setAttribute(Qt::WA_Hover);
         setFocusPolicy(Qt::NoFocus);
-        connect(this, &QAbstractButton::clicked, this, [url]() { QDesktopServices::openUrl(url); });
+        connect(this, &QAbstractButton::clicked, this, [run]() { run(); });
+    }
+
+    /// A quiet value after the text, such as a version
+    void setValue(const QString &value)
+    {
+        m_value = value;
+        updateGeometry();
+        update();
     }
 
     QSize sizeHint() const override
     {
-        return QSize(fontMetrics().horizontalAdvance(text()) + 14 + 2 * KisModernStyle::space2 + KisModernStyle::space1,
+        const int value = m_value.isEmpty() ? 0 : fontMetrics().horizontalAdvance(QLatin1Char(' ') + m_value);
+        return QSize(fontMetrics().horizontalAdvance(text()) + value + 14 + 2 * KisModernStyle::space2 + KisModernStyle::space1,
                      fontMetrics().height() + 2 * KisModernStyle::space1);
     }
 
@@ -2078,6 +2121,16 @@ protected:
             if (m_mark == Home) {
                 // the app's own icon
                 qApp->windowIcon().paint(&painter, mark.adjusted(-1, -1, 1, 1).toRect());
+            } else if (m_mark == Update) {
+                // an arrow coming round
+                const QRectF ring = mark.adjusted(1.5, 1.5, -1.5, -1.5);
+                QPainterPath path;
+                path.arcMoveTo(ring, 60);
+                path.arcTo(ring, 60, 300);
+                const QPointF end = path.currentPosition();
+                painter.drawPath(path);
+                painter.drawLine(end, end + QPointF(0, -3.2));
+                painter.drawLine(end, end + QPointF(-3.2, 0.4));
             } else {
                 // a speech bubble
                 const QRectF bubble = mark.adjusted(0.5, 1, -0.5, -3);
@@ -2089,11 +2142,17 @@ protected:
             }
         }
         painter.setPen(shown);
-        painter.drawText(QRectF(mark.right() + KisModernStyle::space1, 0, width(), height()), Qt::AlignLeft | Qt::AlignVCenter, text());
+        const QRectF text(mark.right() + KisModernStyle::space1, 0, width(), height());
+        painter.drawText(text, Qt::AlignLeft | Qt::AlignVCenter, this->text());
+        if (!m_value.isEmpty()) {
+            painter.setPen(KisModernStyle::secondaryInk(ink));
+            painter.drawText(text.adjusted(fontMetrics().horizontalAdvance(this->text() + QLatin1Char(' ')), 0, 0, 0), Qt::AlignLeft | Qt::AlignVCenter, m_value);
+        }
     }
 
 private:
     Mark m_mark;
+    QString m_value;
 };
 
 /// A new image of \p pixels at \p pixelsPerPoint, one layer, otherwise as the last image made
@@ -2237,7 +2296,29 @@ KisStudioStartPage::KisStudioStartPage(KisMainWindow *mainWindow)
     foot->addStretch(1);
     foot->addWidget(new FootLink(i18nc("@action:button on the start page", "Support Krita"), FootLink::Heart,
                                  QUrl(QStringLiteral("https://krita.org/support-us/donations")), this));
-    foot->addWidget(new FootLink(KisProfile::name(), FootLink::Home, QUrl(KisProfile::homepage()), this));
+    auto *home = new FootLink(KisProfile::name(), FootLink::Home, QUrl(KisProfile::homepage()), this);
+    home->setValue(KisSkissaUpdater::version());
+    foot->addWidget(home);
+    // an update on its way, and then ready to restart into
+    if (KisMainWindow *window = d->mainWindow) {
+        QAction *check = window->actionCollection()->action(QStringLiteral("skissa_check_updates"));
+        QAction *ready = window->actionCollection()->action(QStringLiteral("skissa_restart_to_update"));
+        if (check && ready) {
+            auto *update = new FootLink(QString(), FootLink::Update, [ready]() { ready->trigger(); }, this);
+            auto show = [update, check, ready]() {
+                const bool busy = check->property("skissaBusy").toBool();
+                update->setText(ready->isVisible() ? ready->text() : check->text());
+                update->setEnabled(ready->isVisible());
+                update->setCursor(ready->isVisible() ? Qt::PointingHandCursor : Qt::ArrowCursor);
+                update->setVisible(ready->isVisible() || busy);
+                update->updateGeometry();
+            };
+            connect(check, &QAction::changed, update, show);
+            connect(ready, &QAction::changed, update, show);
+            show();
+            foot->addWidget(update);
+        }
+    }
     foot->addWidget(new FootLink(i18nc("@action:button on the start page", "Report a problem"), FootLink::Issue,
                                  QUrl(KisProfile::homepage() + QStringLiteral("/issues")), this));
     foot->addStretch(1);
@@ -2308,7 +2389,7 @@ QWidget *KisStudioStartPage::createNewTiles(KisMainWindow *mainWindow, QWidget *
         if (!clipboard) return;
         const QImage image = QGuiApplication::clipboard() ? QGuiApplication::clipboard()->image() : QImage();
         clipboard->setVisible(!image.isNull());
-        if (!image.isNull()) clipboard->setPicture(image.scaled(240, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation), image.size());
+        if (!image.isNull()) clipboard->setPicture(KisLanczos::scaled(image, 240, 240, Qt::KeepAspectRatio), image.size());
     };
     // the clipboard changes with every copy, in other apps too: its picture is made only when the tiles are seen
     auto stale = std::make_shared<bool>(true);

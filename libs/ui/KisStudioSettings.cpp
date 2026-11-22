@@ -94,6 +94,7 @@
 
 #include <cmath>
 #include <type_traits>
+#include <KisLanczos.h>
 
 namespace {
 
@@ -1001,7 +1002,7 @@ void paintSurround(QPainter &painter, const QRectF &r, const QColor &around, boo
     painter.fillRect(r, around);
     const QRectF image(r.left() + r.width() * 0.22, r.top() + r.height() * 0.2, r.width() * 0.56, r.height() * 0.6);
     if (glow) {
-        const QImage spill = sample.scaled(6, 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        const QImage spill = KisLanczos::scaled(sample, 6, 4);
         painter.save();
         painter.setOpacity(0.55);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
@@ -2112,7 +2113,7 @@ protected:
         mime->setData(cardMime, m_def.id.toUtf8());
         drag->setMimeData(mime);
         QPixmap picture = grab(QRect(0, 0, width(), qMin(height(), 120)));
-        if (picture.width() > 240) picture = picture.scaledToWidth(240, Qt::SmoothTransformation);
+        if (picture.width() > 240) picture = QPixmap::fromImage(KisLanczos::scaledToWidth(picture.toImage(), 240));
         drag->setPixmap(picture);
         drag->setHotSpot(QPoint(16, 12));
         const Busy busy;

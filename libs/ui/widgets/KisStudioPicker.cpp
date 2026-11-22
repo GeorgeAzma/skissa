@@ -48,6 +48,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <KisLanczos.h>
 
 namespace {
 
@@ -1037,14 +1038,14 @@ QImage KisStudioPicker::samplePicture(const QSize &size)
     static const QImage art = []() {
         QImage image(QStringLiteral(":/splash/0.png"));
         if (image.isNull()) image.load(QStringLiteral(":/splash/hd.jpg"));
-        return image.isNull() ? image : image.scaledToWidth(640, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32);
+        return image.isNull() ? image : KisLanczos::scaledToWidth(image, 640).convertToFormat(QImage::Format_ARGB32);
     }();
     if (art.isNull()) {
         QImage plain(size, QImage::Format_ARGB32);
         plain.fill(QColor(128, 128, 128));
         return plain;
     }
-    const QImage covering = art.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+    const QImage covering = KisLanczos::scaled(art, size, Qt::KeepAspectRatioByExpanding);
     return covering.copy((covering.width() - size.width()) / 2, (covering.height() - size.height()) / 2, size.width(), size.height());
 }
 

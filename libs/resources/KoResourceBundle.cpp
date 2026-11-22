@@ -35,6 +35,7 @@
 
 #include <kis_debug.h>
 #include <KisGlobalResourcesInterface.h>
+#include <KisLanczos.h>
 
 
 KoResourceBundle::KoResourceBundle(QString const& fileName)
@@ -279,7 +280,7 @@ void KoResourceBundle::setThumbnail(QImage image)
 {
     if (!image.isNull()) {
         m_thumbnail = image;
-        m_thumbnail = m_thumbnail.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        m_thumbnail = KisLanczos::scaled(m_thumbnail, 256, 256, Qt::KeepAspectRatio);
     }
     else {
         m_thumbnail = QImage(256, 256, QImage::Format_ARGB32);

@@ -52,6 +52,7 @@
 #include <kis_preset_live_preview_view.h>
 
 #include <lager/state.hpp>
+#include <KisLanczos.h>
 
 struct KisPaintOpPresetsEditor::Private
 {
@@ -545,7 +546,7 @@ void KisPaintOpPresetsEditor::resourceSelected(KoResourceSP resource)
 
     QPixmap thumbnail;
     if (!thumbImage.isNull()) {
-        thumbnail = QPixmap::fromImage(thumbImage.scaled(thumbSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        thumbnail = QPixmap::fromImage(KisLanczos::scaled(thumbImage, thumbSize, Qt::KeepAspectRatio));
     } else {
         thumbnail = QPixmap();
     }

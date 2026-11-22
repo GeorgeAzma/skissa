@@ -101,6 +101,7 @@
 #include <KisStaticInitializer.h>
 #include "KisImageGlobalSelectionManagementInterface.h"
 #include "kis_hdr_metadata.h"
+#include <KisLanczos.h>
 
 
 // #define SANITY_CHECKS
@@ -1805,7 +1806,7 @@ QImage KisImage::convertToQImage(const QSize& scaledImageSize, const KoColorProf
         // convertToQImage uses KisFixedPoint values, which means that the scale cannot be smaller than 1/2^8
         // BUG:432182
         // FIXME: would be best to extend KisFixedPoint instead
-        return convertToQImage(size(), profile).scaled(scaledImageSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        return KisLanczos::scaled(convertToQImage(size(), profile), scaledImageSize, Qt::KeepAspectRatio);
     }
 
     KoDummyUpdaterHolder updaterHolder;

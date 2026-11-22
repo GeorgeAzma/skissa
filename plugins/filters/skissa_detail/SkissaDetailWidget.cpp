@@ -59,6 +59,7 @@
 #include "SkissaPaint.h"
 #include "SkissaRadial.h"
 #include "SkissaShape.h"
+#include <KisLanczos.h>
 
 using namespace SkissaDetail;
 
@@ -1653,7 +1654,7 @@ void SkissaFewerWidget::refreshTiles()
     if (d->tileWhole.isNull() || d->tileCover != cover) {
         d->tileCover = cover;
         const QSize size = d->whole.size().scaled(cover, Qt::KeepAspectRatioByExpanding);
-        d->tileWhole = size.width() < d->whole.width() ? d->whole.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation) : d->whole;
+        d->tileWhole = size.width() < d->whole.width() ? KisLanczos::scaled(d->whole, size) : d->whole;
     }
     QVector<KisStudioChips::Chip> chips;
     Q_FOREACH (Source source, d->shownSources) {
@@ -1878,7 +1879,7 @@ struct SkissaInkWidget::Private {
                 const QPoint busiest = KisEffectPanels::busiestPoint(original, bounds);
                 const QSize read = whole / drawingTileScale;
                 const QRect crop(busiest - QPoint(read.width() / 2, read.height() / 2), read);
-                base = original->convertToQImage(nullptr, crop).scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                base = KisLanczos::scaled(original->convertToQImage(nullptr, crop), whole);
                 corner = QPoint(margin, margin);
                 baseLightness = layerLightness;
             }

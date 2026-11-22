@@ -42,6 +42,7 @@
 #include <KisLazySharedCacheStorage.h>
 #include <KisOptimizedBrushOutline.h>
 #include <KisStaticInitializer.h>
+#include <KisLanczos.h>
 
 
 KIS_DECLARE_STATIC_INITIALIZER {
@@ -408,7 +409,7 @@ void KisBrush::setBrushTipImage(const QImage& image)
 
     if (!image.isNull()) {
         if (image.width() > 128 || image.height() > 128) {
-            KoResource::setImage(image.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            KoResource::setImage(KisLanczos::scaled(image, 128, 128, Qt::KeepAspectRatio));
         }
         else {
             KoResource::setImage(image);

@@ -20,6 +20,7 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include <KisLanczos.h>
 
 namespace {
 
@@ -98,7 +99,7 @@ struct Looks {
             return;
         }
         const QImage content = trimmed(image);
-        const QImage small = content.width() > keptWidth ? content.scaledToWidth(keptWidth, Qt::SmoothTransformation) : content;
+        const QImage small = content.width() > keptWidth ? KisLanczos::scaledToWidth(content, keptWidth) : content;
         images.insert(id, small);
         taken.insert(id, QDateTime::currentMSecsSinceEpoch());
         // save off the GUI thread, since this runs while a panel hides

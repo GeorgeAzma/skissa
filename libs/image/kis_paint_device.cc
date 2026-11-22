@@ -1790,7 +1790,7 @@ KisPaintDeviceSP KisPaintDevice::createThumbnailDeviceOversampled(qint32 w, qint
     if (oversample != 1. && oversampleAdjusted != 1.) {
         KoDummyUpdaterHolder updaterHolder;
         KisTransformWorker worker(thumbnail, 1 / oversampleAdjusted, 1 / oversampleAdjusted, 0.0, 0.0, 0.0, 0.0, 0.0,
-                                  updaterHolder.updater(), KisFilterStrategyRegistry::instance()->value("Bilinear"));
+                                  updaterHolder.updater(), KisFilterStrategyRegistry::instance()->value("Lanczos3"));
         worker.run();
     }
     return thumbnail;

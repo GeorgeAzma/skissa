@@ -33,6 +33,7 @@
 #include "kis_layer.h"
 #include "kis_node.h"
 #include "kis_paint_device.h"
+#include <KisLanczos.h>
 
 namespace {
 
@@ -229,7 +230,7 @@ QImage cropTo(QImage image, const QSize &full, const QSize &size)
     }
     image = image.convertToFormat(QImage::Format_ARGB32);
     if (image.size() != full) {
-        image = image.scaled(full, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        image = KisLanczos::scaled(image, full);
     }
     return image.copy((full.width() - size.width()) / 2, (full.height() - size.height()) / 2, size.width(), size.height());
 }

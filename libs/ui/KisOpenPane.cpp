@@ -42,6 +42,7 @@
 #include <kconfiggroup.h>
 
 #include <kis_icon.h>
+#include <KisLanczos.h>
 
 class KoSectionListItem : public QTreeWidgetItem
 {
@@ -339,7 +340,7 @@ QTreeWidgetItem* KisOpenPane::addPane(const QString &title, const QString &untra
         QImage image = icon.toImage();
 
         if (!image.isNull() && ((image.width() > iconSize) || (image.height() > iconSize))) {
-            image = image.scaled(iconSize, iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            image = KisLanczos::scaled(image, iconSize, iconSize, Qt::KeepAspectRatio);
         }
 
         image.convertTo(QImage::Format_ARGB32);

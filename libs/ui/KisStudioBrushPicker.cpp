@@ -36,6 +36,7 @@
 #include "kis_paintop_preset.h"
 #include "widgets/KisPresetStrokeThumbnails.h"
 #include <KisModernStyle.h>
+#include <KisLanczos.h>
 
 /**
  * The brushes the tiles show, and the ink their strokes are painted in.
@@ -280,7 +281,7 @@ QImage strokeAt(const QImage &stroke, const QSize &size)
         }
         return *it;
     }
-    const QImage scaled = stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    const QImage scaled = KisLanczos::scaled(stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke)), size);
     while (bytes > (16 << 20) && !used.isEmpty()) bytes -= made.take(used.takeFirst()).sizeInBytes();
     made.insert(key, scaled);
     used.append(key);

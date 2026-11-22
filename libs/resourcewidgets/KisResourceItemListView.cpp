@@ -18,6 +18,7 @@
 
 #include "KisIconToolTip.h"
 #include <KisResourceModel.h>
+#include <KisLanczos.h>
 
 
 struct  Q_DECL_HIDDEN KisResourceItemListView::Private
@@ -213,7 +214,7 @@ void KisResourceItemListView::startDrag(Qt::DropActions)
     mime->setData(m_d->dragMimeType, (m_d->dragPrefix + name).toUtf8());
     drag->setMimeData(mime);
     const QImage picture = dragged.data(Qt::UserRole + KisAbstractResourceModel::Thumbnail).value<QImage>();
-    if (!picture.isNull()) drag->setPixmap(QPixmap::fromImage(picture.scaled(40, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    if (!picture.isNull()) drag->setPixmap(QPixmap::fromImage(KisLanczos::scaled(picture, 40, 40, Qt::KeepAspectRatio)));
     drag->exec(Qt::CopyAction);
     drag->deleteLater();
 }

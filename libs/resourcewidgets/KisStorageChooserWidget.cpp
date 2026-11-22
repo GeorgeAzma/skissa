@@ -20,6 +20,7 @@
 #include "KisStorageModel.h"
 #include "KisStorageFilterProxyModel.h"
 #include <KoIcon.h>
+#include <KisLanczos.h>
 
 KisStorageChooserDelegate::KisStorageChooserDelegate(QObject *parent)
     : QAbstractItemDelegate(parent)
@@ -70,7 +71,7 @@ void KisStorageChooserDelegate::paint(QPainter *painter, const QStyleOptionViewI
 
     } else {
         if (!thumbnail.isNull()) {
-            thumbnail = thumbnail.scaled(option.decorationSize*devicePixelRatioF, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            thumbnail = KisLanczos::scaled(thumbnail, option.decorationSize*devicePixelRatioF, Qt::KeepAspectRatio);
         }
         thumbnail.setDevicePixelRatio(devicePixelRatioF);
     }

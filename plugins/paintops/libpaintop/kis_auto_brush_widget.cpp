@@ -28,6 +28,7 @@
 #include <kis_auto_brush_factory.h>
 #include <KisGlobalResourcesInterface.h>
 #include <KisAutoBrushModel.h>
+#include <KisLanczos.h>
 
 
 struct KisAutoBrushWidget::Private {
@@ -207,7 +208,7 @@ void KisAutoBrushWidget::slotUpdateBrushPreview()
         coeff = bPh / (double)pi.height();
     }
     if (coeff < 1.0) {
-        pi = pi.scaled((int)(coeff * pi.width()) , (int)(coeff * pi.height()),  Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        pi = KisLanczos::scaled(pi, (int)(coeff * pi.width()), (int)(coeff * pi.height()));
     }
 
     QPixmap p = QPixmap::fromImage(pi);

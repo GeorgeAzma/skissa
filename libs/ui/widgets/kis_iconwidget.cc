@@ -12,6 +12,7 @@
 #include <QStylePainter>
 #include <QStyleOptionToolButton>
 #include <KoResource.h>
+#include <KisLanczos.h>
 
 struct KisIconWidget::Private
 {
@@ -106,7 +107,7 @@ void KisIconWidget::paintEvent(QPaintEvent *event)
                 }
             }
         } else {
-            img = m_d->thumbnail.scaled(iconWidth*devicePixelRatioF(), iconHeight*devicePixelRatioF(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            img = KisLanczos::scaled(m_d->thumbnail, iconWidth*devicePixelRatioF(), iconHeight*devicePixelRatioF(), Qt::KeepAspectRatio);
         }
         p.drawImage(QRect(0, 0, iconWidth, iconHeight), img);
     };
@@ -124,7 +125,7 @@ void KisIconWidget::paintEvent(QPaintEvent *event)
                 }
             }
         } else {
-            img = m_d->resource->image().scaled(iconWidth*devicePixelRatioF(), iconHeight*devicePixelRatioF(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            img = KisLanczos::scaled(m_d->resource->image(), iconWidth*devicePixelRatioF(), iconHeight*devicePixelRatioF(), Qt::KeepAspectRatio);
         }
         p.drawImage(QRect(0, 0, iconWidth, iconHeight), img);
     };

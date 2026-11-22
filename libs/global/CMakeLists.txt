@@ -10,6 +10,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config-memory-leak-tracker.h.cmake ${
 
 set(kritaglobal_LIB_SRCS
     kis_assert.cpp
+    KisLanczos.cpp
     kis_debug.cpp
     kis_algebra_2d.cpp
     kis_memory_leak_tracker.cpp

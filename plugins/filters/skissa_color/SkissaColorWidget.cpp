@@ -37,6 +37,7 @@
 
 #include "KoCompositeOpOklch.h"
 #include "SkissaColor.h"
+#include <KisLanczos.h>
 
 using namespace SkissaColor;
 
@@ -545,7 +546,7 @@ SkissaColorWidget::SkissaColorWidget(QWidget *parent, KisPaintDeviceSP dev)
         const QSize tile(160, 96);
         const QImage whole = d->original->createThumbnail(tile.width() * 2, tile.height() * 2, Qt::KeepAspectRatio);
         if (!whole.isNull()) {
-            const QImage covering = whole.scaled(tile, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            const QImage covering = KisLanczos::scaled(whole, tile, Qt::KeepAspectRatioByExpanding);
             d->tileBase = covering.copy((covering.width() - tile.width()) / 2, (covering.height() - tile.height()) / 2, tile.width(), tile.height());
         }
     }

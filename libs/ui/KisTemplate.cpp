@@ -12,6 +12,7 @@
 #include <kis_debug.h>
 #include <KoResourcePaths.h>
 #include <kis_icon.h>
+#include <KisLanczos.h>
 
 
 KisTemplate::KisTemplate(const QString &name, const QString &description, const QString &file,
@@ -45,7 +46,7 @@ const QPixmap &KisTemplate::loadPicture()
         }
         const int maxHeightWidth = 128; // ### TODO: some people would surely like to have 128x128
         if (img.width() > maxHeightWidth || img.height() > maxHeightWidth) {
-            img = img.scaled(maxHeightWidth, maxHeightWidth, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            img = KisLanczos::scaled(img, maxHeightWidth, maxHeightWidth, Qt::KeepAspectRatio);
         }
         m_pixmap = QPixmap::fromImage(img);
         return m_pixmap;

@@ -47,6 +47,7 @@
 #include <QPointer>
 #include <kis_action.h>
 #include <kis_action_manager.h>
+#include <KisLanczos.h>
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 #define QT6_SHIFT_SELECTION_WORKAROUND
@@ -590,7 +591,7 @@ QPixmap NodeView::createDragPixmap() const
     int y = 0;
     Q_FOREACH (const QModelIndex &selectedIndex, selectedIndexes) {
         const QImage img = selectedIndex.data(int(KisNodeModel::BeginThumbnailRole) + size).value<QImage>();
-        painter.drawPixmap(x, y, QPixmap::fromImage(img.scaled(QSize(size, size), Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+        painter.drawPixmap(x, y, QPixmap::fromImage(KisLanczos::scaled(img, QSize(size, size), Qt::KeepAspectRatio)));
 
         x += size + 1;
         if (x >= dragPixmap.width()) {

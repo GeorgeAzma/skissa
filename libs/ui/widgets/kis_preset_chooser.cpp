@@ -55,6 +55,7 @@
 
 #include <functional>
 #include "KisSettingsRegistry.h"
+#include <KisLanczos.h>
 
 
 /// The resource item delegate for rendering the resource preview
@@ -140,7 +141,7 @@ QImage underName(const QImage &stroke, const QSize &size, int nameEnd, qreal rat
         }
         return *it;
     }
-    QImage faded = stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke)).scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage faded = KisLanczos::scaled(stroke.copy(KisPresetStrokeThumbnails::paintedPart(stroke)), size).convertToFormat(QImage::Format_ARGB32_Premultiplied);
     if (nameEnd > 0) {
         QPainter painter(&faded);
         painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);

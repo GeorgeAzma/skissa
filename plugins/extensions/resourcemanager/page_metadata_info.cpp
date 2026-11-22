@@ -12,6 +12,7 @@
 #include <KoFileDialog.h>
 #include <KoResource.h>
 #include "KisResourceStorage.h"
+#include <KisLanczos.h>
 
 
 PageMetadataInfo::PageMetadataInfo(KoResourceBundleSP bundle, QWidget *parent) :
@@ -32,7 +33,7 @@ PageMetadataInfo::PageMetadataInfo(KoResourceBundleSP bundle, QWidget *parent) :
         m_ui->editBundleName->setText(fileName);
         m_ui->editDescription->document()->setPlainText(m_bundle->metaData(KisResourceStorage::s_meta_description, "New Bundle"));
         QImage img = m_bundle->image();
-        img = img.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        img = KisLanczos::scaled(img, 256, 256, Qt::KeepAspectRatio);
         m_thumbnail = img;
         m_ui->lblPreview->setPixmap(QPixmap::fromImage(img));
     } else {
@@ -47,7 +48,7 @@ PageMetadataInfo::PageMetadataInfo(KoResourceBundleSP bundle, QWidget *parent) :
         m_previewImage = cfg.readEntry<QString>("BundleImage", "");
         if (!m_previewImage.isEmpty()) {
             QImage img(m_previewImage);
-            img = img.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            img = KisLanczos::scaled(img, 256, 256, Qt::KeepAspectRatio);
             m_ui->lblPreview->setPixmap(QPixmap::fromImage(img));
         }
     }
@@ -109,7 +110,7 @@ void PageMetadataInfo::getPreviewImage()
     dialog.setMimeTypeFilters(KisImportExportManager::supportedMimeTypes(KisImportExportManager::Import));
     m_previewImage = dialog.filename();
     QImage img(m_previewImage);
-    img = img.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    img = KisLanczos::scaled(img, 256, 256, Qt::KeepAspectRatio);
     m_ui->lblPreview->setPixmap(QPixmap::fromImage(img));
     m_thumbnail = img;
 }

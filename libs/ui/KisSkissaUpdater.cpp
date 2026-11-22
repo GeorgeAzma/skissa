@@ -414,7 +414,7 @@ private:
         state = found.isEmpty() ? Idle : Ready;
     }
 
-    /// How far the download is, on Check for updates and, once asked for, as the message over the canvas
+    /// How far the download is, on Update Skissa and, once asked for, as the message over the canvas
     void progress()
     {
         const int percent = total > 0 ? int(received * 100 / total) : 0;
@@ -422,18 +422,22 @@ private:
         shownPercent = percent;
         const QString text = i18nc("@action, %1 a version, %2 a percentage", "Downloading Skissa %1 · %2%", found, percent);
         Q_FOREACH (QPointer<QAction> action, checkActions) {
-            if (action) action->setText(text);
+            if (!action) continue;
+            action->setProperty("skissaBusy", true);
+            action->setText(text);
         }
         if (telling) tell(text);
     }
 
-    /// Check for updates says so again once the download is over, either way
+    /// Update Skissa says so again once the download is over, either way
     void settled()
     {
         telling = false;
         shownPercent = -1;
         Q_FOREACH (QPointer<QAction> action, checkActions) {
-            if (action) action->setText(i18nc("@action", "Check for updates"));
+            if (!action) continue;
+            action->setProperty("skissaBusy", false);
+            action->setText(i18nc("@action", "Update Skissa"));
         }
     }
 
@@ -660,7 +664,7 @@ void KisSkissaUpdater::addActions(KisMainWindow *window)
         QObject::connect(action, &QAction::triggered, window, run);
         return action;
     };
-    QAction *check = add(QStringLiteral("skissa_check_updates"), i18nc("@action", "Check for updates"), [updater]() {
+    QAction *check = add(QStringLiteral("skissa_check_updates"), i18nc("@action", "Update Skissa"), [updater]() {
         updater->look(true);
     });
     check->setVisible(canUpdate());

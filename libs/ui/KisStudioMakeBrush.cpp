@@ -43,6 +43,7 @@
 
 #include "KisStudioBrushEditor.h"
 #include <KoToolManager.h>
+#include <KisLanczos.h>
 
 namespace {
 
@@ -247,7 +248,7 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
         picture = picture.copy(paint);
     }
     if (qMax(picture.width(), picture.height()) > largestTip) {
-        picture = picture.scaled(largestTip, largestTip, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        picture = KisLanczos::scaled(picture, largestTip, largestTip, Qt::KeepAspectRatio);
     }
 
     const QFileInfo file(view->document() ? view->document()->path() : QString());
@@ -296,7 +297,7 @@ void KisStudioMakeBrush::fromSelection(KisViewManager *view)
     preset->setResourceCacheInterface(KoResourceCacheInterfaceSP());
     preset->setName(name);
     preset->setFilename(fileNameOf(name) + preset->defaultFileExtension());
-    preset->setImage(picture.scaled(200, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    preset->setImage(KisLanczos::scaled(picture, 200, 200, Qt::KeepAspectRatio));
     preset->setValid(true);
     preset->setStorageLocation(QString());
     preset->setDirty(false);

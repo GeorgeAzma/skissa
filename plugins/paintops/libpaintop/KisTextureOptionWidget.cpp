@@ -27,6 +27,7 @@
 #include <widgets/KisStudioValueRow.h>
 
 #include <memory>
+#include <KisLanczos.h>
 
 namespace {
 const QString recentPatternsKey = QStringLiteral("StudioRecentPatterns");
@@ -35,7 +36,7 @@ const QString recentPatternsKey = QStringLiteral("StudioRecentPatterns");
 void paintPattern(QPainter &painter, const QRectF &box, const QImage &pattern)
 {
     if (pattern.isNull()) return;
-    painter.fillRect(box, QBrush(pattern.scaled(qMin(pattern.width(), 64), qMin(pattern.height(), 64), Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    painter.fillRect(box, QBrush(KisLanczos::scaled(pattern, qMin(pattern.width(), 64), qMin(pattern.height(), 64), Qt::KeepAspectRatio)));
 }
 
 void rememberPattern(const QString &md5)

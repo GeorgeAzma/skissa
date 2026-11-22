@@ -45,6 +45,7 @@
 #include "kis_node.h"
 #include "kis_paint_device.h"
 #include <kis_selection.h>
+#include <KisLanczos.h>
 
 /// Tile thumbnails, rendered in worker threads from a small copy of the image
 struct KisStudioEffectThumbnails {
@@ -202,7 +203,7 @@ QImage basePicture(KisViewManager *view, const QSize &size, int *levelOfDetail)
     if (image && image->projection()) {
         const QImage whole = image->projection()->createThumbnail(size.width() * 2, size.height() * 2, Qt::KeepAspectRatio);
         if (!whole.isNull()) {
-            const QImage covering = whole.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            const QImage covering = KisLanczos::scaled(whole, size, Qt::KeepAspectRatioByExpanding);
             // a blur of 20 px on the image is one of about 1 px on a thumbnail 20 times smaller
             const qreal scale = qreal(covering.width()) / qMax(1, image->width());
             *levelOfDetail = qBound(0, qRound(std::log2(1.0 / qMax(scale, 0.0001))), 10);

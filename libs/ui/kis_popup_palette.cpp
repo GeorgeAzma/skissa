@@ -33,6 +33,7 @@
 #include "KisMouseClickEater.h"
 #include <KisPlatformPluginInterfaceFactory.h>
 #include <KisFrameRate.h>
+#include <KisLanczos.h>
 
 static const int WIDGET_MARGIN = 16;
 static const qreal BORDER_WIDTH = 3.0;
@@ -679,7 +680,7 @@ void KisPopupPalette::paintEvent(QPaintEvent* e)
 
             QRect bounds = presetPath.boundingRect().toAlignedRect();
             if (!images.at(pos).isNull()) {
-                QImage previewHighDPI = images.at(pos).scaled(bounds.size()*devicePixelRatioF() , Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+                QImage previewHighDPI = KisLanczos::scaled(images.at(pos), bounds.size()*devicePixelRatioF(), Qt::KeepAspectRatioByExpanding);
                 previewHighDPI.setDevicePixelRatio(devicePixelRatioF());
                 painter.drawImage(bounds.topLeft(), previewHighDPI);
             }

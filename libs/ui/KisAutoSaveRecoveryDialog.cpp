@@ -28,6 +28,7 @@
 #include <QPainter>
 #include <QCheckBox>
 #include <kis_debug.h>
+#include <KisLanczos.h>
 
 
 struct FileItem {
@@ -216,7 +217,7 @@ KisAutoSaveRecoveryDialog::KisAutoSaveRecoveryDialog(const QStringList &filename
                 store->close();
                 QImage img;
                 img.loadFromData(bytes);
-                file->thumbnail = img.scaled(QSize(200,200), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                file->thumbnail = KisLanczos::scaled(img, QSize(200,200), Qt::KeepAspectRatio);
             }
 
             delete store;

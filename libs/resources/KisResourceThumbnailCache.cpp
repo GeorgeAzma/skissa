@@ -14,6 +14,7 @@
 #include <KisResourceModel.h>
 
 #include <kis_global.h>
+#include <KisLanczos.h>
 
 Q_GLOBAL_STATIC(KisResourceThumbnailCache, s_instance);
 
@@ -194,7 +195,9 @@ QImage KisResourceThumbnailCache::getImage(const QModelIndex &index,
     }
     // if the size that the has been demanded, we will then cache the size and then pass it.
     if (!result.isNull() && param.size.isValid()) {
-        const QImage scaledImage = result.scaled(param.size, param.aspectRatioMode, param.transformationMode);
+        const QImage scaledImage = param.transformationMode == Qt::SmoothTransformation
+            ? KisLanczos::scaled(result, param.size, param.aspectRatioMode)
+            : result.scaled(param.size, param.aspectRatioMode, param.transformationMode);
         if (m_d->scaledThumbnailCache.contains(key)) {
             m_d->scaledThumbnailCache[key].insert(param, scaledImage);
         } else {

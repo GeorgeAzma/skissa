@@ -9,6 +9,7 @@
 #include <resources/KoAbstractGradient.h>
 #include <resources/KoColorSet.h>
 #include <QPainter>
+#include <KisLanczos.h>
 
 KoResourceItemDelegate::KoResourceItemDelegate( QObject * parent )
     : QAbstractItemDelegate( parent ), m_checkerPainter( 4 )
@@ -64,7 +65,7 @@ void KoResourceItemDelegate::paint( QPainter * painter, const QStyleOptionViewIt
 
             int thumbW = static_cast<int>( imageSize.width() * scale );
             int thumbH = static_cast<int>( imageSize.height() * scale );
-            thumbnail = thumbnail.scaled( thumbW, thumbH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation );
+            thumbnail = KisLanczos::scaled(thumbnail, thumbW, thumbH);
         }
         painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
         if (thumbnail.hasAlphaChannel()) {
