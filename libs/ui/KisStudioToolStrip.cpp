@@ -1082,8 +1082,11 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
             return false;
         };
         // lit while one of its ways is chosen, showing the way it makes
-        auto show = [button, menu, kind, target, inUse, rememberedWay]() {
-            if (!target) return;
+        // picking a kind can remake the bar (the tool's options change): the button may be gone by the time it is shown
+        QPointer<QToolButton> guarded = button;
+        auto show = [guarded, menu, kind, target, inUse, rememberedWay]() {
+            if (!target || !guarded) return;
+            QToolButton *button = guarded;
             const QString shown = inUse() ? target->currentData().toString() : rememberedWay(kind);
             QString wayName;
             Q_FOREACH (QAction *action, menu->actions()) {
@@ -1102,13 +1105,13 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
             }
             show();
         });
-        // a click picks the kind; on the kind in use, its ways
+        // a click picks the kind; on the kind in use, its ways, opened without waiting: picking one may remake the bar
         connect(button, &QToolButton::clicked, this, [button, menu, kind, target, show, inUse, rememberedWay]() {
             if (!target) return;
             if (!inUse()) {
                 target->setCurrentIndex(target->findData(rememberedWay(kind)));
             } else if (kind.ways.size() > 1) {
-                menu->exec(button->mapToGlobal(QPoint(0, button->height())));
+                menu->popup(button->mapToGlobal(QPoint(0, button->height())));
             }
             show();
         });
