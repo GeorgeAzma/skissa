@@ -655,9 +655,8 @@ void KisStudioStrokePage::rebuild()
 
     if (d->preview) d->preview->update();
     // a row's own change keeps the rows, so the drag goes on
-    const bool linked = !options || options->smoothnessDistanceKeepAspectRatio();
     // all it shows but the values of the rows, which follow without a rebuild (one may be dragged)
-    QString shown = KisStudioTools::activeToolId() + QStringLiteral(" %1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
+    QString shown = KisStudioTools::activeToolId() + QStringLiteral(" %1 %2 %3 %4").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel);
     if (options) {
         shown += QStringLiteral(" %1 %2 %3 %4 %5 %6").arg(options->tailAggressiveness()).arg(options->pressureStrength()).arg(options->stabilizeSensors())
                      .arg(options->useScalableDistance()).arg(options->finishStabilizedCurve()).arg(quintptr(options.data()));
@@ -672,7 +671,6 @@ void KisStudioStrokePage::rebuild()
     if (d->changing || shown == d->shown) {
         Q_FOREACH (KisStudioValueRow *row, findChildren<KisStudioValueRow *>()) {
             if (options && row->property("amount").toBool()) row->setValue(options->smoothnessDistanceMin());
-            if (options && row->property("slow").toBool()) row->setValue(options->smoothnessDistanceMax());
             if (options && row->property("delay").toBool()) row->setValue(options->useDelayDistance() ? options->delayDistance() : 0);
         }
         return;
@@ -742,60 +740,20 @@ void KisStudioStrokePage::rebuild()
         d->layout->addWidget(kinds);
 
         if (smooths(type)) {
-            // one strength, or one for slow and one for fast strokes once unlinked
+            // one strength; a slow stroke smoothed more than a fast one only by the proportion Krita's two distances had
             KisStudioValueRow::Range strength;
             strength.minimum = minDistance;
             strength.maximum = maxDistance;
             strength.size = true;
-            auto *strengths = new QWidget(this);
-            auto *strengthsLayout = new QHBoxLayout(strengths);
-            strengthsLayout->setContentsMargins(0, 0, 0, 0);
-            strengthsLayout->setSpacing(KisModernStyle::hairline);
-            auto *rows = new QVBoxLayout();
-            rows->setSpacing(KisModernStyle::space1);
-            strengthsLayout->addLayout(rows, 1);
-            auto strengthRow = [&](const QString &name, qreal value) {
-                auto *row = new KisStudioValueRow(name, strengths);
-                row->setRange(strength);
-                row->setValue(value);
-                row->setDefaultValue(KisConfig(true).lineSmoothingDistanceMin(true));
-                rows->addWidget(row);
-                return row;
-            };
-            if (linked) {
-                auto *amount = strengthRow(i18nc("how much a line is smoothed", "Strength"), options->smoothnessDistanceMin());
-                amount->setProperty("amount", true);
-                connect(amount, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
-                    change([value](KisSmoothingOptions &options) { setDistance(options, value); });
-                });
-            } else {
-                // Krita's distances at the slowest and the fastest strokes
-                auto *slow = strengthRow(i18nc("line smoothing for slow strokes", "Slow strokes"), options->smoothnessDistanceMax());
-                slow->setProperty("slow", true);
-                connect(slow, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
-                    change([value](KisSmoothingOptions &options) { options.setSmoothnessDistanceMax(value); });
-                });
-                auto *fast = strengthRow(i18nc("line smoothing for fast strokes", "Fast strokes"), options->smoothnessDistanceMin());
-                fast->setProperty("amount", true);
-                connect(fast, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
-                    change([value](KisSmoothingOptions &options) { options.setSmoothnessDistanceMin(value); });
-                });
-            }
-            auto *link = new QToolButton(strengths);
-            link->setAutoRaise(true);
-            link->setIcon(KisIconUtils::loadIcon(linked ? QStringLiteral("studio_link") : QStringLiteral("studio_unlink")));
-            link->setToolTip(linked ? i18nc("@info:tooltip", "Same for slow and fast strokes")
-                                    : i18nc("@info:tooltip", "Separate for slow and fast strokes"));
-            connect(link, &QToolButton::clicked, this, [mainWindow, linked]() {
-                KisSmoothingOptionsSP options = KisStudioSmoothing::options(mainWindow);
-                if (!options) return;
-                options->setSmoothnessDistanceKeepAspectRatio(!linked);
-                // linked again, they are one value
-                if (!linked) options->setSmoothnessDistanceMax(options->smoothnessDistanceMin());
-                KisStudioSmoothing::changed(mainWindow);
+            auto *amount = new KisStudioValueRow(i18nc("how much a line is smoothed", "Strength"), this);
+            amount->setRange(strength);
+            amount->setValue(options->smoothnessDistanceMin());
+            amount->setDefaultValue(KisConfig(true).lineSmoothingDistanceMin(true));
+            amount->setProperty("amount", true);
+            connect(amount, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
+                change([value](KisSmoothingOptions &options) { setDistance(options, value); });
             });
-            strengthsLayout->addWidget(link, 0, Qt::AlignVCenter);
-            d->layout->addWidget(strengths);
+            d->layout->addWidget(amount);
         }
         if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
             KisStudioValueRow::Range percent;
