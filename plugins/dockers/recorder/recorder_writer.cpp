@@ -15,6 +15,8 @@
 #include <KoToolProxy.h>
 #include "kis_tool_proxy.h"
 #include <KisMainWindow.h>
+#include <KisView.h>
+#include <kundo2stack.h>
 
 #include <QDir>
 #include <QDirIterator>
@@ -359,6 +361,9 @@ public:
     ThreadCounter& recorderThreads;
     volatile std::atomic_bool enabled = false;                  // enable recording only for active documents
     volatile std::atomic_bool imageModified = false;
+    // Skissa: with no capture interval, a frame for each step of the image's history
+    volatile std::atomic_bool stepDone = false;
+    QMetaObject::Connection steps;
     volatile std::atomic_bool isForceBlackTool = false;
     volatile std::atomic_bool isActivateBlackTool = false; 
     volatile std::atomic_bool toolActivated = false;
@@ -521,6 +526,7 @@ void RecorderWriterManager::setCanvas(QPointer<KisCanvas2> canvas)
         disconnect(proxy, SIGNAL(toolChanged(QString)), this, SLOT(onToolChanged(QString)));
         disconnect(kritaProxy, SIGNAL(toolPrimaryActionActivated(bool)), this, SLOT(onToolPrimaryActionActivated(bool)));
         disconnect(d->canvas->image(), SIGNAL(sigImageUpdated(QRect)), this, SLOT(onImageModified()));
+        disconnect(d->steps);
     }
 
     d->canvas = canvas;
@@ -535,6 +541,11 @@ void RecorderWriterManager::setCanvas(QPointer<KisCanvas2> canvas)
                 Qt::DirectConnection);
         connect(d->canvas->image(), SIGNAL(sigImageUpdated(QRect)), this, SLOT(onImageModified()),
                 Qt::DirectConnection); // because it spams
+        if (d->canvas->imageView() && d->canvas->imageView()->document()) {
+            d->steps = connect(d->canvas->imageView()->document()->undoStack(), &KUndo2Stack::indexChanged, this, [this]() {
+                d->stepDone = true;
+            });
+        }
     }
 
     if (restart) {
@@ -574,6 +585,10 @@ void RecorderWriterManager::start(bool toggleEnabled)
     connect(&d->timer, SIGNAL (timeout()), this, SLOT (onTimer()));
     if (d->settings.realTimeCaptureMode) {
         d->interval = static_cast<int>(1000.0/static_cast<double>(exporterSettings.fps));
+    } else if (d->settings.captureInterval <= 0) {
+        // looks for a finished step often, so each one is its own frame
+        d->interval = 100;
+        d->stepDone = false;
     } else {
         d->interval = static_cast<int>(qMax(d->settings.captureInterval, .1) * 1000.0);
     }
@@ -621,6 +636,13 @@ void RecorderWriterManager::onTimer()
 
     if (!d->imageModified)
         return;
+
+    const bool eachStep = !d->settings.realTimeCaptureMode && d->settings.captureInterval <= 0;
+    if (eachStep) {
+        // not halfway through a stroke: the picture once the step is done, and once the image has caught up with it
+        if (!d->stepDone || !d->canvas->image()->isIdle()) return;
+        d->stepDone = false;
+    }
 
     d->imageModified = false;
 

@@ -615,8 +615,6 @@ public:
     ExportButton *exportButton = nullptr;
     QToolButton *menuButton = nullptr;
     QAction *autoRecordAction = nullptr;
-    QActionGroup *intervalGroup = nullptr;
-    QActionGroup *resolutionGroup = nullptr;
     QTimer framesTimer;
     QTimer showTimer;
     int frameCount = 0;
@@ -687,11 +685,11 @@ public:
 #ifdef Q_OS_ANDROID
         fixInternalSnapshotDirectory();
 #endif
-        captureInterval = config.captureInterval();
+        // a frame for each step: long thinking shows nothing, a quick run of strokes shows each one
+        captureInterval = 0;
         format = config.format();
         quality = config.quality();
         compression = config.compression();
-        resolution = config.resolution();
         writer.recorderThreads.set(config.threads());
         realTimeCaptureMode = config.realTimeCaptureMode();
         if (realTimeCaptureMode) {
@@ -711,6 +709,11 @@ public:
     void updateWriterSettings()
     {
         outputDirectory = snapshotDirectory % QDir::separator() % prefix % QDir::separator();
+        // frames as large as a video shows well, kept small for huge images: full, half, a quarter
+        if (canvas && canvas->image()) {
+            const int longest = qMax(canvas->image()->width(), canvas->image()->height());
+            resolution = longest > 6000 ? 2 : longest > 3000 ? 1 : 0;
+        }
         writer.setup({
             outputDirectory,
             format,
@@ -965,36 +968,6 @@ public:
             loadSettings();
         });
 
-        menu->addSection(i18nc("@title:menu how often a frame is taken", "A frame every"));
-        intervalGroup = new QActionGroup(menu);
-        for (const double seconds : {0.5, 1.0, 2.0, 5.0}) {
-            QAction *action = menu->addAction(i18nc("a time in seconds, as short as possible", "%1 s", QLocale().toString(seconds)));
-            action->setCheckable(true);
-            action->setChecked(qFuzzyCompare(seconds, captureInterval));
-            intervalGroup->addAction(action);
-            QObject::connect(action, &QAction::triggered, q, [this, seconds]() {
-                RecorderConfig(false).setCaptureInterval(seconds);
-                loadSettings();
-                updateWriterSettings();
-            });
-        }
-
-        menu->addSection(i18nc("@title:menu the size of recorded frames", "Frame size"));
-        resolutionGroup = new QActionGroup(menu);
-        const QStringList sizes = {i18nc("frames at the image's size", "Full"), i18nc("frames at half the image's size", "Half"),
-                                   i18nc("frames at a quarter of the image's size", "Quarter")};
-        for (int index = 0; index < sizes.size(); index++) {
-            QAction *action = menu->addAction(sizes[index]);
-            action->setCheckable(true);
-            action->setChecked(index == resolution);
-            resolutionGroup->addAction(action);
-            QObject::connect(action, &QAction::triggered, q, [this, index]() {
-                RecorderConfig(false).setResolution(index);
-                loadSettings();
-                updateWriterSettings();
-            });
-        }
-
         menu->addSeparator();
         menu->addAction(KisIconUtils::loadIcon("folder"), i18nc("@action:inmenu where recordings are kept", "Recordings folder…"), q,
                         SLOT(slotSelectSnapshotDirectory()));
@@ -1005,10 +978,6 @@ public:
         });
         menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Export options…"), q, SLOT(onExportOptionsClicked()));
         QObject::connect(menu, &QMenu::aboutToShow, q, [this]() {
-            // recording settings take effect from the next recording
-            const bool recording = recordButton->isChecked();
-            intervalGroup->setEnabled(!recording);
-            resolutionGroup->setEnabled(!recording);
             autoRecordAction->setChecked(recordAutomatically);
         });
         menuButton->setMenu(menu);
@@ -1278,14 +1247,12 @@ bool RecorderDockerDock::onRecordButtonToggled(bool checked)
         d->updateWriterSettings();
         d->writer.start();
 
-        // Calculate Rec symbol activity timeout depending on the capture interval
-        // The pausedTimer interval is set to a slightly greater value than the capture interval
-        // to avoid flickering for ongoing painting. This is also the reason for the min and max
-        // values 305 and 2005 (instead of 300 and 2000, respectively).
+        // how long the Rec symbol stays lit after a frame, a little longer than frames come while painting
         if (d->realTimeCaptureMode) {
             d->pausedTimer.setInterval(qBound(305, static_cast<int>(1000.0/static_cast<double>(exportSettings->fps)) + 5,2005));
         } else {
-            d->pausedTimer.setInterval(qBound(305, static_cast<int>(qMax(d->captureInterval, .1) * 1000.0) + 5, 2005));
+            // frames come a step at a time, with pauses between strokes
+            d->pausedTimer.setInterval(2005);
         }
     } else {
         d->writer.stop();

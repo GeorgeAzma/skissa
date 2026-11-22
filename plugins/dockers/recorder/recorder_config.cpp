@@ -140,7 +140,7 @@ void RecorderConfig::setRecordIsolateLayerMode(bool value)
 
 bool RecorderConfig::recordAutomatically() const
 {
-    return config->readEntry(keyRecordAutomatically, false);
+    return config->readEntry(keyRecordAutomatically, true);
 }
 
 void RecorderConfig::setRecordAutomatically(bool value)
