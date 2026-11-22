@@ -370,6 +370,9 @@ protected:
             if (m_usedOn && (m_usedOn == widget || m_usedOn->isAncestorOf(widget) || widget->isAncestorOf(m_usedOn))) return true;
             wait = int(quiet - (now - m_workedAt));
         }
+        // a tip faded as the pointer moved on: for a while after one was shown Qt asks again at every move, which
+        // would bring it straight back; the next waits for the pointer to rest
+        if (now - m_movedOffAt < tipsAwake) wait = qMax(wait, quiet);
         if (wait > 0) {
             m_pendingWidget = widget;
             m_pendingPos = help->pos();
@@ -383,6 +386,8 @@ protected:
 
 private:
     static constexpr int workReach = 160;
+    /// How long after a tip Qt shows the next one at once (its tooltips' fall-asleep time)
+    static constexpr int tipsAwake = 2000;
 
     /// A click, a stroke, a turn of the wheel or a key: no tips for a moment, and none waiting
     void worked(QObject *on, const QPoint &globalPos, bool pressed, ulong timestamp)
@@ -411,6 +416,7 @@ private:
         // the tip goes as the pointer moves on
         if (!m_shownAt.isNull() && (globalPos - m_shownAt).manhattanLength() > 2 * wobble) {
             m_shownAt = QPoint();
+            m_movedOffAt = m_clock.elapsed();
             if (QWidget *tip = shownTip()) KisStudioMotion::hideFaded(tip);
         }
     }
@@ -435,6 +441,7 @@ private:
         const QRect work = recent ? QRect(m_workAt - QPoint(workReach, workReach), QSize(2 * workReach, 2 * workReach)) : QRect();
         placeBeside(tip, widget, subjectOf(widget, pos), work);
         m_shownAt = globalPos;
+        m_movedOffAt = -100000;
     }
 
     /// The tip of \p widget as its own tooltip says, drawn: false leaves it to the widget (lists, cards)
@@ -487,6 +494,8 @@ private:
     QPoint m_pendingPos;
     QPoint m_pendingGlobal;
     QPoint m_shownAt;
+    /// When the last tip faded because the pointer moved on
+    qint64 m_movedOffAt {-100000};
 };
 
 
