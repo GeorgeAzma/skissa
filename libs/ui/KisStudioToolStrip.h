@@ -65,6 +65,14 @@ private:
 
     /// A ⋯ button whose menu is returned to fill
     QMenu *addMore();
+    /// \p source, a switch of the tool's options, as a checked entry behind ⋯ (\p text, or its own), out of the options
+    void addMoreSwitch(QAbstractButton *source, const QString &text = QString());
+    /// \p source, a button of the tool's options, as an entry behind ⋯ that clicks it, out of the options
+    void addMoreCommand(QAbstractButton *source, const QString &text);
+    /// The entries gathered by addMoreSwitch() and addMoreCommand(), in the ⋯ at the bar's end
+    void finishMore();
+    /// The enclose and fill tool: how it encloses, its threshold, its switches behind ⋯
+    void addEncloseAndFill(QWidget *options);
     /// Ways to add reference images, and their sets behind ⋯
     void addReferenceImages(QWidget *options);
     /// The comic panel tool's gutter width
@@ -74,6 +82,13 @@ private:
 
     QList<QPointer<QWidget>> m_options;
     QPointer<QToolButton> m_more;
+    /// What goes behind ⋯ once the bar is made: a switch (checkable) or a command, and its text
+    struct MoreEntry {
+        QPointer<QAbstractButton> source;
+        QString text;
+        bool checkable;
+    };
+    QList<MoreEntry> m_moreLater;
     QHBoxLayout *m_layout {nullptr};
     KisStudioSelectionAdjust *m_adjust {nullptr};
     bool m_hasOptions {false};

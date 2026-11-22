@@ -20,6 +20,9 @@
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QLabel>
+#include <QButtonGroup>
+#include <QActionGroup>
+#include <QStackedWidget>
 #include <QLineEdit>
 #include <QAbstractSlider>
 #include <KisOptionCollectionWidget.h>
@@ -641,6 +644,17 @@ void tuckRow(QWidget *field)
     tuck(captionOf(field));
 }
 
+/// Tucks \p field: its row of an option collection (KisOptionCollectionWidget), or itself with its label
+void tuckOption(QWidget *field)
+{
+    if (!field) return;
+    if (field->parentWidget() && field->parentWidget()->property("id").isValid()) {
+        tuck(field->parentWidget());
+    } else {
+        tuckRow(field);
+    }
+}
+
 /// Hides \p strip's section header, and the section with it while nothing else in it shows
 void tuckSection(KisOptionButtonStrip *strip)
 {
@@ -687,6 +701,7 @@ KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
 void KisStudioToolStrip::clear()
 {
     m_more = nullptr;
+    m_moreLater.clear();
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
             // hide it so it doesn't cover the new buttons until it is deleted
@@ -755,6 +770,40 @@ void KisStudioToolStrip::addTransformModes(QWidget *options)
         if (free->parentWidget() != options) tuck(free->parentWidget());
     }
     tuck(options->findChild<QWidget *>(QStringLiteral("lblTransformType")));
+    // the handles on the canvas do what the numbers did; the preview is always the accurate one there is
+    tuckRow(options->findChild<QWidget *>(QStringLiteral("cmbPreviewMode")));
+    for (const char *name : {"topLeftButton", "middleTopButton", "topRightButton", "middleLeftButton", "centerButton", "middleRightButton",
+                             "bottomLeftButton", "middleBottomButton", "bottomRightButton", "btnTransformAroundPivotPoint",
+                             "freeMoveRadioButton", "freeRotationRadioButton", "freeScaleRadioButton", "freeShearRadioButton",
+                             "rotationGroup", "scaleGroup", "moveGroup", "shearGroup", "quickTransformGroup"}) {
+        tuck(options->findChild<QWidget *>(QLatin1String(name)));
+    }
+    // as tall as the mode's own page, not the tallest (Bend's and Push's pages are much taller)
+    if (auto *pages = options->findChild<QStackedWidget *>(QStringLiteral("stackedWidget"))) {
+        QPointer<QStackedWidget> stack = pages;
+        auto fit = [stack]() {
+            if (!stack) return;
+            for (int i = 0; i < stack->count(); i++) {
+                const QSizePolicy::Policy policy = i == stack->currentIndex() ? QSizePolicy::Preferred : QSizePolicy::Ignored;
+                stack->widget(i)->setSizePolicy(policy, policy);
+            }
+            stack->updateGeometry();
+        };
+        fit();
+        connect(pages, &QStackedWidget::currentChanged, pages, fit);
+    }
+    // flips and quarter turns, behind ⋯
+    const QList<QPair<const char *, QString>> quick = {
+        {"flipXButton", i18nc("transform: mirror left to right", "Flip horizontally")},
+        {"flipYButton", i18nc("transform: mirror top to bottom", "Flip vertically")},
+        {"rotateCCWButton", i18nc("transform: a quarter turn", "Turn left")},
+        {"rotateCWButton", i18nc("transform: a quarter turn", "Turn right")},
+    };
+    for (const auto &command : quick) {
+        if (QAbstractButton *source = options->findChild<QAbstractButton *>(QLatin1String(command.first))) {
+            m_moreLater << MoreEntry{source, command.second, false};
+        }
+    }
 
     QList<QPointer<QAbstractButton>> others;
     for (const char *name : {"perspectiveTransformButton", "warpButton", "cageButton", "meshButton"}) {
@@ -774,6 +823,8 @@ void KisStudioToolStrip::addTransformModes(QWidget *options)
         });
     }
     more->setMenu(menu);
+    // the transform's other commands go behind it too
+    m_more = more;
 
     // while one of them is the mode, ⋯ shows it, lit
     auto showMode = [more, moreIcon, others]() {
@@ -1153,6 +1204,14 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             // the bar's Grow and Soft do what Krita's grow and feather did (kept while set, so nothing set is hidden);
             // the selection actions bar is a setting, not a tool's option
             if (QCheckBox *bar = withId<QCheckBox>(selection, QStringLiteral("sapCheckBox"))) tuck(bar->parentWidget());
+            // pixels or vectors, chosen rarely: behind ⋯
+            if (KisOptionButtonStrip *modes = stripInSection(selection, QStringLiteral("sectionMode"))) {
+                if (modes->isVisibleTo(selection) && modes->buttons().size() == 2) {
+                    addMoreSwitch(modes->buttons()[0], i18nc("a selection made of pixels", "Pixel selection"));
+                    addMoreSwitch(modes->buttons()[1], i18nc("a selection made of vector shapes", "Vector selection"));
+                    tuckSection(modes);
+                }
+            }
             QWidget *grow = withId<QWidget>(selection, QStringLiteral("containerGrowSelection"));
             QSpinBox *growBy = grow ? grow->findChild<QSpinBox *>() : nullptr;
             if (grow && (!growBy || growBy->value() == 0)) tuck(grow->parentWidget());
@@ -1184,6 +1243,10 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 mirrorSpin(radius, int(KisStudioScrubber::Kind::Size), i18nc("@info:tooltip the color sampler averages a patch this wide", "Sample size"), 1);
                 tuckRow(radius);
             }
+            // whether a sample sets the paint color, behind ⋯; the channels' numbers are shown by the color panel
+            addMoreSwitch(widget->findChild<QAbstractButton *>(QStringLiteral("cbUpdateCurrentColor")));
+            tuck(widget->findChild<QWidget *>(QStringLiteral("cbNormaliseValues")));
+            tuck(widget->findChild<QWidget *>(QStringLiteral("listViewChannels")));
         }
 
         // what Move moves: the layer under the pointer, or the current one
@@ -1278,6 +1341,8 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             }
         }
 
+        if (withId<QWidget>(widget, QStringLiteral("sectionEnclosingMethod"))) addEncloseAndFill(widget);
+
         // fill: what gets filled, and with what
         for (const QString &section : {QStringLiteral("sectionWhatToFill"), QStringLiteral("sectionFillWith")}) {
             if (KisOptionButtonStrip *strip = stripInSection(widget, section)) {
@@ -1309,6 +1374,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
         connect(symbols, &QToolButton::clicked, this, [symbols]() { KisStudioSymbols::openPicker(symbols); });
     }
     if (text) addTextCommands(text);
+    finishMore();
 
     m_hasOptions = m_layout->count() > 0;
     updateGeometry();
@@ -1434,6 +1500,79 @@ QMenu *KisStudioToolStrip::addMore()
     more->setMenu(menu);
     m_more = more;
     return menu;
+}
+
+void KisStudioToolStrip::addMoreSwitch(QAbstractButton *source, const QString &text)
+{
+    if (!source) return;
+    m_moreLater << MoreEntry{source, text.isEmpty() ? KisSentenceCase::of(source->text().remove(QLatin1Char('&'))) : text, true};
+    tuckOption(source);
+}
+
+void KisStudioToolStrip::addMoreCommand(QAbstractButton *source, const QString &text)
+{
+    if (!source) return;
+    m_moreLater << MoreEntry{source, text, false};
+    tuckOption(source);
+}
+
+void KisStudioToolStrip::finishMore()
+{
+    if (m_moreLater.isEmpty()) return;
+    QMenu *menu = m_more && m_more->menu() ? m_more->menu() : addMore();
+    if (!menu->isEmpty()) menu->addSeparator();
+    // one of a set of buttons (a mode) is one of a set in the menu too, drawn as such
+    QHash<QButtonGroup *, QActionGroup *> sets;
+    for (const MoreEntry &entry : qAsConst(m_moreLater)) {
+        if (!entry.source) continue;
+        QPointer<QAbstractButton> target = entry.source;
+        QAction *action = menu->addAction(entry.text);
+        if (entry.checkable) {
+            action->setCheckable(true);
+            if (QButtonGroup *group = target->group()) {
+                if (group->exclusive()) {
+                    if (!sets.contains(group)) sets.insert(group, new QActionGroup(menu));
+                    sets.value(group)->addAction(action);
+                }
+            }
+            action->setChecked(target->isChecked());
+            connect(target, &QAbstractButton::toggled, action, &QAction::setChecked);
+        }
+        connect(action, &QAction::triggered, target, [target, action](bool on) {
+            if (!target) return;
+            if (!action->isCheckable() || target->isChecked() != on) target->click();
+            // one of a set (a mode) stays chosen when clicked again
+            if (action->isCheckable()) action->setChecked(target->isChecked());
+        });
+        // what the tool can't do now is greyed, as it was in its options
+        connect(menu, &QMenu::aboutToShow, action, [target, action]() {
+            if (target) action->setEnabled(target->isEnabled());
+        });
+    }
+    m_moreLater.clear();
+}
+
+void KisStudioToolStrip::addEncloseAndFill(QWidget *options)
+{
+    // how it encloses, the tool's first choice: on the bar
+    if (KisOptionButtonStrip *methods = stripInSection(options, QStringLiteral("sectionEnclosingMethod"))) {
+        addGap();
+        Q_FOREACH (KoGroupButton *button, methods->buttons()) mirror(button);
+        tuckSection(methods);
+    }
+    // its threshold, unless the fill's own mirroring has it already
+    if (!stripInSection(options, QStringLiteral("sectionWhatToFill"))) {
+        if (QSpinBox *threshold = withId<QSpinBox>(options, QStringLiteral("sliderThreshold"))) {
+            addGap();
+            mirrorSpin(threshold, int(KisStudioScrubber::Kind::Threshold), i18nc("@info:tooltip how alike colors are filled as one", "Threshold"), 8);
+        }
+    }
+    // switches set now and then
+    for (const char *id : {"checkBoxRegionSelectionInvert", "checkBoxRegionSelectionIncludeContourRegions", "checkBoxSelectionAsBoundary",
+                           "checkBoxAntiAlias", "checkBoxCustomBlendingOptions"}) {
+        addMoreSwitch(withId<QAbstractButton>(options, QLatin1String(id)));
+    }
+    addMoreCommand(withId<QAbstractButton>(options, QStringLiteral("buttonReset")), i18nc("enclose and fill: its options as they first were", "Reset"));
 }
 
 bool KisStudioToolStrip::optionsLeft() const
