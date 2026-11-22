@@ -121,6 +121,7 @@
 #include "kis_guides_config.h"
 #include "KisImageBarrierLock.h"
 #include "KisReferenceImagesLayer.h"
+#include "KisStudioSolo.h"
 #include "KisNewerAutosave.h"
 
 #include <mutex>
@@ -1243,6 +1244,7 @@ KisDocument *KisDocument::Private::lockAndCloneImpl(bool fetchResourcesFromLayer
     }
 
     KisDocument *doc = new KisDocument(*this->q, false);
+    KisStudioSolo::redrawForSaving(doc, image);
 
     if (fetchResourcesFromLayers) {
         doc->d->uploadLinkedResourcesFromLayersToStorage();

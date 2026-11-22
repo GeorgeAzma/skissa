@@ -81,6 +81,7 @@
 #include <libs/image/kis_layer_properties_icons.h>
 #include <libs/image/commands/kis_node_property_list_command.h>
 #include <KisSynchronizedConnection.h>
+#include "KisStudioSolo.h"
 
 struct KisNodeManager::Private {
     Private(KisNodeManager *_q, KisViewManager *v)
@@ -594,10 +595,18 @@ void KisNodeManager::changeIsolationMode(bool isolateActiveLayer, bool isolateAc
     KIS_ASSERT_RECOVER_RETURN(image && activeNode);
 
     if (isolateActiveLayer || isolateActiveGroup) {
+        // several layers chosen: those alone
+        const KisNodeList chosen = selectedNodes();
+        if (isolateActiveLayer && !isolateActiveGroup && chosen.size() > 1) {
+            image->stopIsolatedMode();
+            if (KisStudioSolo::start(image.toStrongRef(), chosen)) return;
+        }
+        KisStudioSolo::stop(image.toStrongRef());
         if (image->startIsolatedMode(activeNode, isolateActiveLayer, isolateActiveGroup) == false) {
             reinitializeIsolationActionGroup();
         }
     } else {
+        KisStudioSolo::stop(image.toStrongRef());
         image->stopIsolatedMode();
     }
 }
@@ -606,6 +615,12 @@ void KisNodeManager::changeIsolationRoot(KisNodeSP isolationRoot)
 {
     KisImageWSP image = m_d->view->image();
     if (!image || !isolationRoot) return;
+
+    // layers shown alone stay so while one of them is picked; picking another shows everything again
+    if (KisStudioSolo::isActive(image.toStrongRef())) {
+        if (!KisStudioSolo::shows(image.toStrongRef(), isolationRoot)) reinitializeIsolationActionGroup();
+        return;
+    }
 
     const bool isIsolatingLayer = image->isIsolatingLayer();
     const bool isIsolatingGroup = image->isIsolatingGroup();
