@@ -30,6 +30,9 @@ public:
 
     /// Adds a widget below the tools, e.g. the color chip
     void addBottomWidget(QWidget *widget);
+    /// Its tools in a row, lying along the top or bottom of the canvas, or in a column
+    void setFlat(bool flat);
+    bool isFlat() const;
 
     /// Appends the item with Find key \p key, unless it is already on the rail
     void addItem(const QString &key);
@@ -67,14 +70,14 @@ protected:
 private:
     void rebuild();
     void updatePlus();
-    int gapAt(int y) const;
+    int gapAt(const QPoint &pos) const;
     /// A gap before the item at \p index
     void insertGap(int index);
     void clearGap();
     void showIndicator(int itemIndex, int thickness);
     void startDrag(int index, const QPixmap &pixmap);
     void setItems(const QStringList &items);
-    int dropIndex(int y) const;
+    int dropIndex(const QPoint &pos) const;
     /// \p touch: opened by a long press, so it offers what a pointer does by holding between items
     void showCard(int index, bool touch = false);
     void showRestoreCard(const QPoint &globalPos);

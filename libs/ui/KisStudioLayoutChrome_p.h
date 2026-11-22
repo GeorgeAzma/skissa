@@ -363,6 +363,8 @@ public:
     std::function<void()> tapped;
     /// It was placed somewhere else (see railRectProperty)
     std::function<void()> reachChanged;
+    /// It turned, lying flat along the top or bottom edge, or standing along a side
+    std::function<void(bool flat)> flatChanged;
 
     explicit RailOverlay(QWidget *canvasArea)
         : QWidget(canvasArea)
@@ -379,6 +381,29 @@ public:
         setTucked(false);
     }
 
+    /// Its parts in a row (lying along the top or bottom of the canvas) or a column
+    void setFlat(bool flat)
+    {
+        if (m_flat == flat) return;
+        m_flat = flat;
+        static_cast<QBoxLayout *>(layout())->setDirection(flat ? QBoxLayout::LeftToRight : QBoxLayout::TopToBottom);
+        // the grip runs across the rail
+        if (flat) {
+            m_grip->setMinimumHeight(0);
+            m_grip->setMaximumHeight(QWIDGETSIZE_MAX);
+            m_grip->setFixedWidth(14);
+        } else {
+            m_grip->setMinimumWidth(0);
+            m_grip->setMaximumWidth(QWIDGETSIZE_MAX);
+            m_grip->setFixedHeight(14);
+        }
+        if (flatChanged) flatChanged(flat);
+        layout()->activate();
+        adjustSize();
+        place();
+    }
+    bool isFlat() const { return m_flat; }
+
     void setPlace(bool left, const QPointF &spot)
     {
         m_left = left;
@@ -389,11 +414,11 @@ public:
     /// When tucked, only the grip shows, as wide as the rail was
     void setTucked(bool tucked)
     {
-        if (tucked && !m_tucked) {
+        if (tucked && !m_tucked && !m_flat) {
             m_grip->setFixedWidth(qMax(m_grip->width(), 30));
             m_openHeight = layout()->sizeHint().height();
         }
-        if (!tucked) {
+        if (!tucked && !m_flat) {
             m_grip->setMinimumWidth(0);
             m_grip->setMaximumWidth(QWIDGETSIZE_MAX);
         }
@@ -478,8 +503,24 @@ protected:
         }
         // caught by the edges and the middle as it goes, so it shows where it will stay
         const QWidget *area = parentWidget();
-        const QPoint at = area->mapFromGlobal(global) - m_grab;
-        const QRect room = this->room();
+        QPoint at = area->mapFromGlobal(global) - m_grab;
+        QRect room = this->room();
+        // against the top or bottom edge it lies flat, against a side it stands; in a corner or in the open it stays as it is
+        {
+            const int alongTopOrBottom = qMin(at.y() - room.top(), room.bottom() - at.y());
+            const int alongSide = qMin(at.x() - room.left(), room.right() - at.x());
+            const int touching = 24;
+            const int clear = 60;
+            const bool lie = alongTopOrBottom < touching && alongSide > clear;
+            const bool stand = alongSide < touching && alongTopOrBottom > clear;
+            if ((lie && !m_flat) || (stand && m_flat)) {
+                setFlat(lie);
+                // held by the grip as before, which is at its start either way
+                m_grab = m_grip->geometry().center();
+                at = area->mapFromGlobal(global) - m_grab;
+                room = this->room();
+            }
+        }
         m_left = at.x() + width() / 2 < area->width() / 2;
         const int across = m_left ? at.x() - room.left() : room.left() + room.width() - at.x();
         const QSize grown = roomGrowth(this);
@@ -553,6 +594,7 @@ private:
     /// Where the pointer alone puts it, while dragged
     std::optional<QPoint> m_byPointer;
     bool m_left {true};
+    bool m_flat {false};
     QPointF m_spot;
     bool m_pressed {false};
     bool m_moving {false};

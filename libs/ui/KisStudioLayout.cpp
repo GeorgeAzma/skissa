@@ -135,6 +135,7 @@ void KisStudioLayout::reloadArrangement()
     Q_FOREACH (const QString &id, d->pinned) applyFold(d->mainWindow->dockWidget(id), d->folded.contains(id));
     setPanelsTucked(d->panelsTucked);
     if (auto *rail = static_cast<RailOverlay *>(d->brushRail.data())) {
+        rail->setFlat(d->toolRailFlat);
         rail->setTucked(d->toolRailTucked);
         rail->setPlace(d->toolRailLeft, d->toolRailSpot);
     }
@@ -269,6 +270,7 @@ void KisStudioLayout::readArrangement()
     d->topBarSpot = readSpot(topBarSpotKey);
     d->panelsTucked = cfg.readEntry<bool>(panelsHiddenKey, false);
     d->toolRailTucked = cfg.readEntry<bool>(toolRailHiddenKey, false);
+    d->toolRailFlat = cfg.readEntry<bool>(toolRailFlatKey, false);
     d->topBarTucked = cfg.readEntry<bool>(topBarHiddenKey, false);
     d->heights.clear();
     Q_FOREACH (const QString &entry, cfg.readEntry<QStringList>(heightsKey)) {

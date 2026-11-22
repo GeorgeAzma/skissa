@@ -419,9 +419,14 @@ void KisStudioLayout::createBrushRail()
 
     toolRail->addBottomWidget(contents);
     rail->layout()->addWidget(toolRail);
-    rail->moved = [this](bool left, const QPointF &spot) {
+    rail->flatChanged = [toolRail](bool flat) { toolRail->setFlat(flat); };
+    rail->moved = [this, rail](bool left, const QPointF &spot) {
         d->toolRailSpot = spot;
         writeSpot(toolRailSpotKey, spot);
+        if (rail->isFlat() != d->toolRailFlat) {
+            d->toolRailFlat = rail->isFlat();
+            KisSettingsRegistry::writeLater(toolRailFlatKey, d->toolRailFlat);
+        }
         setToolRailSide(left);
         commitArrangement();
     };
@@ -431,6 +436,7 @@ void KisStudioLayout::createBrushRail()
         Q_FOREACH (KisStudioPanelColumn *column, d->columns()) column->place();
         updateCanvasInsets();
     };
+    rail->setFlat(d->toolRailFlat);
     rail->setPlace(d->toolRailLeft, d->toolRailSpot);
     rail->setTucked(d->toolRailTucked);
     d->brushRail = rail;

@@ -195,6 +195,8 @@ inline const QString panelSideKey = QStringLiteral("StudioLayoutPanelSide");
 inline const QString toolRailSideKey = QStringLiteral("StudioLayoutToolRailSide");
 inline const QString panelsHiddenKey = QStringLiteral("StudioLayoutPanelsTucked");
 inline const QString toolRailHiddenKey = QStringLiteral("StudioLayoutToolRailTucked");
+/// The tool rail lies flat along the top or bottom edge
+inline const QString toolRailFlatKey = QStringLiteral("StudioLayoutToolRailFlat");
 inline const QString topBarHiddenKey = QStringLiteral("StudioLayoutTopBarTucked");
 /// Where each pill was dragged to: "across,down", as shares of the room it has (see shareOf()); across is from its own side
 inline const QString toolRailSpotKey = QStringLiteral("StudioLayoutToolRailSpot");

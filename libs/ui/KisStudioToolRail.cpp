@@ -31,6 +31,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QtMath>
 #include <QWheelEvent>
 
 #include <KoCanvasController.h>
@@ -310,10 +311,10 @@ private:
 class SpaceItem : public QWidget, public RailItem
 {
 public:
-    SpaceItem(const QString &name, QWidget *parent)
-        : QWidget(parent), m_name(name)
+    SpaceItem(const QString &name, bool flat, QWidget *parent)
+        : QWidget(parent), m_name(name), m_flat(flat)
     {
-        setFixedSize(40, name.isEmpty() ? 14 : 20);
+        setRestingSize();
         setAttribute(Qt::WA_Hover);
         setCursor(Qt::PointingHandCursor);
         setToolTip(name.isEmpty() ? i18nc("@info:tooltip a gap between groups of tools", "Gap\nDouble-click: name\nDrag off: remove")
@@ -355,7 +356,9 @@ protected:
         if (m_name.isEmpty()) {
             ink.setAlphaF(underMouse() ? 0.4 : 0.14);
             painter.setPen(QPen(ink, 1));
-            painter.drawLine(QPointF(10, height() / 2.0), QPointF(width() - 10, height() / 2.0));
+            // across the rail, whichever way it lies
+            if (m_flat) painter.drawLine(QPointF(width() / 2.0, 10), QPointF(width() / 2.0, height() - 10));
+            else painter.drawLine(QPointF(10, height() / 2.0), QPointF(width() - 10, height() / 2.0));
             return;
         }
         ink.setAlphaF(underMouse() ? 0.85 : 0.5);
@@ -403,9 +406,21 @@ protected:
 
 private:
     /// Edits the name in place: Return or clicking away keeps it, Escape cancels
+    /// As tall as a gap or a name needs across a standing rail; along a lying one, as wide as its name
+    void setRestingSize()
+    {
+        if (!m_flat) {
+            setFixedSize(40, m_name.isEmpty() ? 14 : 20);
+            return;
+        }
+        const int named = qCeil(QFontMetricsF(nameFont()).horizontalAdvance(m_name.toUpper())) + 10;
+        setFixedSize(m_name.isEmpty() ? 14 : qMax(40, named), 40);
+    }
+
     void startEditing()
     {
-        setFixedHeight(20);
+        if (m_flat) setFixedSize(qMax(width(), 64), 40);
+        else setFixedHeight(20);
         m_editor = new QLineEdit(this);
         m_editor->setFrame(false);
         m_editor->setFont(nameFont());
@@ -441,7 +456,7 @@ private:
         editor->hide();
         editor->deleteLater();
         if (!keep || name == m_name) {
-            setFixedHeight(m_name.isEmpty() ? 14 : 20);
+            setRestingSize();
             update();
             return;
         }
@@ -474,6 +489,7 @@ private:
     };
 
     QString m_name;
+    bool m_flat {false};
     QPointer<QLineEdit> m_editor;
     QPoint m_pressPos;
     bool m_dragged {false};
@@ -546,6 +562,8 @@ struct KisStudioToolRail::Private
     KisMainWindow *mainWindow {nullptr};
     QVBoxLayout *layout {nullptr};
     QVBoxLayout *itemsLayout {nullptr};
+    /// Lying along the top or bottom of the canvas, its tools in a row
+    bool flat {false};
     bool missing {false};
     QFrame *indicator {nullptr};
     QPointer<PlusButton> plus;             ///< a child of the canvas area, below the panel
@@ -865,7 +883,27 @@ KisStudioToolRail::~KisStudioToolRail()
 void KisStudioToolRail::addBottomWidget(QWidget *widget)
 {
     widget->setParent(this);
-    d->layout->addWidget(widget, 0, Qt::AlignHCenter);
+    d->layout->addWidget(widget, 0, Qt::AlignCenter);
+}
+
+void KisStudioToolRail::setFlat(bool flat)
+{
+    if (d->flat == flat) return;
+    d->flat = flat;
+    const QBoxLayout::Direction direction = flat ? QBoxLayout::LeftToRight : QBoxLayout::TopToBottom;
+    d->layout->setDirection(direction);
+    d->itemsLayout->setDirection(direction);
+    rebuild();
+    // its new size at once (Qt shows new buttons only later): the rail being dragged places itself by it
+    for (QWidget *widget : qAsConst(d->widgets)) widget->show();
+    d->layout->activate();
+    adjustSize();
+    updatePlus();
+}
+
+bool KisStudioToolRail::isFlat() const
+{
+    return d->flat;
 }
 
 void KisStudioToolRail::refresh()
@@ -938,7 +976,8 @@ void KisStudioToolRail::updatePlus()
     // show it while the panel or the "+" is hovered, and always when the rail is empty or in touch mode (no hover)
     const bool show = area && isVisible() && (d->widgets.isEmpty() || d->hovered || d->plus->underMouse() || KisTouchMode::isActive());
     if (show) {
-        d->plus->move(panel->geometry().center().x() - d->plus->width() / 2, panel->geometry().bottom() + 6);
+        if (d->flat) d->plus->move(panel->geometry().right() + 6, panel->geometry().center().y() - d->plus->height() / 2);
+        else d->plus->move(panel->geometry().center().x() - d->plus->width() / 2, panel->geometry().bottom() + 6);
         d->plus->raise();
         KisStudioMotion::showFaded(d->plus);
     } else if (!isVisible()) {
@@ -1009,12 +1048,15 @@ bool KisStudioToolRail::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
-int KisStudioToolRail::gapAt(int y) const
+int KisStudioToolRail::gapAt(const QPoint &pos) const
 {
-    // returns the index of the item below the gap
+    // returns the index of the item after the gap, along the rail
+    const int y = d->flat ? pos.x() : pos.y();
     for (int w = 1; w < d->widgets.size(); w++) {
-        const int top = d->widgets[w - 1]->geometry().bottom();
-        const int bottom = d->widgets[w]->geometry().top();
+        const QRect before = d->widgets[w - 1]->geometry();
+        const QRect after = d->widgets[w]->geometry();
+        const int top = d->flat ? before.right() : before.bottom();
+        const int bottom = d->flat ? after.left() : after.top();
         if (y > top - 1 && y < bottom + 1) {
             return d->widgetItem[w];
         }
@@ -1024,14 +1066,17 @@ int KisStudioToolRail::gapAt(int y) const
 
 void KisStudioToolRail::showIndicator(int itemIndex, int thickness)
 {
-    int y = d->widgets.isEmpty() ? 6 : d->widgets.last()->geometry().bottom() + 2;
+    auto end = [this](const QRect &r) { return d->flat ? r.right() : r.bottom(); };
+    auto start = [this](const QRect &r) { return d->flat ? r.left() : r.top(); };
+    int y = d->widgets.isEmpty() ? 6 : end(d->widgets.last()->geometry()) + 2;
     for (int w = 0; w < d->widgets.size(); w++) {
         if (d->widgetItem[w] >= itemIndex) {
-            y = d->widgets[w]->geometry().top() - 3;
+            y = start(d->widgets[w]->geometry()) - 3;
             break;
         }
     }
-    d->indicator->setGeometry(8, y - thickness / 2, width() - 16, thickness);
+    if (d->flat) d->indicator->setGeometry(y - thickness / 2, 8, thickness, height() - 16);
+    else d->indicator->setGeometry(8, y - thickness / 2, width() - 16, thickness);
     d->indicator->show();
     d->indicator->raise();
 }
@@ -1039,7 +1084,7 @@ void KisStudioToolRail::showIndicator(int itemIndex, int thickness)
 void KisStudioToolRail::mouseMoveEvent(QMouseEvent *event)
 {
     // a press held between two items inserts a gap there
-    const int gap = gapAt(event->pos().y());
+    const int gap = gapAt(event->pos());
     if (gap >= 0) {
         d->hoverGap = gap;
         showIndicator(gap, 1);
@@ -1146,7 +1191,7 @@ void KisStudioToolRail::rebuild()
         const int index = i;
 
         if (key.startsWith(spacePrefix)) {
-            auto *space = new SpaceItem(key.mid(spacePrefix.size()), this);
+            auto *space = new SpaceItem(key.mid(spacePrefix.size()), d->flat, this);
             space->onRename = [this, index](const QString &name) {
                 QStringList items = d->items;
                 if (index < items.size()) items[index] = spacePrefix + name;
@@ -1154,7 +1199,7 @@ void KisStudioToolRail::rebuild()
             };
             space->onDrag = [this, index]() { startDrag(index, QPixmap()); };
             space->installEventFilter(this);
-            d->itemsLayout->addWidget(space, 0, Qt::AlignHCenter);
+            d->itemsLayout->addWidget(space, 0, Qt::AlignCenter);
             d->widgets << space;
             d->widgetItem << i;
             continue;
@@ -1218,7 +1263,7 @@ void KisStudioToolRail::rebuild()
             };
         }
         button->installEventFilter(this);
-        d->itemsLayout->addWidget(button, 0, Qt::AlignHCenter);
+        d->itemsLayout->addWidget(button, 0, Qt::AlignCenter);
         d->widgets << button;
         d->widgetItem << i;
     }
@@ -1432,7 +1477,7 @@ void KisStudioToolRail::contextMenuEvent(QContextMenuEvent *event)
 {
     // a long press between two items (by Krita's long press, which takes the press itself) adds a gap
     const bool longPress = QDateTime::currentMSecsSinceEpoch() - qApp->property("longPressAt").toLongLong() < 1000;
-    const int gap = gapAt(event->pos().y());
+    const int gap = gapAt(event->pos());
     if (longPress && gap >= 0) {
         insertGap(gap);
         return;
@@ -1440,10 +1485,11 @@ void KisStudioToolRail::contextMenuEvent(QContextMenuEvent *event)
     showRestoreCard(event->globalPos());
 }
 
-int KisStudioToolRail::dropIndex(int y) const
+int KisStudioToolRail::dropIndex(const QPoint &pos) const
 {
     for (int w = 0; w < d->widgets.size(); w++) {
-        if (y < d->widgets[w]->geometry().center().y()) {
+        const QPoint middle = d->widgets[w]->geometry().center();
+        if (d->flat ? pos.x() < middle.x() : pos.y() < middle.y()) {
             return d->widgetItem[w];
         }
     }
@@ -1464,7 +1510,7 @@ void KisStudioToolRail::dragMoveEvent(QDragMoveEvent *event)
         return;
     }
     event->acceptProposedAction();
-    showIndicator(dropIndex(event->pos().y()), 2);
+    showIndicator(dropIndex(event->pos()), 2);
 }
 
 void KisStudioToolRail::dragLeaveEvent(QDragLeaveEvent *)
@@ -1483,7 +1529,7 @@ void KisStudioToolRail::dropEvent(QDropEvent *event)
     if (key.isEmpty()) {
         return;
     }
-    int to = dropIndex(event->pos().y());
+    int to = dropIndex(event->pos());
     QStringList items = d->items;
     // a move along the rail, or the same item dropped from elsewhere
     int from = -1;

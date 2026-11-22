@@ -101,6 +101,7 @@ struct KisStudioLayout::Private
     QPointF topBarSpot;
     bool panelsTucked {false};
     bool toolRailTucked {false};
+    bool toolRailFlat {false};
     bool topBarTucked {false};
     /// Where the bars were when the groups were last placed: the groups keep off them (see barRects)
     QVector<QRect> barsPlacedFor;
