@@ -1033,11 +1033,14 @@ void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
     const QColor ink = palette().color(QPalette::ButtonText);
     QPointer<QComboBox> target = types;
 
-    // the box beside each guide keeps only its grip; its commands are on the guide's right click
-    for (const char *name : {"showSnap", "showLock", "showDuplicate", "showDelete"}) {
+    // the chosen guide's box: its grip and its eye (off, the guide fades and pulls no strokes); the rest is on its
+    // right click
+    for (const char *name : {"showLock", "showDuplicate", "showDelete"}) {
         if (QCheckBox *show = options->findChild<QCheckBox *>(QLatin1String(name))) show->setChecked(false);
     }
-    if (QCheckBox *move = options->findChild<QCheckBox *>(QStringLiteral("showMove"))) move->setChecked(true);
+    for (const char *name : {"showMove", "showSnap"}) {
+        if (QCheckBox *show = options->findChild<QCheckBox *>(QLatin1String(name))) show->setChecked(true);
+    }
 
     // by what is drawn with them, each kind's ways in its menu
     struct Kind {
