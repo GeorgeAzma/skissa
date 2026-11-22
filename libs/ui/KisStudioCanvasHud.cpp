@@ -175,7 +175,8 @@ struct KisStudioCanvasHud::Private
     Badge alphaLock;
     Badge mirrorX;
     Badge mirrorY;
-    QToolButton *selectionHidden {nullptr};
+    /// The selection's outline shown or not, while there is a selection
+    QToolButton *selectionOutline {nullptr};
     /// The image's guides shown or not, while it has some
     QToolButton *guides {nullptr};
 
@@ -307,15 +308,13 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         }
         layout->addWidget(badge->button);
     }
-    d->selectionHidden = hudButton(this);
-    d->selectionHidden->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    d->selectionHidden->setCheckable(true);
-    d->selectionHidden->setChecked(true);
-    d->selectionHidden->setToolTip(i18nc("@info:tooltip", "Selection outline hidden"));
-    d->selectionHidden->hide();
-    if (QAction *show = d->action("toggle_display_selection")) d->selectionHidden->setIcon(show->icon());
-    connect(d->selectionHidden, &QToolButton::clicked, this, [this]() { d->trigger("toggle_display_selection"); });
-    layout->addWidget(d->selectionHidden);
+    d->selectionOutline = hudButton(this);
+    d->selectionOutline->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->selectionOutline->setCheckable(true);
+    d->selectionOutline->hide();
+    if (QAction *show = d->action("toggle_display_selection")) d->selectionOutline->setIcon(show->icon());
+    connect(d->selectionOutline, &QToolButton::clicked, this, [this]() { d->trigger("toggle_display_selection"); });
+    layout->addWidget(d->selectionOutline);
     // guides are seen while painting along them and in the way otherwise: shown or hidden here, lit while shown
     d->guides = hudButton(this);
     d->guides->setObjectName(QStringLiteral("studio_hud_guides"));
@@ -399,7 +398,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->zoom);
 
     // a drag on any of its own buttons moves the pill
-    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionHidden, d->guides, d->mirror, d->value, d->rotation}) {
+    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionOutline, d->guides, d->mirror, d->value, d->rotation}) {
         button->installEventFilter(this);
     }
     d->spot = savedSpot(d->spot);
@@ -525,7 +524,15 @@ void KisStudioCanvasHud::updateBadges()
         showIf(badge->button, badge->action && badge->action->isChecked());
     }
     KisSelectionManager *selections = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->selectionManager() : nullptr;
-    showIf(d->selectionHidden, selections && selections->haveAnySelectionWithPixels() && !selections->displaySelection());
+    // like the guides: there while there is a selection, lit while its outline shows
+    const bool hasSelection = selections && selections->haveAnySelectionWithPixels();
+    showIf(d->selectionOutline, hasSelection);
+    if (hasSelection) {
+        const bool shown = selections->displaySelection();
+        d->selectionOutline->setChecked(shown);
+        d->selectionOutline->setToolTip(shown ? i18nc("@info:tooltip the selection outline button, while it shows", "Selection outline\nClick: hide")
+                                             : i18nc("@info:tooltip the selection outline button, while hidden", "Selection outline hidden\nClick: show"));
+    }
     KisCanvas2 *canvas = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->canvasBase() : nullptr;
     const bool hasGuides = canvas && canvas->paintingAssistantsDecoration() && !canvas->paintingAssistantsDecoration()->assistants().isEmpty();
     showIf(d->guides, hasGuides);
