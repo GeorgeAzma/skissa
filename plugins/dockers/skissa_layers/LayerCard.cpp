@@ -561,8 +561,16 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
             box->addMenuEntry(menu, "isolate_active_group", i18nc("@action:inmenu", "Isolate group"));
         }
         box->addMenuEntry(menu, "pin_to_timeline", i18nc("@action:inmenu", "Pin to timeline"));
+        // the one thing Krita's properties dialog has that the card hasn't
+        if (LayerBox::cardHoldsProperties(d->node)) {
+            menu->addSeparator();
+            box->addMenuEntry(menu, box->m_channelsAction, box->m_channelsAction->text());
+        }
     });
-    addQuiet(i18nc("@action:button a layer's command", "Properties…"), nullptr, box->m_propertiesAction);
+    // filter, fill and file layers and masks: their own editors
+    if (!LayerBox::cardHoldsProperties(d->node)) {
+        addQuiet(i18nc("@action:button a layer's command", "Properties…"), nullptr, box->m_propertiesAction);
+    }
     layout->addLayout(rest);
 
     // its color label

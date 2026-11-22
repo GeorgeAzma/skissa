@@ -698,6 +698,10 @@ void LayerBox::setViewManager(KisViewManager* kisview)
     Q_ASSERT(m_propertiesAction);
     new SyncButtonAndAction(m_propertiesAction, m_wdgLayerBox->bnProperties, this);
     connect(m_propertiesAction, SIGNAL(triggered()), this, SLOT(slotPropertiesClicked()));
+    m_channelsAction = new QAction(i18nc("@action:inmenu the channels a layer paints in", "Channels…"), this);
+    connect(m_channelsAction, &QAction::triggered, this, [this]() {
+        if (m_canvas && m_nodeManager && m_nodeManager->activeNode()) m_nodeManager->nodeProperties(m_nodeManager->activeNode());
+    });
 
     m_removeAction = actionManager->createAction("remove_layer");
     Q_ASSERT(m_removeAction);
@@ -1005,11 +1009,7 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
     KisNodeSP node = index.isValid() ? m_filteringModel->nodeFromIndex(index) : KisNodeSP();
     if (node && !nodes.isEmpty() && activeNode) {
         // a layer's right click is its card
-        NodeView *view = m_wdgLayerBox->listLayers;
-        if (node != activeNode) view->setCurrentIndex(index);
-        const QRect row = view->visualRect(index.sibling(index.row(), NodeView::DEFAULT_COL));
-        auto *card = new LayerCard(this, node);
-        card->popupBesideRow(QRect(view->viewport()->mapToGlobal(row.topLeft()), row.size()), this);
+        showCard(index);
         return;
     }
     QMenu menu;
@@ -1490,8 +1490,35 @@ void LayerBox::slotPropertiesClicked()
 {
     if (!m_canvas) return;
     if (KisNodeSP active = m_nodeManager->activeNode()) {
+        // in the Studio, a layer whose card holds its properties shows the card (a double-click on its picture too)
+        QWidget *window = m_canvas->viewManager()->mainWindowAsQWidget();
+        const bool studio = window && window->property("studioLayoutActive").toBool();
+        if (studio && cardHoldsProperties(active) && m_nodeManager->selectedNodes().size() <= 1) {
+            const QModelIndex index = m_filteringModel->indexFromNode(active);
+            if (index.isValid()) {
+                showCard(index);
+                return;
+            }
+        }
         m_nodeManager->nodeProperties(active);
     }
+}
+
+bool LayerBox::cardHoldsProperties(KisNodeSP node)
+{
+    return node && (node->inherits("KisPaintLayer") || node->inherits("KisGroupLayer") || node->inherits("KisShapeLayer")
+                    || node->inherits("KisCloneLayer"));
+}
+
+void LayerBox::showCard(const QModelIndex &index)
+{
+    KisNodeSP node = m_filteringModel->nodeFromIndex(index);
+    if (!node) return;
+    NodeView *view = m_wdgLayerBox->listLayers;
+    if (view->currentIndex().sibling(view->currentIndex().row(), 0) != index.sibling(index.row(), 0)) view->setCurrentIndex(index);
+    const QRect row = view->visualRect(index.sibling(index.row(), NodeView::DEFAULT_COL));
+    auto *card = new LayerCard(this, node);
+    card->popupBesideRow(QRect(view->viewport()->mapToGlobal(row.topLeft()), row.size()), this);
 }
 
 void LayerBox::slotChangeCloneSourceClicked()
