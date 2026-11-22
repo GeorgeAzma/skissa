@@ -43,6 +43,13 @@ QMenu *KisAssistantTool::popupActionsMenu()
             + QPointF(editor.widgetOffset, editor.widgetOffset);
         if (QRectF(box, editor.boundingSize).contains(at)) hit = assistant;
     }
+    // or on its lines
+    if (!hit) {
+        const QList<KisPaintingAssistantSP> all = decoration->assistants();
+        for (int i = all.size() - 1; i >= 0 && !hit; i--) {
+            if (all[i]->isAssistantComplete() && all[i]->isOnLines(at, 5)) hit = all[i];
+        }
+    }
     if (!hit) return nullptr;
     assistantSelected(hit);
 

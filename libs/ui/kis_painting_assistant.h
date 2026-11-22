@@ -228,6 +228,8 @@ public:
     /// new assistants get in a "creation" phase where they are currently being made on the canvas
     /// it will return false if we are in the middle of creating the assistant.
     virtual bool isAssistantComplete() const;
+    /// Whether \p widgetPoint is within \p reach screen pixels of the lines it last drew
+    bool isOnLines(const QPointF &widgetPoint, qreal reach) const;
 
     /// Transform the assistant using the given \p transform. Please note that \p transform
     /// should be in 'document' coordinate system.

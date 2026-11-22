@@ -374,6 +374,23 @@ void KisAssistantTool::beginActionImpl(KoPointerEvent *event)
      
     }
     
+    // a press on a guide's lines picks it up and moves it, the newest on top first
+    if (assistantsPressed.isEmpty()) {
+        const QPointF atWidget = initialTransform.map(event->point);
+        const QList<KisPaintingAssistantSP> all = m_canvas->paintingAssistantsDecoration()->assistants();
+        for (int i = all.size() - 1; i >= 0; i--) {
+            KisPaintingAssistantSP assistant = all[i];
+            if (assistant->isLocked() || !assistant->isAssistantComplete() || !assistant->isOnLines(atWidget, 5)) continue;
+            m_canvas->paintingAssistantsDecoration()->raiseAssistant(assistant);
+            m_assistantDrag = assistant;
+            m_cursorStart = event->point;
+            m_internalMode = MODE_EDITING;
+            assistantSelected(assistant);
+            m_canvas->updateCanvas();
+            return;
+        }
+    }
+
     // get assistant pressed...
     if (!assistantsPressed.isEmpty()) {
         // get closest assistant

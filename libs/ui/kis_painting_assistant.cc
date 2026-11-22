@@ -122,6 +122,9 @@ struct KisPaintingAssistant::Private {
     explicit Private(const Private &rhs);
     KisPaintingAssistantHandleSP reuseOrCreateHandle(QMap<KisPaintingAssistantHandleSP, KisPaintingAssistantHandleSP> &handleMap, KisPaintingAssistantHandleSP origHandle, KisPaintingAssistant *q, bool registerAssistant = true);
     QList<KisPaintingAssistantHandleSP> handles, sideHandles;
+    /// Its lines as last drawn, in widget coordinates, to be picked up by
+    QVector<QPainterPath> drawn;
+    bool recording {false};
 
     KisPaintingAssistantHandleSP topLeft, bottomLeft, topRight, bottomRight, topMiddle, bottomMiddle, rightMiddle, leftMiddle;
 
@@ -369,6 +372,7 @@ void KisPaintingAssistant::drawPath(QPainter& painter, const QPainterPath &path,
         paintingColor.setAlpha(0.2 * paintingColor.alpha());
     }
 
+    if (d->recording) d->drawn.append(painter.worldTransform().map(path));
     painter.save();
     // a soft dark edge under the line, so it reads on light and dark parts of the picture alike
     QColor edge(0, 0, 0, qRound(0.35 * paintingColor.alpha()));
@@ -381,6 +385,18 @@ void KisPaintingAssistant::drawPath(QPainter& painter, const QPainterPath &path,
     painter.setPen(pen_a);
     painter.drawPath(path);
     painter.restore();
+}
+
+bool KisPaintingAssistant::isOnLines(const QPointF &widgetPoint, qreal reach) const
+{
+    const QRectF near(widgetPoint - QPointF(reach, reach), QSizeF(2 * reach, 2 * reach));
+    QPainterPathStroker stroker;
+    stroker.setWidth(2 * reach);
+    Q_FOREACH (const QPainterPath &path, d->drawn) {
+        if (!path.controlPointRect().adjusted(-reach, -reach, reach, reach).contains(widgetPoint)) continue;
+        if (stroker.createStroke(path).intersects(near)) return true;
+    }
+    return false;
 }
 
 void KisPaintingAssistant::drawPreview(QPainter& painter, const QPainterPath &path, const KoColorDisplayRendererInterface *displayRenderInterface)
@@ -494,7 +510,10 @@ void KisPaintingAssistant::drawAssistant(QPainter& gc, const QRectF& updateRect,
 
     if (!useCache) {
         gc.save();
+        d->drawn.clear();
+        d->recording = true;
         drawCache(gc, converter, displayRenderInterface, assistantVisible);
+        d->recording = false;
         gc.restore();
         return;
     }
@@ -528,7 +547,10 @@ void KisPaintingAssistant::drawAssistant(QPainter& gc, const QRectF& updateRect,
         QPainter painter(&cached);
         painter.setRenderHint(QPainter::Antialiasing);
         painter.setWindow(cacheRect);
+        d->drawn.clear();
+        d->recording = true;
         drawCache(painter, converter, displayRenderInterface, assistantVisible);
+        d->recording = false;
         painter.end();
         d->s->cachedTransform = transform;
         d->s->cachedRect = cacheRect.translated(-widgetBound.topLeft());
