@@ -58,6 +58,7 @@
 #include "floodfill/KisLineArtFill.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_coordinates_converter.h"
+#include "kis_command_utils.h"
 #include "kis_fill_painter.h"
 #include "kis_group_layer.h"
 #include "kis_icon.h"
@@ -154,6 +155,40 @@ int gapFor(const Options &options, KisPaintDeviceSP reference, const QPoint &poi
         if (!kept.isEmpty() && !reachesEdge(kept) && qint64(kept.width()) * kept.height() * 2 < qint64(first.width()) * first.height()) return wider;
     }
     return gap;
+}
+
+/**
+ * \p picture with only its lines, the rest clear: a drop on line art stops at the lines, not at faint sketch
+ * lines or smudges left under them. A drop on a line itself keeps the whole picture.
+ */
+KisPaintDeviceSP linesOnly(KisPaintDeviceSP picture, const QPoint &seed)
+{
+    const KoColorSpace *srgb = KoColorSpaceRegistry::instance()->rgb8();
+    auto inkAt = [](const quint8 *px) { return KisLineArtFill::inkOf(qRgba(px[2], px[1], px[0], px[3])); };
+    {
+        const KoColor at = picture->pixel(seed).convertedTo(srgb);
+        if (inkAt(at.data()) >= KisLineArtFill::lineInk) return picture;
+    }
+    KisPaintDeviceSP lines = new KisPaintDevice(srgb);
+    lines->setDefaultBounds(picture->defaultBounds());
+    const QRect bounds = picture->exactBounds() & picture->defaultBounds()->bounds();
+    if (bounds.isEmpty()) return lines;
+    const int width = bounds.width();
+    std::vector<quint8> raw(size_t(width) * picture->pixelSize()), row(size_t(width) * 4);
+    const bool isSrgb = *picture->colorSpace() == *srgb;
+    for (int y = bounds.top(); y <= bounds.bottom(); y++) {
+        picture->readBytes(isSrgb ? row.data() : raw.data(), bounds.left(), y, width, 1);
+        if (!isSrgb) {
+            picture->colorSpace()->convertPixelsTo(raw.data(), row.data(), srgb, width, KoColorConversionTransformation::internalRenderingIntent(),
+                                                   KoColorConversionTransformation::internalConversionFlags());
+        }
+        for (int x = 0; x < width; x++) {
+            quint8 *px = row.data() + size_t(x) * 4;
+            if (inkAt(px) < KisLineArtFill::lineInk) std::fill(px, px + 4, quint8(0));
+        }
+        lines->writeBytes(row.data(), bounds.left(), y, width, 1);
+    }
+    return lines;
 }
 
 /// What a fill from \p point would cover.
@@ -1047,8 +1082,9 @@ struct KisColorDrop::Private {
                     result.overlay = previewOf(reference, result.covered, fill, inPlace, at, &result.rect);
                 } else {
                     // Auto's search for a gap that keeps the fill inside floods several times: here, never on the window's thread
-                    result.gap = gapFor(o, reference, at, bounds, 0.5, t);
-                    result.region = regionAt(reference, at, t, result.gap, o, bounds);
+                    const KisPaintDeviceSP lines = linesOnly(reference, at);
+                    result.gap = gapFor(o, lines, at, bounds, 0.5, t);
+                    result.region = regionAt(lines, at, t, result.gap, o, bounds);
                     result.rect = result.region->selectedExactRect();
                     result.overlay = tintedOverlay(result.region, result.rect, fill.toQColor());
                 }
@@ -1064,9 +1100,12 @@ struct KisColorDrop::Private {
     {
         if (!panel) return;
         const bool recolor = bool(lastWay);
-        if (panel->gap->isVisibleTo(panel) == !recolor && panel->everywhere->isVisibleTo(panel) == recolor) return;
+        if (panel->gap->isVisibleTo(panel) == !recolor && panel->everywhere->isVisibleTo(panel) == recolor
+            && panel->spread->isVisibleTo(panel) == recolor) return;
         panel->gap->setVisible(!recolor);
         panel->underLines->setVisible(!recolor);
+        // line art stops at its lines; how alike colors must be matters only by color
+        panel->spread->setVisible(recolor);
         panel->everywhere->setVisible(recolor);
         // the layout sees the rows go only once it is run again
         panel->layout()->activate();
@@ -1467,7 +1506,18 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
     // a new layer is empty: with Preserve Alpha the fill would show nowhere
     if (target.newLayer) resources->setGlobalAlphaLock(false);
 
-    FillProcessingVisitor *visitor = new FillProcessingVisitor(image->projection(), resources->activeSelection(), resources);
+    // the picture's lines only, made in the stroke (not on the window's thread) from the picture as it is then
+    KisPaintDeviceSP lines = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
+    {
+        KisPaintDeviceSP picture = image->projection();
+        image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
+                                  KUndo2CommandSP(new KisCommandUtils::LambdaCommand([lines, picture, point]() mutable -> KUndo2Command * {
+                                      lines->makeCloneFromRough(linesOnly(picture, point), picture->defaultBounds()->bounds());
+                                      return nullptr;
+                                  })),
+                                  false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
+    }
+    FillProcessingVisitor *visitor = new FillProcessingVisitor(lines, resources->activeSelection(), resources);
     visitor->setSeedPoint(point);
     visitor->setSelectionOnly(inSelection);
     visitor->setUseFastMode(false);
