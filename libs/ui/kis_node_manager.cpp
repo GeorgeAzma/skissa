@@ -364,6 +364,9 @@ void KisNodeManager::setup(KisKActionCollection * actionCollection, KisActionMan
     action = actionManager->createAction("create_reference_image_from_visible_canvas");
     connect(action, SIGNAL(triggered()), this, SLOT(createReferenceImageFromVisible()));
 
+    action = actionManager->createAction("convert_to_reference_image");
+    connect(action, SIGNAL(triggered()), this, SLOT(convertToReferenceImage()));
+
     action = actionManager->createAction("pin_to_timeline");
     action->setCheckable(true);
     connect(action, SIGNAL(toggled(bool)), this, SLOT(slotPinToTimeline(bool)));
@@ -805,6 +808,31 @@ void KisNodeManager::createReferenceImageFromLayer() {
 
 void KisNodeManager::createReferenceImageFromVisible() {
     createReferenceImage(false);
+}
+
+void KisNodeManager::convertToReferenceImage()
+{
+    KisNodeSP node = activeNode();
+    KisCanvas2 *canvas = m_d->view->canvasBase();
+    KisDocument *document = m_d->view->document();
+    if (!node || !canvas || !document || !node->inherits("KisLayer") || !node->isEditable()) return;
+    m_d->view->blockUntilOperationsFinishedForced(m_d->view->image());
+    KisPaintDeviceSP device = node->projection();
+    const QRect bounds = device ? device->exactBounds() : QRect();
+    if (bounds.isEmpty()) return;
+    const QImage image = device->convertToQImage(nullptr, bounds.x(), bounds.y(), bounds.width(), bounds.height(),
+                                                 KoColorConversionTransformation::internalRenderingIntent(),
+                                                 KoColorConversionTransformation::internalConversionFlags());
+    KisReferenceImage *reference = KisReferenceImage::fromQImage(*canvas->coordinatesConverter(), image);
+    if (!reference) return;
+    reference->setPosition(canvas->coordinatesConverter()->imageToDocument(QPointF(bounds.topLeft())));
+    if (document->referenceImagesLayer()) {
+        reference->setZIndex(document->referenceImagesLayer()->shapes().size());
+    }
+    m_d->commandsAdapter.beginMacro(kundo2_i18n("Convert to Reference Image"));
+    m_d->view->image()->undoAdapter()->addCommand(KisReferenceImagesLayer::addReferenceImages(document, {reference}));
+    m_d->commandsAdapter.removeNode(node);
+    m_d->commandsAdapter.endMacro();
 }
 
 void KisNodeManager::slotSomethingActivatedNodeImpl(KisNodeSP node)

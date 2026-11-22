@@ -355,6 +355,7 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
         box->addMenuEntry(convert, "convert_to_filter_mask", i18nc("@action:inmenu convert to", "To filter mask"), true);
         box->addMenuEntry(convert, "convert_to_selection_mask", i18nc("@action:inmenu convert to", "To local selection"), true);
         box->addMenuEntry(convert, "convert_to_file_layer", i18nc("@action:inmenu convert to", "To file layer"), true);
+        box->addMenuEntry(convert, "convert_to_reference_image", i18nc("@action:inmenu convert to", "To reference image"), true);
         box->addMenuEntry(convert, "convert_group_to_animated", i18nc("@action:inmenu convert to", "To animated layer"), true);
         box->addMenuEntry(convert, "layercolorspaceconversion", i18nc("@action:inmenu", "Color space…"), true);
         convert->addSeparator();

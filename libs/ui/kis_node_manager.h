@@ -192,6 +192,8 @@ public Q_SLOTS:
     void createReferenceImage(bool fromLayer);
     void createReferenceImageFromLayer();
     void createReferenceImageFromVisible();
+    /// The active layer's pixels become a reference image where they were, the layer gone, in one step
+    void convertToReferenceImage();
     void nodesUpdated();
     void nodeProperties(KisNodeSP node);
     void nodePropertiesIgnoreSelection(KisNodeSP node);

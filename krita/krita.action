@@ -3087,6 +3087,18 @@
       <isCheckable>false</isCheckable>
       <statusTip/>
     </Action>
+    <Action name="convert_to_reference_image">
+      <icon>krita_tool_reference_images</icon>
+      <text>Convert to &amp;Reference Image</text>
+      <whatsThis/>
+      <toolTip>Convert to Reference Image</toolTip>
+      <iconText>Convert to Reference Image</iconText>
+      <activationFlags>100000</activationFlags>
+      <activationConditions>0</activationConditions>
+      <shortcut/>
+      <isCheckable>false</isCheckable>
+      <statusTip/>
+    </Action>
     <Action name="convert_to_file_layer">
       <icon>convert-to-fileLayer</icon>
       <text>Convert to &amp;File Layer...</text>
