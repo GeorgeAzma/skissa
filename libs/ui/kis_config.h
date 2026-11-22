@@ -623,6 +623,9 @@ public:
 
     bool lineSmoothingSmoothPressure(bool defaultValue = false) const;
     void setLineSmoothingSmoothPressure(bool value);
+    /// How much pressure is evened out, 0 to 1, whatever smooths the line
+    qreal lineSmoothingPressureStrength(bool defaultValue = false) const;
+    void setLineSmoothingPressureStrength(qreal value);
 
     bool lineSmoothingScalableDistance(bool defaultValue = false) const;
     void setLineSmoothingScalableDistance(bool value);

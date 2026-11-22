@@ -5,6 +5,8 @@
  */
 #include "kis_smoothing_options.h"
 
+#include <cmath>
+
 #include "kis_config.h"
 #include "kis_signal_compressor.h"
 
@@ -18,7 +20,7 @@ struct KisSmoothingOptions::Private {
         smoothnessDistanceMax = cfg.lineSmoothingDistanceMax(!useSavedSmoothing);
         smoothnessDistanceKeepAspectRatio = cfg.lineSmoothingDistanceKeepAspectRatio(!useSavedSmoothing);
         tailAggressiveness = cfg.lineSmoothingTailAggressiveness(!useSavedSmoothing);
-        smoothPressure = cfg.lineSmoothingSmoothPressure(!useSavedSmoothing);
+        pressureStrength = cfg.lineSmoothingPressureStrength(!useSavedSmoothing);
         useScalableDistance = cfg.lineSmoothingScalableDistance(!useSavedSmoothing);
         delayDistance = cfg.lineSmoothingDelayDistance(!useSavedSmoothing);
         useDelayDistance = cfg.lineSmoothingUseDelayDistance(!useSavedSmoothing);
@@ -33,7 +35,7 @@ struct KisSmoothingOptions::Private {
     qreal smoothnessDistanceMax;
     bool smoothnessDistanceKeepAspectRatio;
     qreal tailAggressiveness;
-    bool smoothPressure;
+    qreal pressureStrength;
     bool useScalableDistance;
     qreal delayDistance;
     bool useDelayDistance;
@@ -111,13 +113,32 @@ void KisSmoothingOptions::setTailAggressiveness(qreal value)
 
 bool KisSmoothingOptions::smoothPressure() const
 {
-    return m_d->smoothPressure;
+    return m_d->pressureStrength > 0;
 }
 
 void KisSmoothingOptions::setSmoothPressure(bool value)
 {
-    m_d->smoothPressure = value;
+    if (value == smoothPressure()) return;
+    setPressureStrength(value ? 0.5 : 0.0);
+}
+
+qreal KisSmoothingOptions::pressureStrength() const
+{
+    return m_d->pressureStrength;
+}
+
+void KisSmoothingOptions::setPressureStrength(qreal value)
+{
+    m_d->pressureStrength = qBound<qreal>(0, value, 1);
     m_d->writeCompressor.start();
+}
+
+qreal KisSmoothingOptions::pressureFollow(qreal strength, qreal ms)
+{
+    // evened over up to about a tenth of a second, the time a hand's pressure wavers in
+    const qreal reach = 100 * strength;
+    if (reach <= 0) return 1;
+    return 1 - std::exp(-qMax<qreal>(0, ms) / reach);
 }
 
 bool KisSmoothingOptions::useScalableDistance() const
@@ -187,7 +208,8 @@ void KisSmoothingOptions::slotWriteConfig()
     cfg.setLineSmoothingDistanceMax(m_d->smoothnessDistanceMax);
     cfg.setLineSmoothingDistanceKeepAspectRatio(m_d->smoothnessDistanceKeepAspectRatio);
     cfg.setLineSmoothingTailAggressiveness(m_d->tailAggressiveness);
-    cfg.setLineSmoothingSmoothPressure(m_d->smoothPressure);
+    cfg.setLineSmoothingSmoothPressure(m_d->pressureStrength > 0);
+    cfg.setLineSmoothingPressureStrength(m_d->pressureStrength);
     cfg.setLineSmoothingScalableDistance(m_d->useScalableDistance);
     cfg.setLineSmoothingDelayDistance(m_d->delayDistance);
     cfg.setLineSmoothingUseDelayDistance(m_d->useDelayDistance);

@@ -2184,6 +2184,17 @@ void KisConfig::setLineSmoothingSmoothPressure(bool value)
     m_cfg.writeEntry("LineSmoothingSmoothPressure", value);
 }
 
+qreal KisConfig::lineSmoothingPressureStrength(bool defaultValue) const
+{
+    // Krita's switch on is about half
+    return defaultValue ? 0.0 : m_cfg.readEntry("LineSmoothingPressureStrength", lineSmoothingSmoothPressure() ? 0.5 : 0.0);
+}
+
+void KisConfig::setLineSmoothingPressureStrength(qreal value)
+{
+    m_cfg.writeEntry("LineSmoothingPressureStrength", value);
+}
+
 bool KisConfig::lineSmoothingScalableDistance(bool defaultValue) const
 {
     return (defaultValue ? true : m_cfg.readEntry("LineSmoothingScalableDistance", true));

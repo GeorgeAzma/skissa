@@ -161,7 +161,6 @@ QVector<Sample> weighted(const QVector<Sample> &raw, const KisSmoothingOptions &
             const qreal gaussianWeight2 = sigma * sigma;
             qreal distanceSum = 0.0;
             qreal scaleSum = 0.0;
-            qreal pressure = 0.0;
             qreal baseRate = 0.0;
             qreal x = 0.0;
             qreal y = 0.0;
@@ -188,11 +187,9 @@ QVector<Sample> weighted(const QVector<Sample> &raw, const KisSmoothingOptions &
                 scaleSum += rate;
                 x += rate * next.pos.x();
                 y += rate * next.pos.y();
-                pressure += rate * next.pressure;
             }
             if (scaleSum != 0.0) {
                 info.pos = QPointF(x / scaleSum, y / scaleSum);
-                if (options.smoothPressure()) info.pressure = pressure / scaleSum;
                 history.last() = info;
             }
         }
@@ -282,10 +279,18 @@ protected:
 
         QVector<Sample> line = m_raw;
         KisSmoothingOptionsSP options = KisStudioSmoothing::options(m_mainWindow);
+        if (options) {
+            // the pressure evened out first, as the helper does
+            qreal even = line.first().pressure;
+            for (int i = 1; i < line.size(); i++) {
+                even += (line[i].pressure - even) * KisSmoothingOptions::pressureFollow(options->pressureStrength(), line[i].time - line[i - 1].time);
+                line[i].pressure = even;
+            }
+        }
         if (options && options->smoothingType() == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
-            line = weighted(m_raw, *options);
+            line = weighted(line, *options);
         } else if (options && options->smoothingType() == KisSmoothingOptions::STABILIZER) {
-            line = stabilized(m_raw, *options);
+            line = stabilized(line, *options);
         }
 
         // where the pen went, faint, under the stroke it makes
@@ -324,7 +329,7 @@ QString remembered(const KisSmoothingOptions &options)
 {
     return QStringList({QString::number(int(options.smoothingType())), QString::number(options.smoothnessDistanceMin()),
                         QString::number(options.smoothnessDistanceMax()), QString::number(options.tailAggressiveness()),
-                        QString::number(int(options.smoothPressure())), QString::number(int(options.useScalableDistance())),
+                        QStringLiteral("s") + QString::number(options.pressureStrength()), QString::number(int(options.useScalableDistance())),
                         QString::number(options.delayDistance()), QString::number(int(options.useDelayDistance())),
                         QString::number(int(options.finishStabilizedCurve())), QString::number(int(options.stabilizeSensors())),
                         QString::number(int(options.smoothnessDistanceKeepAspectRatio()))})
@@ -339,7 +344,9 @@ bool recall(const QString &text, KisSmoothingOptions &options)
     options.setSmoothnessDistanceMin(parts[1].toDouble());
     options.setSmoothnessDistanceMax(parts[2].toDouble());
     options.setTailAggressiveness(parts[3].toDouble());
-    options.setSmoothPressure(parts[4].toInt());
+    // a strength, or Krita's switch as remembered before there was one
+    if (parts[4].startsWith(QLatin1Char('s'))) options.setPressureStrength(parts[4].mid(1).toDouble());
+    else options.setPressureStrength(parts[4].toInt() ? 0.5 : 0.0);
     // the stabilizer's distance always scales (Krita refuses to set it)
     if (options.smoothingType() != KisSmoothingOptions::STABILIZER) options.setUseScalableDistance(parts[5].toInt());
     options.setDelayDistance(parts[6].toDouble());
@@ -652,7 +659,7 @@ void KisStudioStrokePage::rebuild()
     // all it shows but the values of the rows, which follow without a rebuild (one may be dragged)
     QString shown = KisStudioTools::activeToolId() + QStringLiteral(" %1 %2 %3 %4 %5").arg(bool(options)).arg(int(type)).arg(guides).arg(pixel).arg(linked);
     if (options) {
-        shown += QStringLiteral(" %1 %2 %3 %4 %5 %6").arg(options->tailAggressiveness()).arg(options->smoothPressure()).arg(options->stabilizeSensors())
+        shown += QStringLiteral(" %1 %2 %3 %4 %5 %6").arg(options->tailAggressiveness()).arg(options->pressureStrength()).arg(options->stabilizeSensors())
                      .arg(options->useScalableDistance()).arg(options->finishStabilizedCurve()).arg(quintptr(options.data()));
     }
     if (QAction *shapes = d->mainWindow ? d->mainWindow->actionCollection()->action(QStringLiteral("stroke_shapes")) : nullptr) {
@@ -819,16 +826,19 @@ void KisStudioStrokePage::rebuild()
                       i18nc("@info:tooltip", "Letting go, the line goes on to the pen"), options->finishStabilizedCurve(),
                       [change](bool on) { change([on](KisSmoothingOptions &options) { options.setFinishStabilizedCurve(on); }); });
         }
-        if (smooths(type)) {
-            // one switch for both kinds' pressure smoothing
-            const bool smoothPressure = type == KisSmoothingOptions::STABILIZER ? options->stabilizeSensors() : options->smoothPressure();
-            addSwitch(i18n("Smooth Pressure"), i18nc("@info:tooltip", "Pressure, tilt and the rest are evened out too"), smoothPressure,
-                      [change](bool on) {
-                          change([on](KisSmoothingOptions &options) {
-                              options.setSmoothPressure(on);
-                              options.setStabilizeSensors(on);
-                          });
-                      });
+        {
+            // with any smoothing or none: wavering pressure is evened out on its own
+            KisStudioValueRow::Range percent;
+            percent.maximum = 100;
+            percent.suffix = QStringLiteral("%");
+            auto *pressure = addRow(i18nc("how much the pen's pressure is evened out", "Smooth pressure"), percent, options->pressureStrength() * 100, 0);
+            pressure->setToolTip(i18nc("@info:tooltip", "Evens out a wavering line width"));
+            connect(pressure, &KisStudioValueRow::valueChanged, this, [change](qreal value) {
+                change([value](KisSmoothingOptions &options) {
+                    options.setPressureStrength(value / 100);
+                    options.setStabilizeSensors(value > 0);
+                });
+            });
         }
         if (type == KisSmoothingOptions::WEIGHTED_SMOOTHING) {
             addSwitch(i18nc("line smoothing measured on the screen, not the image", "Follows zoom"),

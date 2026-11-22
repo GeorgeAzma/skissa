@@ -45,8 +45,15 @@ public:
     qreal tailAggressiveness() const;
     void setTailAggressiveness(qreal value);
 
+    /// Whether pressure is evened out at all; on is about half the strength
     bool smoothPressure() const;
     void setSmoothPressure(bool value);
+
+    /// How much pressure is evened out, 0 (as the pen reports it) to 1
+    qreal pressureStrength() const;
+    void setPressureStrength(qreal value);
+    /// How far a pressure \p ms after the last goes from the evened one toward it, at \p strength
+    static qreal pressureFollow(qreal strength, qreal ms);
 
     bool useScalableDistance() const;
     void setUseScalableDistance(bool value);

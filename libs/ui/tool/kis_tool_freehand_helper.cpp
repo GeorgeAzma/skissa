@@ -139,6 +139,9 @@ struct KisToolFreehandHelper::Private
     /// The longest recent time between the pen's reports, ms, fading slowly: a device that pauses between bursts of
     /// reports (a mouse, a busy driver) keeps a longer wait than its usual spacing
     qreal reportSpacing {-1};
+    /// The pen's pressure evened out over time (see KisSmoothingOptions::pressureStrength), and when it was
+    qreal evenPressure {1};
+    qreal evenPressureTime {0};
 
     QVector<KisFreehandStrokeInfo*> strokeInfos;
     KisResourcesSnapshotSP resources;
@@ -387,6 +390,8 @@ void KisToolFreehandHelper::initPaintImpl(qreal startAngle,
     m_d->hasPaintAtLeastOnce = false;
 
     m_d->previousPaintInformation = pi;
+    m_d->evenPressure = pi.pressure();
+    m_d->evenPressureTime = pi.currentTime();
 
     m_d->resources = new KisResourcesSnapshot(image,
                                               currentNode,
@@ -601,6 +606,14 @@ void KisToolFreehandHelper::paint(KisPaintInformation &info)
     const qreal spacing = qMin(qreal(100), info.currentTime() - m_d->previousPaintInformation.currentTime());
     m_d->reportSpacing = qMax(spacing, 0.9 * m_d->reportSpacing);
 
+    // pressure evened out on its own, whatever smooths the line
+    if (m_d->smoothingOptions->pressureStrength() > 0) {
+        const qreal follow = KisSmoothingOptions::pressureFollow(m_d->smoothingOptions->pressureStrength(), info.currentTime() - m_d->evenPressureTime);
+        m_d->evenPressure += (info.pressure() - m_d->evenPressure) * follow;
+        info.setPressure(m_d->evenPressure);
+    }
+    m_d->evenPressureTime = info.currentTime();
+
     /**
      * Smooth the coordinates out using the history and the
      * distance. This is a heavily modified version of an algo used in
@@ -653,7 +666,6 @@ void KisToolFreehandHelper::paint(KisPaintInformation &info)
             qreal gaussianWeight2 = sigma * sigma;
             qreal distanceSum = 0.0;
             qreal scaleSum = 0.0;
-            qreal pressure = 0.0;
             qreal baseRate = 0.0;
 
             Q_ASSERT(m_d->history.size() == m_d->distanceHistory.size());
@@ -692,25 +704,15 @@ void KisToolFreehandHelper::paint(KisPaintInformation &info)
                 x += rate * nextInfo.pos().x();
                 y += rate * nextInfo.pos().y();
 
-                if (m_d->smoothingOptions->smoothPressure()) {
-                    pressure += rate * nextInfo.pressure();
-                }
             }
 
             if (scaleSum != 0.0) {
                 x /= scaleSum;
                 y /= scaleSum;
-
-                if (m_d->smoothingOptions->smoothPressure()) {
-                    pressure /= scaleSum;
-                }
             }
 
             if ((x != 0.0 && y != 0.0) || (x == info.pos().x() && y == info.pos().y())) {
                 info.setPos(QPointF(x, y));
-                if (m_d->smoothingOptions->smoothPressure()) {
-                    info.setPressure(pressure);
-                }
                 m_d->history.last() = info;
             }
         }
