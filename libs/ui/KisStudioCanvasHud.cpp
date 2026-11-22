@@ -49,6 +49,7 @@
 #include "opengl/KisOpenGLUpdateInfoBuilder.h"
 #include <KisModernStyle.h>
 #include <kis_icon_utils.h>
+#include <kis_painting_assistants_decoration.h>
 
 namespace {
 
@@ -175,6 +176,8 @@ struct KisStudioCanvasHud::Private
     Badge mirrorX;
     Badge mirrorY;
     QToolButton *selectionHidden {nullptr};
+    /// The image's guides shown or not, while it has some
+    QToolButton *guides {nullptr};
 
     QToolButton *mirror {nullptr};
     QToolButton *value {nullptr};
@@ -313,6 +316,22 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     if (QAction *show = d->action("toggle_display_selection")) d->selectionHidden->setIcon(show->icon());
     connect(d->selectionHidden, &QToolButton::clicked, this, [this]() { d->trigger("toggle_display_selection"); });
     layout->addWidget(d->selectionHidden);
+    // guides are seen while painting along them and in the way otherwise: shown or hidden here, lit while shown
+    d->guides = hudButton(this);
+    d->guides->setObjectName(QStringLiteral("studio_hud_guides"));
+    d->guides->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    d->guides->setCheckable(true);
+    d->guides->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_guides")));
+    d->guides->hide();
+    if (QAction *show = d->action("view_toggle_painting_assistants")) {
+        d->guides->setChecked(show->isChecked());
+        connect(d->guides, &QToolButton::clicked, show, [this, show]() {
+            show->trigger();
+            d->guides->setChecked(show->isChecked());
+        });
+        connect(show, &QAction::toggled, this, &KisStudioCanvasHud::updateBadges);
+    }
+    layout->addWidget(d->guides);
     if (KisSelectionManager *selections = mainWindow->viewManager() ? mainWindow->viewManager()->selectionManager() : nullptr) {
         connect(selections, &KisSelectionManager::currentSelectionChanged, this, &KisStudioCanvasHud::updateBadges);
         connect(selections, &KisSelectionManager::displaySelectionChanged, this, &KisStudioCanvasHud::updateBadges);
@@ -380,7 +399,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     layout->addWidget(d->zoom);
 
     // a drag on any of its own buttons moves the pill
-    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionHidden, d->mirror, d->value, d->rotation}) {
+    for (QToolButton *button : {d->alphaLock.button, d->mirrorX.button, d->mirrorY.button, d->selectionHidden, d->guides, d->mirror, d->value, d->rotation}) {
         button->installEventFilter(this);
     }
     d->spot = savedSpot(d->spot);
@@ -478,6 +497,10 @@ void KisStudioCanvasHud::viewChanged()
                                       this, &KisStudioCanvasHud::updateRotation);
     }
     if (KisCanvas2 *canvas = view->canvasBase()) {
+        // the guides' button comes and goes with them
+        if (KisPaintingAssistantsDecorationSP guides = canvas->paintingAssistantsDecoration()) {
+            d->viewConnections << connect(guides.data(), &KisPaintingAssistantsDecoration::assistantChanged, this, &KisStudioCanvasHud::updateBadges);
+        }
         updateZoom(canvas->coordinatesConverter()->effectiveZoom());
         updateRotation(canvas->rotationAngle());
         // the grayscale is drawn by the OpenGL canvas alone
@@ -503,6 +526,14 @@ void KisStudioCanvasHud::updateBadges()
     }
     KisSelectionManager *selections = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->selectionManager() : nullptr;
     showIf(d->selectionHidden, selections && selections->haveAnySelectionWithPixels() && !selections->displaySelection());
+    KisCanvas2 *canvas = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->canvasBase() : nullptr;
+    const bool hasGuides = canvas && canvas->paintingAssistantsDecoration() && !canvas->paintingAssistantsDecoration()->assistants().isEmpty();
+    showIf(d->guides, hasGuides);
+    if (QAction *show = d->action("view_toggle_painting_assistants")) {
+        d->guides->setChecked(show->isChecked());
+        d->guides->setToolTip(show->isChecked() ? i18nc("@info:tooltip the guides button, while they show", "Guides\nClick: hide")
+                                                : i18nc("@info:tooltip the guides button, while hidden", "Guides hidden\nClick: show"));
+    }
     if (changed && isVisible()) reposition();
 }
 
