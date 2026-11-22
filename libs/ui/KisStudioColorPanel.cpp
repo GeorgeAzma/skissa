@@ -1736,7 +1736,7 @@ KisStudioColorPanel::KisStudioColorPanel()
         gradientRow->addWidget(saved);
         gradientRow->addWidget(d->gradient, 1);
         layout->addWidget(gradientLine);
-        const bool shown = KisConfig(true).readEntry<bool>("StudioColorGradient", true);
+        const bool shown = KisConfig(true).readEntry<bool>("StudioColorGradient", false);
         gradientLine->setVisible(shown);
         styles->addSeparator();
         QAction *gradientAction = styles->addAction(i18nc("@item:inmenu color picker, the gradient strip", "Gradient"));

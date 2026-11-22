@@ -79,6 +79,8 @@ private:
     qreal m_previewScale {1.0};
     QPixmap m_oldPixmap;
     QPixmap m_pixmap;
+    /// The image m_pixmap shows
+    KisImageWSP m_pixmapImage;
 
     QPointF m_previewOrigin; // in the same coordinates space as m_previewSize
     QSize m_previewSize {QSize(100, 100)};

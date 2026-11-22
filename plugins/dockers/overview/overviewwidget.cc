@@ -98,7 +98,13 @@ KisIdleTasksManager::TaskGuard OverviewWidget::registerIdleTask(KisCanvas2 *canv
             KisImageThumbnailStrokeStrategy *strategy =
                 new KisImageThumbnailStrokeStrategy(image->projection(), image->bounds(), thumbnailSize, isPixelArt(), config.profile, config.intent, config.conversionFlags);
 
-            connect(strategy, SIGNAL(thumbnailUpdated(QImage)), this, SLOT(updateThumbnail(QImage)));
+            // a picture of an image left meanwhile is dropped: live parts of the new one would be painted over it
+            KisImageWSP made(image);
+            connect(strategy, &KisImageThumbnailStrokeStrategy::thumbnailUpdated, this, [this, made](QImage picture) {
+                if (!m_canvas || m_canvas->image().data() != made.data()) return;
+                m_pixmapImage = made;
+                updateThumbnail(picture);
+            });
 
             return strategy;
         });
@@ -108,6 +114,7 @@ void OverviewWidget::clearCachedState()
 {
     m_pixmap = QPixmap();
     m_oldPixmap = QPixmap();
+    m_pixmapImage = nullptr;
 }
 
 bool OverviewWidget::isPixelArt()

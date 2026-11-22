@@ -50,6 +50,7 @@ void OverviewLive::start()
     KisImageSP image = m_canvas->image();
     // the picture as Krita's update last made it, in its own pixels; until there is one, nothing to add to
     const QSize thumbnail = m_widget->m_pixmap.size();
+    if (m_widget->m_pixmapImage.data() != image.data()) return;
     const QRect bounds = image->bounds();
     if (thumbnail.isEmpty() || bounds.isEmpty()) return;
 
@@ -68,15 +69,16 @@ void OverviewLive::start()
     const KisDisplayConfig config = m_canvas->displayColorConverter()->displayConfig();
     KisPaintDeviceSP projection = image->projection();
     QPointer<OverviewLive> self(this);
-    QThreadPool::globalInstance()->start([self, projection, bounds, thumbnail, target, sampled, config]() {
+    KisImageWSP made(image);
+    QThreadPool::globalInstance()->start([self, made, projection, bounds, thumbnail, target, sampled, config]() {
         KisPaintDeviceSP part = projection->createThumbnailDeviceOversampled(thumbnail.width(), thumbnail.height(), 2.0, bounds, sampled);
         const QImage picture = part->convertToQImage(config.profile, target, config.intent, config.conversionFlags);
-        QMetaObject::invokeMethod(qApp, [self, picture, target, thumbnail]() {
+        QMetaObject::invokeMethod(qApp, [self, made, picture, target, thumbnail]() {
             if (!self) return;
             self->m_busy = false;
             QPixmap &pixmap = self->m_widget->m_pixmap;
-            // made again meanwhile at another size: Krita's update has it
-            if (pixmap.size() == thumbnail && !picture.isNull()) {
+            // made again meanwhile at another size, or of another image: Krita's update has it
+            if (pixmap.size() == thumbnail && self->m_widget->m_pixmapImage.data() == made.data() && !picture.isNull()) {
                 QPainter painter(&pixmap);
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
                 painter.drawImage(target.topLeft(), picture);
