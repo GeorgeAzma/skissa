@@ -131,6 +131,8 @@ void KisStudioLayout::createRail()
             if (!d->railPanels.contains(id)) {
                 setRailPanels(d->railPanels + QStringList{id});
             }
+            // added to work with: it stays, as a pinned panel does, not a flyout that a click elsewhere closes
+            if (!d->pinned.contains(id)) setPinned(dock, true);
             showPanel(dock);
         });
         // the picker may have starred, unstarred or reordered the rail's panels

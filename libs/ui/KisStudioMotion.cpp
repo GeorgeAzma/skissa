@@ -125,13 +125,10 @@ void KisStudioMotion::showFaded(QWidget *widget)
         widget->show();
         return;
     }
-    const bool appearing = !widget->isVisible();
-    if (appearing) {
-        setOpacity(widget, 0.0);
-        widget->show();
-    }
-    // fade only, no movement: moving glass would repaint everything under it every frame
-    fade(widget, 1.0, KisModernStyle::enterDuration, false);
+    // at once, whole: a click answered by something still fading in feels ignored
+    delete runningFade(widget);
+    widget->show();
+    settle(widget);
 }
 
 void KisStudioMotion::stopFade(QWidget *widget)

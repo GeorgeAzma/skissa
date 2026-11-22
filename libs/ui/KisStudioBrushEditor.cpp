@@ -790,7 +790,9 @@ void KisStudioBrushEditor::fitPage()
     d->pageScroll->setFixedHeight(wanted);
     layout()->activate();
     const int room = heightRoom() - KisModernStyle::space4;
-    const int over = sizeHint().height() - room;
+    // at the window's width, as the tabs wrap there: the size hint counts them on one line
+    const int tall = layout()->hasHeightForWidth() ? layout()->totalHeightForWidth(width()) : sizeHint().height();
+    const int over = tall - room;
     if (over > 0) {
         d->pageScroll->setFixedHeight(qMax(qMin(wanted, 120), wanted - over));
         layout()->activate();
