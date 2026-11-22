@@ -236,7 +236,6 @@ class KisApplication::Private
 public:
     Private() {}
     QPointer<KisSplashScreen> splashScreen;
-    KisAutoSaveRecoveryDialog *autosaveDialog {0};
     KisLongPressEventFilter *longPressEventFilter {nullptr};
     QPointer<KisMainWindow> mainWindow; // The first mainwindow we create on startup
     bool batchRun {false};
@@ -1244,8 +1243,7 @@ void KisApplication::checkAutosaveFiles()
 
     QDir dir = KisAutoSaveRecoveryDialog::autoSaveLocation();
 
-    // Check for autosave files from a previous run. There can be several, and
-    // we want to offer a restore for every one. Including a nice thumbnail!
+    // autosaves of images never saved, from a previous run
 
     // Hidden autosave files
     QStringList filters = QStringList() << QString(".krita-*-*-autosave.kra");
@@ -1257,46 +1255,11 @@ void KisApplication::checkAutosaveFiles()
     filters = QStringList() << QString("krita-*-*-autosave.kra");
     autosaveFiles += dir.entryList(filters, QDir::Files);
 
-    // Allow the user to make their selection
-    if (autosaveFiles.size() > 0) {
-        if (d->splashScreen) {
-            // hide the splashscreen to see the dialog
-            hideSplashScreen();
-        }
-        d->autosaveDialog = new KisAutoSaveRecoveryDialog(autosaveFiles, activeWindow());
-        QDialog::DialogCode result = (QDialog::DialogCode) d->autosaveDialog->exec();
-
-        if (result == QDialog::Accepted) {
-            QStringList filesToRecover = d->autosaveDialog->recoverableFiles();
-            Q_FOREACH (const QString &autosaveFile, autosaveFiles) {
-                if (!filesToRecover.contains(autosaveFile)) {
-                    const QString declined = dir.absolutePath() + "/" + autosaveFile;
-                    KisUsageLogger::log(QString("Removing autosave file %1").arg(declined));
-                    // to the Recycle Bin: a recovery declined by mistake can be taken back
-                    if (!QFile::moveToTrash(declined)) QFile::remove(declined);
-                }
-            }
-            autosaveFiles = filesToRecover;
-        } else {
-            autosaveFiles.clear();
-        }
-
-        if (autosaveFiles.size() > 0) {
-            QList<QString> autosavePaths;
-            Q_FOREACH (const QString &autoSaveFile, autosaveFiles) {
-                const QString path = dir.absolutePath() + QLatin1Char('/') + autoSaveFile;
-                autosavePaths << path;
-            }
-            if (d->mainWindow) {
-                Q_FOREACH (const QString &path, autosavePaths) {
-                    KisMainWindow::OpenFlags flags = d->batchRun ? KisMainWindow::BatchMode : KisMainWindow::None;
-                    d->mainWindow->openDocument(path, flags | KisMainWindow::RecoveryFile);
-                }
-            }
-        }
-        // cleanup
-        delete d->autosaveDialog;
-        d->autosaveDialog = nullptr;
+    // images never saved, left open: they open again, unsaved, as a browser brings back its tabs; no question
+    // first. Closed with Don't save, an autosave goes to the Recycle Bin and doesn't come back (KisDocument)
+    if (!d->mainWindow) return;
+    Q_FOREACH (const QString &autosaveFile, autosaveFiles) {
+        d->mainWindow->openDocument(dir.absolutePath() + QLatin1Char('/') + autosaveFile, KisMainWindow::RecoveryFile);
     }
 }
 
