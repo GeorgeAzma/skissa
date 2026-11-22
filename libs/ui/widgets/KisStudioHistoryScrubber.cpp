@@ -11,6 +11,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QTimer>
+#include <QLabel>
 #include <QToolTip>
 #include <QWheelEvent>
 
@@ -197,10 +198,66 @@ void KisStudioHistoryScrubber::mouseMoveEvent(QMouseEvent *event)
 {
     if (m_dragging) {
         goTo(stepAt(event->pos().x()));
-        // the step reached, named where the pointer is
-        const QModelIndex index = m_steps ? m_steps->model()->index(currentStep(), 0) : QModelIndex();
-        QToolTip::showText(event->globalPos(), index.data(Qt::DisplayRole).toString(), this);
+        // the step reached, shown where the pointer is
+        showStep(currentStep(), event->globalPos());
+    } else if (markAt(event->pos()) < 0 && m_steps && stepCount() > 0) {
+        showStep(stepAt(event->pos().x()), event->globalPos());
+    } else {
+        hideStep();
     }
+}
+
+void KisStudioHistoryScrubber::showStep(int step, const QPoint &globalPos)
+{
+    const QModelIndex index = m_steps ? m_steps->model()->index(step, 0) : QModelIndex();
+    if (!index.isValid()) {
+        hideStep();
+        return;
+    }
+    if (!m_bubble) {
+        m_bubble = new QLabel(nullptr, Qt::ToolTip | Qt::FramelessWindowHint);
+        m_bubble->setAttribute(Qt::WA_TranslucentBackground);
+        m_bubble->setAttribute(Qt::WA_TransparentForMouseEvents);
+        connect(this, &QObject::destroyed, m_bubble.data(), &QObject::deleteLater);
+    }
+    if (step != m_bubbleStep) {
+        m_bubbleStep = step;
+        // the image after that step, as the history kept it, with the step's name under it
+        const QImage picture = index.data(Qt::DecorationRole).value<QImage>();
+        const QString name = index.data(Qt::DisplayRole).toString();
+        const qreal ratio = devicePixelRatioF();
+        const int pad = KisModernStyle::space2;
+        const QSize shown = picture.isNull() ? QSize() : (QSizeF(picture.size()) / picture.devicePixelRatio()).scaled(QSizeF(128, 128), Qt::KeepAspectRatio).toSize();
+        const QFontMetrics metrics(font());
+        const int width = qMax(shown.width(), metrics.horizontalAdvance(name)) + 2 * pad;
+        const int height = shown.height() + (shown.isEmpty() ? 0 : pad) + metrics.height() + 2 * pad;
+        QPixmap pixmap(QSize(width, height) * ratio);
+        pixmap.setDevicePixelRatio(ratio);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(palette().color(QPalette::ToolTipBase));
+        painter.drawPath(KisModernStyle::squircle(QRectF(0, 0, width, height), KisModernStyle::tileRadius));
+        if (!shown.isEmpty()) {
+            painter.drawImage(QRectF(QPointF((width - shown.width()) / 2.0, pad), shown), picture);
+        }
+        painter.setPen(palette().color(QPalette::ToolTipText));
+        painter.drawText(QRectF(pad, height - pad - metrics.height(), width - 2 * pad, metrics.height()), Qt::AlignCenter, name);
+        painter.end();
+        m_bubble->setPixmap(pixmap);
+        m_bubble->resize(width, height);
+    }
+    // above the line, centered on the pointer
+    m_bubble->move(globalPos.x() - m_bubble->width() / 2, mapToGlobal(QPoint(0, 0)).y() - m_bubble->height() - KisModernStyle::space1);
+    m_bubble->show();
+}
+
+void KisStudioHistoryScrubber::hideStep()
+{
+    if (m_bubble) m_bubble->hide();
+    m_bubbleStep = -1;
 }
 
 void KisStudioHistoryScrubber::mouseReleaseEvent(QMouseEvent *event)
@@ -209,7 +266,6 @@ void KisStudioHistoryScrubber::mouseReleaseEvent(QMouseEvent *event)
     if (m_pressedMark >= 0 && m_pressedMark == markAt(event->pos())) openLater(m_pressedMark, false);
     m_pressedMark = -1;
     m_dragging = false;
-    QToolTip::hideText();
     update();
 }
 
@@ -249,14 +305,12 @@ bool KisStudioHistoryScrubber::event(QEvent *event)
         auto *help = static_cast<QHelpEvent *>(event);
         const int mark = markAt(help->pos());
         QString name;
-        if (mark >= 0) {
-            name = m_marks[mark].name;
-        } else if (m_steps && stepCount() > 0) {
-            name = m_steps->model()->index(stepAt(help->pos().x()), 0).data(Qt::DisplayRole).toString();
-        }
+        // the steps show themselves as the pointer moves
+        if (mark >= 0) name = m_marks[mark].name;
         if (name.isEmpty()) QToolTip::hideText();
         else QToolTip::showText(help->globalPos(), name, this);
         return true;
     }
+    if (event->type() == QEvent::Leave || event->type() == QEvent::Hide) hideStep();
     return QWidget::event(event);
 }

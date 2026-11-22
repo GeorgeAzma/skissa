@@ -13,6 +13,7 @@
 #include <functional>
 
 class QAbstractItemView;
+class QLabel;
 
 /**
  * The undo history as a line to drag along: each step a place on it, the steps undone fainter, snapshots as dots
@@ -53,6 +54,9 @@ private:
     int currentStep() const;
     void goTo(int step);
     void openLater(int mark, bool menu);
+    /// The image after \p step and its name, in a bubble above the line
+    void showStep(int step, const QPoint &globalPos);
+    void hideStep();
     qreal lineLeft() const;
     qreal xOf(int step) const;
     QPointF markAtPoint(int mark) const;
@@ -65,6 +69,8 @@ private:
     std::function<void(int)> m_stepTo;
     bool m_dragging {false};
     int m_pressedMark {-1};
+    QPointer<QLabel> m_bubble;
+    int m_bubbleStep {-1};
 };
 
 #endif // KISSTUDIOHISTORYSCRUBBER_H

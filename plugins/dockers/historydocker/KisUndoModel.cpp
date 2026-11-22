@@ -257,7 +257,8 @@ void KisUndoModel::setCanvas(KisCanvas2 *canvas)
 QImage KisUndoModel::thumbnail() const
 {
     if (!m_canvas || !m_canvas->image()) return QImage();
-    const QSize size = QSize(32, 32) * m_devicePixelRatioF;
+    // large enough for the history line's preview (KisStudioHistoryScrubber); the list shows it smaller
+    const QSize size = QSize(128, 128) * m_devicePixelRatioF;
     QImage image = m_canvas->image()->projection()->createThumbnail(size.width(), size.height(), KisThumbnailBoundsMode::Coarse);
     image.setDevicePixelRatio(m_devicePixelRatioF);
     return image;
