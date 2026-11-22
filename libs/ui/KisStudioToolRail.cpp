@@ -570,6 +570,10 @@ struct KisStudioToolRail::Private
     QString activeSlot;
     QString brushSlot;                     ///< Paint, Blend or a pinned brush, whichever the current brush belongs to
     bool loadingPreset {false};
+    /// Whether the eraser is in use, as chosen (the Erase slot, its key), not as the brush in use says
+    bool erasing {false};
+    /// Swapping between the eraser's brush and the brush slot's (setErasing())
+    bool swappingEraser {false};
     KisStudioToolRail *q {nullptr};
 
     QAction *eraseAction() const
@@ -828,7 +832,18 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         });
     }
     if (QAction *erase = d->eraseAction()) {
+        d->erasing = erase->isChecked();
         connect(erase, &QAction::toggled, this, &KisStudioToolRail::updateActiveSlot);
+        // its key: into or out of erasing, with each side's brush
+        connect(erase, &QAction::triggered, this, [this](bool on) { setErasing(on); });
+        // a brush picked brings its own erasing with it (Krita's): the eraser keeps erasing, Paint keeps painting
+        QPointer<QAction> action = erase;
+        connect(erase, &QAction::toggled, this, [this, action](bool on) {
+            if (d->swappingEraser || on == d->erasing) return;
+            QTimer::singleShot(0, this, [this, action]() {
+                if (action && action->isChecked() != d->erasing) action->setChecked(d->erasing);
+            });
+        });
     }
     if (KisCanvasResourceProvider *resources = d->resources()) {
         connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, &KisStudioToolRail::rememberPreset);
@@ -1510,7 +1525,13 @@ void KisStudioToolRail::activateTool(const QString &slotId, const QString &toolI
         if (erase && !erase->isChecked()) {
             erase->setChecked(true);
         }
+        setErasing(true);
     } else if (s.brush == BrushMode::Paint || s.brush == BrushMode::Blend) {
+        // the pen's brush back first, so the slot left remembers its own and not the eraser's
+        if (d->erasing) {
+            if (erase && erase->isChecked()) erase->setChecked(false);
+            setErasing(false);
+        }
         const bool switchingBrush = d->brushSlot != slotId;
         KisCanvasResourceProvider *resources = d->resources();
         if (switchingBrush && resources && resources->currentPreset() && d->slots.contains(d->brushSlot)) {
@@ -1619,6 +1640,14 @@ void KisStudioToolRail::rememberPreset()
     const QString name = resources->currentPreset()->name();
     KisStudioBrushPicker::recordUse(name);
 
+    // a brush picked while erasing is the eraser's
+    if (d->erasing) {
+        if (!d->swappingEraser) {
+            KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->slotWithMode(BrushMode::Erase), name);
+        }
+        return;
+    }
+
     // a pinned brush lights its own button, and Paint keeps the brush it had
     if (d->items.contains(brushPrefix + name)) {
         if (d->brushSlot != brushPrefix + name) {
@@ -1653,6 +1682,26 @@ void KisStudioToolRail::rememberPreset()
     KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + d->brushSlot, name);
 }
 
+void KisStudioToolRail::setErasing(bool on)
+{
+    KisCanvasResourceProvider *resources = d->resources();
+    const bool changed = on != d->erasing;
+    d->erasing = on;
+    if (!resources || d->swappingEraser) return;
+    d->swappingEraser = true;
+    if (changed && resources->currentPreset()) {
+        const QString eraser = d->slotWithMode(BrushMode::Erase);
+        const QString leaving = on ? d->brushSlot : eraser;
+        const QString entering = on ? eraser : d->brushSlot;
+        if (!leaving.isEmpty()) KisSettingsRegistry::writeLater(QStringLiteral("StudioBrushPreset_") + leaving, resources->currentPreset()->name());
+        // the eraser starts with the brush in use: until it has one of its own, nothing changes
+        if (!entering.isEmpty()) loadPresetForSlot(entering);
+    }
+    if (resources->eraserMode() != on) resources->setEraserMode(on);
+    d->swappingEraser = false;
+    updateActiveSlot();
+}
+
 void KisStudioToolRail::activatePin(const QString &key)
 {
     KisCanvasResourceProvider *resources = d->resources();
@@ -1662,11 +1711,14 @@ void KisStudioToolRail::activatePin(const QString &key)
     if (!resources || !preset) {
         return;
     }
-    d->brushSlot = key;
     QAction *erase = d->eraseAction();
-    if (erase && erase->isChecked()) {
+    if (d->erasing) {
+        if (erase && erase->isChecked()) erase->setChecked(false);
+        setErasing(false);
+    } else if (erase && erase->isChecked()) {
         erase->setChecked(false);
     }
+    d->brushSlot = key;
     KisStudioTools::switchTo(brushToolId);
     if (!resources->currentPreset() || resources->currentPreset()->name() != name) {
         const qreal size = resources->size();

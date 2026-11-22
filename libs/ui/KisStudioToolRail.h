@@ -85,6 +85,9 @@ private:
     void updateActiveSlot();
     void rememberPreset();
     void loadPresetForSlot(const QString &slotId);
+    /// Into or out of erasing: the eraser and the brush slot each have their brush (the same one at first), and the
+    /// eraser always erases, whatever its brush says (Krita keeps erasing in the brush itself)
+    void setErasing(bool on);
     /// Paints with the brush pinned as \p key (Find's key for it)
     void activatePin(const QString &key);
 
