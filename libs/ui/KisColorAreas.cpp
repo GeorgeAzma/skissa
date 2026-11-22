@@ -351,6 +351,9 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
     const QPoint at = point - d->bounds.topLeft();
     if (at.x() < 0 || at.y() < 0 || at.x() >= w || at.y() >= h) return result;
     const int threshold = levelOf(step);
+    // a mark on the area is a difference the eye sees, however finely the area is parted
+    const qreal markStep = std::max(step, qreal(0.02));
+    const int markThreshold = levelOf(markStep);
     auto inArea = [&](size_t i) { return d->level[i] <= threshold; };
 
     // each area its own number, given as it is first reached
@@ -527,7 +530,7 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
                 const size_t a = size_t(ay) * w + ax, b = size_t(by) * w + bx;
                 if (!result.mask[a] || !result.mask[b]) continue;
                 const Color ca = oklabOf(d->pixel(ax, ay)), cb = oklabOf(d->pixel(bx, by));
-                if (distance(ca, cb) >= step) continue;
+                if (distance(ca, cb) >= markStep) continue;
                 const float unlike = distance(own, ca);
                 if (unlike > apart) {
                     apart = unlike;
@@ -575,7 +578,7 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
             // enclosed in the area, no other area near: within the step of its color it is the area; else a mark on it
             // (a bird, a seam where two shapes overlapped), which takes the new color with its difference kept
             const Color own = oklabOf(d->pixel(x, y)), area = oklabOf(d->pixel(inside[i] % w, inside[i] / w));
-            if (distance(own, area) < step) {
+            if (distance(own, area) < markStep) {
                 result.mask[i] = MAX_SELECTED;
                 continue;
             }
@@ -587,9 +590,9 @@ KisColorAreas::Cover KisColorAreas::cover(const QPoint &point, int reach, qreal 
     for (int y = covers.top(); y <= covers.bottom(); y++) {
         for (int x = covers.left(); x <= covers.right(); x++) {
             const size_t i = size_t(y) * w + x;
-            if (!result.mask[i] || d->lineLevel[i] <= threshold) continue;
+            if (!result.mask[i] || d->lineLevel[i] <= markThreshold) continue;
             const auto beside = besideOf(x, y);
-            if (beside.first >= 0 && beside.second >= step) marks.push_back({int(i), beside.first, -1});
+            if (beside.first >= 0 && beside.second >= markStep) marks.push_back({int(i), beside.first, -1});
         }
     }
     for (const Blend &mark : marks) result.mask[size_t(mark.at)] = MIN_SELECTED;
