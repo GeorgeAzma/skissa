@@ -2076,7 +2076,7 @@ void PerformanceTab::load(bool requestDefault)
     {
         KConfigGroup group = KSharedConfig::openConfig()->group("KisToolTransform");
         chkTransformToolUseInStackPreview->setChecked(!group.readEntry("useOverlayPreviewStyle", false));
-        chkTransformToolForceLodMode->setChecked(group.readEntry("forceLodMode", true));
+        chkTransformToolForceLodMode->setChecked(group.readEntry("forceLodMode", false));
         chkTransformToolForceLodMode->setEnabled(chkTransformToolUseInStackPreview->isChecked());
     }
 
@@ -2087,7 +2087,7 @@ void PerformanceTab::load(bool requestDefault)
 
     {
         KConfigGroup group( KSharedConfig::openConfig(), "filterdialog");
-        chkFiltersForceLodMode->setChecked(group.readEntry("forceLodMode", true));
+        chkFiltersForceLodMode->setChecked(group.readEntry("forceLodMode", false));
     }
 }
 

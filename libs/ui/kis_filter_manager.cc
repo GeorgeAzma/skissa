@@ -407,7 +407,7 @@ void KisFilterManager::apply(KisFilterConfigurationSP _filterConfig)
                                                                     d->externalCancelUpdatesStorage.toWeakRef());
     {
         KConfigGroup group( KSharedConfig::openConfig(), "filterdialog");
-        strategy->setForceLodModeIfPossible(group.readEntry("forceLodMode", true));
+        strategy->setForceLodModeIfPossible(group.readEntry("forceLodMode", false));
     // at full resolution, a coarse pass first (shown at once), then the full one in its place. No coarser than
     // one level below what the canvas shows: a much coarser pass looks far softer than the result, which then
     // seems to undo the effect when it lands. Zoomed out, a pass at what the canvas shows comes between: on screen

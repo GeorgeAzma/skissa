@@ -631,8 +631,8 @@ QVector<Setting> describeAll()
             all << favorites;
         }
         all << toggle(QStringLiteral("StudioUpdates"), true, i18nc("setting", "Update automatically"), R::Fork | R::OwnNotice);
-        all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
-        all << grouped(toggle(QStringLiteral("forceLodMode"), true, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
+        all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in effects")), QStringLiteral("filterdialog"));
+        all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Transform")), QStringLiteral("KisToolTransform"));
         all << grouped(toggle(QStringLiteral("forceLodMode"), false, i18nc("setting", "Instant preview in Move")), QStringLiteral("KritaTransform/KisToolMove"));
         all << number(QStringLiteral("undoStackLimit"), 300, 0, 1000, i18nc("setting", "Undo steps"));
         all << toggle(QStringLiteral("useCumulativeUndoRedo"), false, i18nc("setting", "Merge strokes in undo"));

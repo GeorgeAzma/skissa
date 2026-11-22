@@ -207,11 +207,16 @@ void KisToolTransform::resetCursorStyle()
     setFunctionalCursor();
 }
 
+namespace {
+/// Pixels past which a transform can't follow the pointer at full resolution
+const qint64 slowTransformPixels = qint64(12) * 1000 * 1000;
+}
+
 void KisToolTransform::slotGlobalConfigChanged()
 {
     KConfigGroup group = KSharedConfig::openConfig()->group(toolId());
     m_preferOverlayPreviewStyle = group.readEntry("useOverlayPreviewStyle", false);
-    m_forceLodMode = group.readEntry("forceLodMode", true);
+    m_forceLodMode = group.readEntry("forceLodMode", false);
 }
 
 void KisToolTransform::resetRotationCenterButtonsRequested()
@@ -1052,7 +1057,15 @@ void KisToolTransform::startStroke(ToolTransformArgs::TransformMode mode, bool f
         m_strokeStrategyCookie = transformStrategy;
 
     } else {
-        InplaceTransformStrokeStrategy *transformStrategy = new InplaceTransformStrokeStrategy(mode, m_currentArgs.filterId(), forceReset, rootNodes, selection, externalSource, image().data(), image().data(), image()->root(), m_forceLodMode);
+        // previewed at a lower resolution (zoomed out) only when there is too much to transform at full resolution as it is dragged
+        QRect moved;
+        if (selection) {
+            moved = selection->selectedExactRect();
+        } else {
+            for (KisNodeSP node : rootNodes) moved |= node->exactBounds();
+        }
+        const bool slow = qint64(moved.width()) * moved.height() > slowTransformPixels;
+        InplaceTransformStrokeStrategy *transformStrategy = new InplaceTransformStrokeStrategy(mode, m_currentArgs.filterId(), forceReset, rootNodes, selection, externalSource, image().data(), image().data(), image()->root(), m_forceLodMode || slow);
         connect(transformStrategy, SIGNAL(sigTransactionGenerated(TransformTransactionProperties, ToolTransformArgs, void*)), SLOT(slotTransactionGenerated(TransformTransactionProperties, ToolTransformArgs, void*)));
         connect(transformStrategy, SIGNAL(sigConvexHullCalculated(QPolygon, void*)), SLOT(slotConvexHullCalculated(QPolygon, void*)));
         connect(transformStrategy, SIGNAL(sigSourceReady(KisPaintDeviceSP)), SLOT(slotBendSourceReady(KisPaintDeviceSP)));

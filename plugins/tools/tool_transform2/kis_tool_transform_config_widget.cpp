@@ -43,7 +43,7 @@ KisToolTransformConfigWidget::KisToolTransformConfigWidget(TransformTransactionP
     auto loadPreviewMode = [this]() {
         KConfigGroup group = KSharedConfig::openConfig()->group("KisToolTransform");
         const bool overlay = group.readEntry("useOverlayPreviewStyle", false);
-        const bool forceLodMode = group.readEntry("forceLodMode", true);
+        const bool forceLodMode = group.readEntry("forceLodMode", false);
         QSignalBlocker blocker(cmbPreviewMode);
         cmbPreviewMode->setCurrentIndex(overlay ? 2 : forceLodMode ? 1 : 0);
     };
