@@ -12,6 +12,7 @@
 
 #include <kis_tool_shape.h>
 #include <kis_cursor.h>
+#include <QTimer>
 
 class KisInputActionGroupsMaskGuard;
 
@@ -61,6 +62,10 @@ private:
     QVector<QPointF> m_points;
     bool m_continuedMode;
     QPointF m_lastCursorPos;
+    /// A selection's line, held still at its end: the clean shape it roughly drew (KisSelectionGestures)
+    QVector<QPointF> m_snapped;
+    QPointF m_stillAt;
+    QTimer m_hold;
     ToolType m_type;
     int m_numberOfContinuedModePoints;
     bool m_hasUserInteractionRunning;

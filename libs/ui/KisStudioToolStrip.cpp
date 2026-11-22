@@ -5,6 +5,7 @@
  */
 #include "KisStudioToolStrip.h"
 #include "KisPatternTint.h"
+#include "KisSelectionGestures.h"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -1230,6 +1231,14 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 tuckSection(actions);
             }
             addSelectionCommands();
+            // the freehand line keeps to the picture's edges (in place of the magnetic tool)
+            if (KisStudioTools::activeToolId() == QLatin1String("KisToolSelectOutline")) {
+                QToolButton *edges = addButton(KisIconUtils::loadIcon(QStringLiteral("tool_magnetic_selection")),
+                                               i18nc("@info:tooltip the freehand selection keeps to edges in the picture", "Follow edges"));
+                edges->setCheckable(true);
+                edges->setChecked(KisSelectionGestures::followsEdges());
+                connect(edges, &QToolButton::toggled, edges, [](bool on) { KisSelectionGestures::setFollowsEdges(on); });
+            }
             // the bar's Grow and Soft do what Krita's grow and feather did (kept while set, so nothing set is hidden);
             // the selection actions bar is a setting, not a tool's option
             if (QCheckBox *bar = withId<QCheckBox>(selection, QStringLiteral("sapCheckBox"))) tuck(bar->parentWidget());

@@ -152,7 +152,7 @@ QVector<ToolSlot> toolSlots()
         {QStringLiteral("select"), i18nc("@info:tooltip tool slot", "Select"), QStringLiteral("studio_select"), BrushMode::None,
          {QStringLiteral("KisToolSelectRectangular"), QStringLiteral("KisToolSelectElliptical"), QStringLiteral("KisToolSelectOutline"),
           QStringLiteral("KisToolSelectPolygonal"), QStringLiteral("KisToolSelectContiguous"), QStringLiteral("KisToolSelectSimilar"),
-          QStringLiteral("KisToolSelectMagnetic"), QStringLiteral("KisToolSelectPath")}},
+          QStringLiteral("KisToolSelectPath")}},
         {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Transform"), QStringLiteral("studio_move"), BrushMode::None,
          {QStringLiteral("KritaTransform/KisToolMove"), QStringLiteral("KisToolTransform"), QStringLiteral("KisToolCrop"),
           QStringLiteral("InteractionTool")}},

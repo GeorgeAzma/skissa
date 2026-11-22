@@ -20,6 +20,8 @@
 #include <input/kis_input_manager.h>
 
 #include "KisToolOutlineBase.h"
+#include "KisSelectionGestures.h"
+#include <kis_image.h>
 #include "input/KisInputActionGroup.h"
 
 KisToolOutlineBase::KisToolOutlineBase(KoCanvasBase * canvas, ToolType type, const QCursor & cursor)
@@ -28,7 +30,14 @@ KisToolOutlineBase::KisToolOutlineBase(KoCanvasBase * canvas, ToolType type, con
     , m_type(type)
     , m_numberOfContinuedModePoints(0)
     , m_hasUserInteractionRunning(false)
-{}
+{
+    m_hold.setSingleShot(true);
+    connect(&m_hold, &QTimer::timeout, this, [this]() {
+        if (mode() != KisTool::PAINT_MODE || m_continuedMode) return;
+        m_snapped = KisSelectionGestures::cleanShape(m_points);
+        if (!m_snapped.isEmpty()) this->canvas()->updateCanvas(this->canvas()->canvasWidget()->rect());
+    });
+}
 
 KisToolOutlineBase::~KisToolOutlineBase()
 {}
@@ -195,6 +204,21 @@ void KisToolOutlineBase::continuePrimaryAction(KoPointerEvent *event)
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
 
     QPointF point = convertToPixelCoord(event);
+    if (m_type == SELECT && !m_continuedMode && !m_points.isEmpty()) {
+        const qreal zoom = QLineF(pixelToView(QPointF(0, 0)), pixelToView(QPointF(1, 0))).length();
+        if (KisSelectionGestures::followsEdges() && image()) {
+            point = KisSelectionGestures::onEdge(image()->projection(), m_points.last(), point, KisSelectionGestures::edgeBand / qMax(zoom, 0.01));
+        }
+        // a rough box or ellipse held still at its end snaps clean
+        if (QLineF(pixelToView(point), pixelToView(m_stillAt)).length() > 4) {
+            m_stillAt = point;
+            if (!m_snapped.isEmpty()) {
+                m_snapped.clear();
+                canvas()->updateCanvas(canvas()->canvasWidget()->rect());
+            }
+            m_hold.start(KisSelectionGestures::holdMs);
+        }
+    }
     m_points.append(point);
     updateFeedback();
 }
@@ -219,7 +243,12 @@ void KisToolOutlineBase::endPrimaryAction(KoPointerEvent *event)
 
 void KisToolOutlineBase::paint(QPainter& gc, const KoViewConverter &converter)
 {
-    if ((mode() == KisTool::PAINT_MODE || m_continuedMode) && !m_points.isEmpty()) {
+    if (mode() == KisTool::PAINT_MODE && !m_snapped.isEmpty()) {
+        QPainterPath outline;
+        outline.addPolygon(pixelToView(QPolygonF(m_snapped)));
+        outline.closeSubpath();
+        paintToolOutline(&gc, outline);
+    } else if ((mode() == KisTool::PAINT_MODE || m_continuedMode) && !m_points.isEmpty()) {
         QPainterPath outline;
         outline.moveTo(pixelToView(m_points.first()));
         for (qint32 i = 1; i < m_points.size(); ++i) {
@@ -274,6 +303,9 @@ void KisToolOutlineBase::endStroke()
     setMode(KisTool::HOVER_MODE);
     m_hasUserInteractionRunning = false;
 
+    m_hold.stop();
+    if (!m_snapped.isEmpty()) m_points = m_snapped;
+    m_snapped.clear();
     finishOutline(m_points);
     m_points.clear();
     endShape();
@@ -288,6 +320,8 @@ void KisToolOutlineBase::cancelStroke()
     setMode(KisTool::HOVER_MODE);
     m_hasUserInteractionRunning = false;
 
+    m_hold.stop();
+    m_snapped.clear();
     m_points.clear();
     endShape();
 }
