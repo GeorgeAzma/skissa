@@ -224,15 +224,14 @@ inline bool isArrangementKey(const QString &key)
     return key.startsWith(QLatin1String("StudioLayout")) && key != activeKey && key != classicStateKey && key != panelsKey;
 }
 
-/// The panels on the rail by default; the tool options open from the tool chip instead
+/// The panels on the rail by default, what painting needs (the palette and History are one ⋯ away); the tool options
+/// open from the tool chip instead
 inline QStringList defaultRailPanels()
 {
     return {
         QStringLiteral("KisLayerBox"),
         QStringLiteral("PresetDocker"),
         QStringLiteral("StudioColor"),
-        QStringLiteral("PaletteDocker"),
-        QStringLiteral("History"),
     };
 }
 
