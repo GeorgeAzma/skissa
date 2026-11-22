@@ -796,8 +796,6 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
         if (!action) {
             action = new QAction(i18nc("@action a button on the tools rail, by its place", "Tool %1", n), mainWindow);
             action->setObjectName(name);
-            // as its default too: Krita's shortcut scheme, read later, gives an action its default or nothing
-            mainWindow->actionCollection()->setDefaultShortcut(action, QKeySequence(Qt::Key_0 + n));
             action->setShortcut(QKeySequence(Qt::Key_0 + n));
             KisStudioShortcuts::restore(action);
             mainWindow->actionCollection()->addAction(name, action);

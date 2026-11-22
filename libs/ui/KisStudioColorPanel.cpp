@@ -1674,9 +1674,11 @@ KisStudioColorPanel::KisStudioColorPanel()
     };
     {
         // the saved gradients, beside the strip they go into
-        auto *gradientRow = new QHBoxLayout();
+        auto *gradientLine = new QWidget(contents);
+        auto *gradientRow = new QHBoxLayout(gradientLine);
+        gradientRow->setContentsMargins(0, 0, 0, 0);
         gradientRow->setSpacing(KisModernStyle::space1);
-        auto *saved = new QToolButton(contents);
+        auto *saved = new QToolButton(gradientLine);
         saved->setAutoRaise(true);
         saved->setFocusPolicy(Qt::NoFocus);
         saved->setIconSize(QSize(18, 18));
@@ -1703,7 +1705,17 @@ KisStudioColorPanel::KisStudioColorPanel()
         });
         gradientRow->addWidget(saved);
         gradientRow->addWidget(d->gradient, 1);
-        layout->addLayout(gradientRow);
+        layout->addWidget(gradientLine);
+        const bool shown = KisConfig(true).readEntry<bool>("StudioColorGradient", true);
+        gradientLine->setVisible(shown);
+        styles->addSeparator();
+        QAction *gradientAction = styles->addAction(i18nc("@item:inmenu color picker, the gradient strip", "Gradient"));
+        gradientAction->setCheckable(true);
+        gradientAction->setChecked(shown);
+        connect(gradientAction, &QAction::toggled, gradientLine, [gradientLine](bool on) {
+            gradientLine->setVisible(on);
+            KisConfig(false).writeEntry("StudioColorGradient", on);
+        });
     }
 
     setWidget(contents);
