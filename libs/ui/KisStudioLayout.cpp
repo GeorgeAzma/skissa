@@ -6,6 +6,8 @@
 #include "KisStudioLayout.h"
 #include "KisStudioLayout_p.h"
 
+#include <kis_selection.h>
+
 KisStudioLayout::KisStudioLayout(KisMainWindow *mainWindow)
     : QObject(mainWindow)
     , d(new Private)
@@ -1027,6 +1029,17 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
 {
     if ((event->type() == QEvent::ActionAdded || event->type() == QEvent::ActionChanged) && qobject_cast<QMenu *>(watched)) {
         tidyCommand(static_cast<QActionEvent *>(event)->action());
+    }
+    // Escape the tool had nothing to cancel with (it went past the canvas to the view): the selection goes
+    if (event->type() == QEvent::KeyPress && watched->inherits("KisView")) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        QAction *deselect = d->mainWindow->actionCollection()->action(QStringLiteral("deselect"));
+        KisViewManager *view = d->mainWindow->viewManager();
+        if (key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier && !key->isAutoRepeat() && deselect && deselect->isEnabled()
+            && view && view->selection()) {
+            deselect->trigger();
+            return true;
+        }
     }
     // a number box's right click is Qt's menu of Undo, Cut, Paste and Step up: none of it is wanted on a number (the
     // app's own values reset on a right click)

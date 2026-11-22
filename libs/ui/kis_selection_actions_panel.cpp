@@ -7,6 +7,8 @@
 
 #include "kis_selection_actions_panel.h"
 
+#include <QTimer>
+
 #include "KoCanvasController.h"
 #include "kis_action.h"
 #include "kis_action_manager.h"
@@ -116,6 +118,10 @@ struct KisSelectionActionsPanel::Private {
     const QString dragOffsetConfigName = "selectionActionBarDragOffset";
 
     int sapPinButtonIndex = {-1};
+
+    /// While the canvas moves the bar is away, back once it rests: it followed a frame late and jumped
+    QTimer *settle = nullptr;
+    bool moving = false;
 };
 
 
@@ -160,6 +166,14 @@ KisSelectionActionsPanel::KisSelectionActionsPanel(KisViewManager *viewManager)
 
     connect(KisConfigNotifier::instance(), SIGNAL(configChanged()), SLOT(configChanged()));
     connect(d->m_viewManager->canvasBase()->canvasController()->proxyObject, SIGNAL(canvasStateChanged()), SLOT(canvasStateChanged()));
+    d->settle = new QTimer(this);
+    d->settle->setSingleShot(true);
+    d->settle->setInterval(200);
+    connect(d->settle, &QTimer::timeout, this, [this]() {
+        d->moving = false;
+        updatePositioning();
+        if (d->m_viewManager->canvasBase()) d->m_viewManager->canvasBase()->updateCanvasDecorations();
+    });
 
     connect(KisPart::instance()->currentMainwindow(), SIGNAL(themeChanged()), this, SLOT(themeChanged()));
 
@@ -178,7 +192,7 @@ void KisSelectionActionsPanel::draw(QPainter &painter, const KoColorDisplayRende
 {
     KisSelectionSP selection = d->m_viewManager->selection();
 
-    if (!selection || !d->m_enabled || !d->m_visible) {
+    if (!selection || !d->m_enabled || !d->m_visible || d->moving) {
         return;
     }
 
@@ -750,7 +764,7 @@ void KisSelectionActionsPanel::movePanelWidgets()
         return;
 
     // don't show the widgets if the panel is hidden
-    if (!d->m_visible)
+    if (!d->m_visible || d->moving)
         return;
 
     if (d->orientation == Orientation::Vertical) {
@@ -876,7 +890,17 @@ void KisSelectionActionsPanel::configChanged(bool skipResettingOffset)
 
 void KisSelectionActionsPanel::canvasStateChanged()
 {
-    updatePositioning();
+    // its own drag moves only the bar
+    if (!d->m_visible || d->m_pressed) {
+        updatePositioning();
+        return;
+    }
+    if (!d->moving) {
+        d->moving = true;
+        for (KisSelectionActionsPanelButton *button : d->m_buttons) button->hide();
+        d->m_handleWidget->hide();
+    }
+    d->settle->start();
 }
 
 void KisSelectionActionsPanel::themeChanged()
