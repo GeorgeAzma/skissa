@@ -19,6 +19,7 @@
 #include <QCursor>
 #include <QDateTime>
 #include <QDrag>
+#include <QElapsedTimer>
 #include <QDragEnterEvent>
 #include <QFrame>
 #include <QLineEdit>
@@ -122,8 +123,8 @@ const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
 /// The transform tool's Push (liquify), one tap away
 const QString pushItem = QStringLiteral("action:KisToolTransformLiquify");
 const QString pushOfferedKey = QStringLiteral("StudioRailPushOffered");
-
 const QString blendSlotBackKey = QStringLiteral("StudioRailBlendSlotBack");
+
 enum class BrushMode {
     None,
     Paint,
@@ -551,6 +552,30 @@ QIcon pinnedIcon(const QIcon &picture, int side)
     return QIcon(tile);
 }
 
+/// Held longer than this, a tool's key picks the tool only while held
+constexpr int springHoldMs = 350;
+
+/// Watches the whole application's events through \c filter
+class EventWatcher : public QObject
+{
+public:
+    using QObject::QObject;
+    std::function<bool(QEvent *)> filter;
+
+protected:
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        return filter && filter(event);
+    }
+};
+
+/// A key that types: no tool key means anything while text is being written
+bool typingInto(QWidget *widget)
+{
+    return qobject_cast<QLineEdit *>(widget) || widget->inherits("QTextEdit") || widget->inherits("QPlainTextEdit")
+        || widget->inherits("QAbstractSpinBox") || widget->inherits("QQuickWidget");
+}
+
 } // namespace
 
 struct KisStudioToolRail::Private
@@ -581,6 +606,13 @@ struct KisStudioToolRail::Private
     QHash<QString, QPointer<QAction>> ownActions; ///< hold the shortcuts of items that have no action
 
     QString activeSlot;
+    /// A key held to use a tool for a while: the key, the slot it was pressed in, since when
+    int springKey {0};
+    QString springFrom;
+    QElapsedTimer springHeld;
+    /// The rail's number keys, and the one whose press went to the rail, not the canvas
+    QVector<QPointer<QAction>> railKeys;
+    int eatenKey {0};
     QString brushSlot;                     ///< Paint, Blend or a pinned brush, whichever the current brush belongs to
     bool loadingPreset {false};
     /// Whether the eraser is in use, as chosen (the Erase slot, its key), not as the brush in use says
@@ -757,6 +789,68 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
             insertGap(d->heldGap);
         }
     });
+    // the number keys pick the rail's buttons in order, whatever they hold
+    for (int n = 1; n <= 9; n++) {
+        const QString name = QStringLiteral("studio_rail_%1").arg(n);
+        QAction *action = mainWindow->actionCollection()->action(name);
+        if (!action) {
+            action = new QAction(i18nc("@action a button on the tools rail, by its place", "Tool %1", n), mainWindow);
+            action->setObjectName(name);
+            // as its default too: Krita's shortcut scheme, read later, gives an action its default or nothing
+            mainWindow->actionCollection()->setDefaultShortcut(action, QKeySequence(Qt::Key_0 + n));
+            action->setShortcut(QKeySequence(Qt::Key_0 + n));
+            KisStudioShortcuts::restore(action);
+            mainWindow->actionCollection()->addAction(name, action);
+            mainWindow->addAction(action);
+        }
+        d->railKeys << action;
+        connect(action, &QAction::triggered, this, [this, n]() { pickButton(n); });
+    }
+
+    // A tool's key held picks it only while held: let go, the tool before comes back. A tap switches as before.
+    // The rail's number keys go before the canvas's own (1 to 6 zoom and turn it in Krita).
+    auto *springs = new EventWatcher(this);
+    springs->filter = [this](QEvent *event) {
+        if (event->type() != QEvent::ShortcutOverride && event->type() != QEvent::KeyRelease) return false;
+        auto *key = static_cast<QKeyEvent *>(event);
+        const bool plain = !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
+        if (event->type() == QEvent::ShortcutOverride) {
+            // held, the key repeats: the tool is picked once
+            if (key->isAutoRepeat()) {
+                const bool ours = key->key() == d->springKey && isVisible() && (d->activeSlot != d->springFrom || key->key() == d->eatenKey);
+                if (ours) key->accept();
+                return ours;
+            }
+            QWidget *focus = QApplication::focusWidget();
+            if (!isVisible() || (focus && typingInto(focus))) return false;
+            if (plain) {
+                d->springKey = key->key();
+                d->springFrom = d->activeSlot;
+                d->springHeld.start();
+            }
+            const QKeySequence pressed(int(key->modifiers() & ~Qt::KeypadModifier) | key->key());
+            for (const QPointer<QAction> &action : qAsConst(d->railKeys)) {
+                if (!action || action->shortcut() != pressed) continue;
+                key->accept();
+                d->eatenKey = key->key();
+                action->trigger();
+                return true;
+            }
+            return false;
+        }
+        if (key->isAutoRepeat()) return key->key() == d->eatenKey;
+        const bool eaten = key->key() == d->eatenKey;
+        if (eaten) d->eatenKey = 0;
+        if (key->key() != d->springKey) return eaten;
+        d->springKey = 0;
+        const QString back = d->springFrom;
+        if (d->springHeld.elapsed() < springHoldMs || back.isEmpty() || back == d->activeSlot) return eaten;
+        if (back.startsWith(brushPrefix)) activatePin(back);
+        else activateSlot(back);
+        return eaten;
+    };
+    qApp->installEventFilter(springs);
+
     connect(d->plus, &QToolButton::clicked, this, [this]() {
         if (KisStudioFind *find = d->mainWindow->studioFind()) {
             find->pick(i18nc("@info:placeholder", "Add to the tools"), [this](const QString &key) { addItem(key); });
@@ -1261,6 +1355,18 @@ void KisStudioToolRail::rebuild()
         d->widgetItem << i;
     }
     updatePlus();
+}
+
+void KisStudioToolRail::pickButton(int n)
+{
+    int seen = 0;
+    for (int w = 0; w < d->widgets.size(); w++) {
+        auto *button = dynamic_cast<RailButton *>(d->widgets[w]);
+        if (!button || ++seen != n) continue;
+        // already in use: a key held or pressed again changes nothing (a click would open its settings)
+        if (!button->isChecked()) runItem(d->widgetItem[w]);
+        return;
+    }
 }
 
 void KisStudioToolRail::runItem(int index)

@@ -82,6 +82,8 @@ private:
     void showCard(int index, bool touch = false);
     void showRestoreCard(const QPoint &globalPos);
     void runItem(int index);
+    /// The \p n th button from the top (or left), as a click on it unless it is in use
+    void pickButton(int n);
 
     void activateSlot(const QString &slotId);
     void activateTool(const QString &slotId, const QString &toolId);
