@@ -71,6 +71,16 @@ public:
 
     QList<QModelIndex> shiftClickedIndexes;
 
+    /// A color dragged over a row: its picture in that color, or its row in a label's
+    QPersistentModelIndex dropIndex;
+    QColor dropPaint;
+    int dropLabel {-1};
+
+    bool isDropTarget(const QModelIndex &index) const
+    {
+        return dropIndex.isValid() && index.row() == dropIndex.row() && index.parent() == dropIndex.parent();
+    }
+
     /// A switch pressed on a row: it flips when let go there, unless the press became a drag (the row's opacity)
     QPersistentModelIndex switchPress;
     QString switchPressId;
@@ -371,7 +381,8 @@ void NodeDelegate::drawBranches(QPainter *p, const QStyleOptionViewItem &option,
 void NodeDelegate::drawColorLabel(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
-    const int label = index.data(KisNodeModel::ColorLabelIndexRole).toInt();
+    const bool dropped = d->isDropTarget(index) && d->dropLabel >= 0;
+    const int label = dropped ? d->dropLabel : index.data(KisNodeModel::ColorLabelIndexRole).toInt();
     QColor color = scm.colorFromLabelIndex(label);
     if (color.alpha() <= 0) return;
 
@@ -381,6 +392,13 @@ void NodeDelegate::drawColorLabel(QPainter *p, const QStyleOptionViewItem &optio
     QRect optionRect = (option.state & QStyle::State_Selected) ? iconsRect(option, index) : option.rect;
 
     p->fillRect(optionRect, color);
+}
+
+void NodeDelegate::setDropPreview(const QModelIndex &index, const QColor &paint, int label)
+{
+    d->dropIndex = index;
+    d->dropPaint = paint;
+    d->dropLabel = label;
 }
 
 QRect NodeDelegate::thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const
@@ -436,6 +454,15 @@ void NodeDelegate::drawThumbnail(QPainter *p, const QStyleOptionViewItem &option
     tile.addPath(KisModernStyle::squircle(QRectF(imageRectLowRes.translated(offset)), 3));
     p->setClipPath(tile);
     p->fillRect(imageRectLowRes.translated(offset), brush);
+    if (d->isDropTarget(index) && d->dropPaint.isValid()) {
+        // the picture as the dropped color would make it
+        QImage tinted = img.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QPainter tint(&tinted);
+        tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        tint.fillRect(tinted.rect(), d->dropPaint);
+        tint.end();
+        img = tinted;
+    }
     p->drawImage(offset, img);
     p->setClipping(false);
     p->setOpacity(oldOpacity); // restore old opacity

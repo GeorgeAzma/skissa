@@ -105,6 +105,7 @@
 
 #include "ui_WdgLayerBox.h"
 #include "LayerCard.h"
+#include "LayerColorDrop.h"
 #include "NodeView.h"
 #include "SyncButtonAndAction.h"
 #include "KisModernStyle.h"
@@ -428,6 +429,7 @@ LayerBox::LayerBox()
         m_opacityScrub = new OpacityScrub(ui->listLayers->viewport());
         m_opacityScrub->hide();
         m_gapIndicator = new GapIndicator(ui->listLayers->viewport());
+        m_colorDrop = new LayerColorDrop(this);
         m_gapIndicator->hide();
 
         m_addStrip = new AddLayerStrip(mainWidget);
@@ -1242,6 +1244,7 @@ bool LayerBox::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
     if (watched == view->viewport()) {
+        if (m_colorDrop && m_colorDrop->filter(event)) return true;
         switch (event->type()) {
         case QEvent::PaletteChange:
             // another theme

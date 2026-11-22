@@ -56,6 +56,10 @@ public:
     /// Where the layer's thumbnail is: a press held on it shows the layer alone
     QRect thumbnailClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
+    /// While a color is dragged over \p index: its picture in \p paint, or with \p paint invalid, its row in color
+    /// label \p label. An invalid index ends it.
+    void setDropPreview(const QModelIndex &index, const QColor &paint = QColor(), int label = -1);
+
     void slotUpdateIcon();
 
 Q_SIGNALS:

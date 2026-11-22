@@ -26,6 +26,7 @@
 #include <QJsonObject>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMimeData>
 #include <QPainter>
 #include <QScreen>
 #include <QTabletEvent>
@@ -72,7 +73,7 @@ public:
         static const UINT actionMessage = RegisterWindowMessageW(L"KritaDevAction");
         const MSG *msg = static_cast<MSG *>(message);
         if (msg->message == colorDropMessage) {
-            // the low byte: 0 over the canvas, 1 dropped, 2 left, 3 auto flats, 4 recolor the active layer; the rest is the color as 0xRRGGBB
+            // the low byte: 0 over the canvas, 1 dropped, 2 left, 3 auto flats, 4 recolor the active layer, 5-7 a drag over widgets; the rest is the color as 0xRRGGBB
             colorDrop(int(msg->wParam & 0xff), QColor::fromRgb(QRgb(quint64(msg->wParam) >> 8)),
                       QPoint(GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam)));
             return true;
@@ -144,6 +145,10 @@ private:
             KisColorDrop::autoFlats(window->viewManager());
             return;
         }
+        if (phase >= 5) {
+            colorDrag(window, phase, rgb, windowPos);
+            return;
+        }
         KisView *view = window->activeView();
         if (!view || !view->canvasBase()) return;
         const QPoint pos = view->canvasBase()->canvasWidget()->mapFrom(window, windowPos);
@@ -152,6 +157,37 @@ private:
         else if (phase == 1) view->colorDrop()->drop(color, pos);
         else if (phase == 4) KisColorDrop::recolor(view->image(), window->viewManager()->activeNode(), color);
         else view->colorDrop()->leave();
+    }
+
+    /// A color dragged over the window's widgets as Qt delivers a drag: 5 moves to \p windowPos (entering the widget
+    /// there), 6 drops there, 7 leaves
+    static void colorDrag(KisMainWindow *window, int phase, const QColor &rgb, const QPoint &windowPos)
+    {
+        static QPointer<QWidget> target;
+        static QMimeData data;
+        data.setColorData(rgb);
+        QWidget *under = window->childAt(windowPos);
+        while (under && !under->acceptDrops()) under = under->parentWidget();
+        if (phase == 7 || under != target) {
+            if (target) {
+                QDragLeaveEvent leave;
+                QApplication::sendEvent(target, &leave);
+            }
+            target = nullptr;
+            if (phase == 7 || !under) return;
+            target = under;
+            QDragEnterEvent enter(target->mapFrom(window, windowPos), Qt::CopyAction | Qt::MoveAction, &data, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(target, &enter);
+        }
+        const QPoint pos = target->mapFrom(window, windowPos);
+        if (phase == 5) {
+            QDragMoveEvent move(pos, Qt::CopyAction | Qt::MoveAction, &data, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(target, &move);
+        } else {
+            QDropEvent drop(pos, Qt::CopyAction | Qt::MoveAction, &data, Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(target, &drop);
+            target = nullptr;
+        }
     }
 
     /// The visible windows, bottom to top (main window first, popups last), and their bounding rectangle

@@ -1529,41 +1529,84 @@ void KisColorDrop::startDrag(QWidget *source, const QColor &color)
     drag->deleteLater();
 }
 
+KisNodeList KisColorDrop::recolorTargets(KisNodeSP node)
+{
+    KisNodeList targets;
+    if (!node || !node->isEditable(false)) return targets;
+    // pixels of its own to recolor: a fill or filter layer's device, or a mask's, is only where it applies
+    if (qobject_cast<KisPaintLayer *>(node.data())) {
+        targets << node;
+    } else if (qobject_cast<KisGroupLayer *>(node.data())) {
+        // what shows of a group: its visible paint layers that can be edited, however deep
+        for (KisNodeSP child = node->firstChild(); child; child = child->nextSibling()) {
+            if (child->visible(false)) targets << recolorTargets(child);
+        }
+    }
+    return targets;
+}
+
 bool KisColorDrop::canRecolor(KisNodeSP node)
 {
-    // pixels of its own to recolor: a fill or filter layer's device, or a mask's, is only where it applies
-    return node && qobject_cast<KisPaintLayer *>(node.data()) && node->isEditable(false);
+    return !recolorTargets(node).isEmpty();
+}
+
+QImage KisColorDrop::recolorShape(KisNodeSP node, int longest, QRect *rect)
+{
+    const KisNodeList targets = recolorTargets(node);
+    QRect bounds;
+    for (KisNodeSP target : targets) bounds |= target->paintDevice()->exactBounds();
+    *rect = bounds;
+    if (bounds.isEmpty()) return QImage();
+    const QSize size = bounds.size().scaled(QSize(longest, longest), Qt::KeepAspectRatio).boundedTo(bounds.size());
+    QImage shape(size, QImage::Format_ARGB32_Premultiplied);
+    shape.fill(Qt::transparent);
+    QPainter painter(&shape);
+    for (KisNodeSP target : targets) {
+        KisPaintDeviceSP device = target->paintDevice();
+        const QRect own = device->exactBounds();
+        if (own.isEmpty()) continue;
+        // where it falls in the shape, in the shape's pixels
+        const qreal scale = qreal(size.width()) / bounds.width();
+        const QRectF place((own.x() - bounds.x()) * scale, (own.y() - bounds.y()) * scale, own.width() * scale, own.height() * scale);
+        const QSize pixels = place.toAlignedRect().size().expandedTo(QSize(1, 1));
+        painter.drawImage(place, device->createThumbnailUncached(pixels.width(), pixels.height(), own, 2.0));
+    }
+    return shape;
 }
 
 void KisColorDrop::recolor(KisImageSP image, KisNodeSP node, const KoColor &color)
 {
-    if (!image || !canRecolor(node)) return;
+    const KisNodeList targets = recolorTargets(node);
+    if (!image || targets.isEmpty()) return;
     KisStrokeStrategyUndoCommandBased *strategy =
         new KisStrokeStrategyUndoCommandBased(kundo2_i18n("Recolor Layer"), false, image.data());
     KisStrokeId stroke = image->startStroke(strategy);
     KIS_SAFE_ASSERT_RECOVER_RETURN(stroke);
-    image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
-                              KUndo2CommandSP(new KisCommandUtils::LambdaCommand([node, color]() mutable -> KUndo2Command * {
-                                  KisPaintDeviceSP device = node->paintDevice();
-                                  const QRect rect = device->exactBounds();
-                                  if (rect.isEmpty()) return nullptr;
-                                  KisTransaction transaction(device);
-                                  const KoColorSpace *colorSpace = device->colorSpace();
-                                  const KoColor paint = color.convertedTo(colorSpace);
-                                  const int pixelSize = colorSpace->pixelSize();
-                                  // the new color in every pixel, each keeping its own transparency
-                                  KisSequentialIterator it(device, rect);
-                                  while (it.nextPixel()) {
-                                      quint8 *pixel = it.rawData();
-                                      const qreal opacity = colorSpace->opacityF(pixel);
-                                      if (opacity <= 0) continue;
-                                      memcpy(pixel, paint.data(), pixelSize);
-                                      colorSpace->setOpacity(pixel, opacity, 1);
-                                  }
-                                  node->setDirty(rect);
-                                  return transaction.endAndTake();
-                              })),
-                              false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
+    for (KisNodeSP target : targets) {
+        image->addJob(stroke, new KisStrokeStrategyUndoCommandBased::Data(
+                                  KUndo2CommandSP(new KisCommandUtils::LambdaCommand([target, color]() mutable -> KUndo2Command * {
+                                      KisPaintDeviceSP device = target->paintDevice();
+                                      const QRect rect = device->exactBounds();
+                                      if (rect.isEmpty()) return nullptr;
+                                      KisTransaction transaction(device);
+                                      const KoColorSpace *colorSpace = device->colorSpace();
+                                      const KoColor paint = color.convertedTo(colorSpace);
+                                      const int pixelSize = colorSpace->pixelSize();
+                                      // the new color in every pixel, each keeping its own transparency
+                                      KisSequentialIterator it(device, rect);
+                                      while (it.nextPixel()) {
+                                          quint8 *pixel = it.rawData();
+                                          const qreal opacity = colorSpace->opacityF(pixel);
+                                          if (opacity <= 0) continue;
+                                          memcpy(pixel, paint.data(), pixelSize);
+                                          colorSpace->setOpacity(pixel, opacity, 1);
+                                      }
+                                      // through the device: its picture in the layer list is cached until then
+                                      device->setDirty(rect);
+                                      return transaction.endAndTake();
+                                  })),
+                                  false, KisStrokeJobData::CONCURRENT, KisStrokeJobData::EXCLUSIVE));
+    }
     image->endStroke(stroke);
 }
 

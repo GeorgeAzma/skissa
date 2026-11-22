@@ -12,6 +12,7 @@ set(KRITA_LAYERDOCKER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../layerdocker)
 set(kritalayerdocker_static_SRCS
     LayerBox.cpp
     LayerCard.cpp
+    LayerColorDrop.cpp
     NodeDelegate.cpp
     NodeToolTip.cpp
     NodeView.cpp

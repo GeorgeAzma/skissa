@@ -39,6 +39,7 @@
 
 class QModelIndex;
 class OpacityScrub;
+class LayerColorDrop;
 
 typedef QList<QModelIndex> QModelIndexList;
 
@@ -68,6 +69,7 @@ class KRITALAYERDOCKER_EXPORT LayerBox : public QDockWidget, public KisMainwindo
 
     // the card is the layer's right click, made of the panel's own commands and menus
     friend class LayerCard;
+    friend class LayerColorDrop;
 
 public:
 
@@ -237,6 +239,7 @@ private:
     qreal m_opacityOriginal {100};
     bool m_opacityFine {false};
     OpacityScrub *m_opacityScrub {nullptr};
+    LayerColorDrop *m_colorDrop {nullptr};
     /// The list's settings: thumbnail size, indentation, info text
     QMenu *m_configureMenu {nullptr};
 };

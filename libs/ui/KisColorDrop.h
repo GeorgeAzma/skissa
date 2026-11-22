@@ -7,6 +7,7 @@
 #ifndef KISCOLORDROP_H
 #define KISCOLORDROP_H
 
+#include <QImage>
 #include <QObject>
 #include <QPoint>
 #include <QScopedPointer>
@@ -83,9 +84,14 @@ public:
     /// Drags \p color out of \p source, shown as a round swatch under the pointer. Returns when it is dropped.
     static void startDrag(QWidget *source, const QColor &color);
 
-    /// Whether a color dropped on \p node can recolor it: a paint layer that can be edited
+    /// The layers a color dropped on \p node recolors: itself if it is a paint layer that can be edited; for a
+    /// group, the visible ones inside it
+    static KisNodeList recolorTargets(KisNodeSP node);
+    /// Whether a color dropped on \p node recolors anything
     static bool canRecolor(KisNodeSP node);
-    /// Gives every pixel of \p node \p color, keeping its transparency. One undo step.
+    /// What a recolor of \p node changes, as an image no longer than \p longest; \p rect is where it is in the image
+    static QImage recolorShape(KisNodeSP node, int longest, QRect *rect);
+    /// Gives every pixel of \p node (or the layers in it) \p color, keeping its transparency. One undo step.
     static void recolor(KisImageSP image, KisNodeSP node, const KoColor &color);
 
     /// A new layer of flat colors under the line art of the active layer, one color per enclosed area.
