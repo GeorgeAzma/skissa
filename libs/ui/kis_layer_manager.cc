@@ -6,6 +6,7 @@
  */
 
 #include "kis_layer_manager.h"
+#include "KisStudioLayerStyles.h"
 #include "KisStudioMaskEditor.h"
 #include <QGuiApplication>
 #include <QScreen>
@@ -1127,6 +1128,7 @@ void KisLayerManager::layerStyle()
 
     if (!m_view->blockUntilOperationsFinished(image)) return;
     if (!m_view->nodeManager()->canModifyLayer(layer)) return;
+    if (KisStudioLayerStyles::open(m_view, layer)) return;
 
     KoCanvasResourcesInterfaceSP canvasResourcesInterface = m_view->canvasBase()->resourceManager()->canvasResourcesInterface();
 

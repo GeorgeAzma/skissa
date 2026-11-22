@@ -93,6 +93,8 @@ set(skissa_ui_SRCS
     widgets/KisStudioGradientStrip.cpp
     KisStudioGradientDrag.cpp
     KisPatternTint.cpp
+    KisSelectionGestures.cpp
+    KisStudioLayerStyles.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp
     widgets/KisStudioColorField.cpp
