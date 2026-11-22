@@ -188,12 +188,6 @@ private:
 
     KisAction *m_removeAction;
     KisAction *m_propertiesAction;
-    /// Krita's layer properties dialog, for the channels a layer paints in (the card holds the rest)
-    QAction *m_channelsAction {nullptr};
-
-    /// Whether \p node's card holds all of its properties (paint, group, vector and clone layers), so the card is
-    /// shown for them in place of Krita's dialog; filter, fill and file layers and masks have their own editors
-    static bool cardHoldsProperties(KisNodeSP node);
     /// Shows the card of the layer at \p index beside its row
     void showCard(const QModelIndex &index);
     KisAction *m_changeCloneSourceAction;

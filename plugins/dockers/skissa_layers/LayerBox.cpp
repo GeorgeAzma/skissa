@@ -698,10 +698,6 @@ void LayerBox::setViewManager(KisViewManager* kisview)
     Q_ASSERT(m_propertiesAction);
     new SyncButtonAndAction(m_propertiesAction, m_wdgLayerBox->bnProperties, this);
     connect(m_propertiesAction, SIGNAL(triggered()), this, SLOT(slotPropertiesClicked()));
-    m_channelsAction = new QAction(i18nc("@action:inmenu the channels a layer paints in", "Channels…"), this);
-    connect(m_channelsAction, &QAction::triggered, this, [this]() {
-        if (m_canvas && m_nodeManager && m_nodeManager->activeNode()) m_nodeManager->nodeProperties(m_nodeManager->activeNode());
-    });
 
     m_removeAction = actionManager->createAction("remove_layer");
     Q_ASSERT(m_removeAction);
@@ -1490,24 +1486,8 @@ void LayerBox::slotPropertiesClicked()
 {
     if (!m_canvas) return;
     if (KisNodeSP active = m_nodeManager->activeNode()) {
-        // in the Studio, a layer whose card holds its properties shows the card (a double-click on its picture too)
-        QWidget *window = m_canvas->viewManager()->mainWindowAsQWidget();
-        const bool studio = window && window->property("studioLayoutActive").toBool();
-        if (studio && cardHoldsProperties(active) && m_nodeManager->selectedNodes().size() <= 1) {
-            const QModelIndex index = m_filteringModel->indexFromNode(active);
-            if (index.isValid()) {
-                showCard(index);
-                return;
-            }
-        }
         m_nodeManager->nodeProperties(active);
     }
-}
-
-bool LayerBox::cardHoldsProperties(KisNodeSP node)
-{
-    return node && (node->inherits("KisPaintLayer") || node->inherits("KisGroupLayer") || node->inherits("KisShapeLayer")
-                    || node->inherits("KisCloneLayer"));
 }
 
 void LayerBox::showCard(const QModelIndex &index)

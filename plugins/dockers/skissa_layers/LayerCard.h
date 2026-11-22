@@ -16,9 +16,8 @@ class LayerBox;
 class QModelIndex;
 
 /**
- * A layer's right click: its picture and name (typed into in place), its blend mode as a picture, its opacity,
- * its switches with their words, the everyday commands as tiles always in the same places, and the rest as
- * a few quieter buttons that open their menus. What it changes shows in it at once.
+ * A layer's right click: only what can't be done on its row by hand. The everyday commands as icons always in
+ * the same places, its color label, then a few rows for the rarer ones, opening their menus beside the card.
  */
 class LayerCard : public KisStudioPopup
 {
