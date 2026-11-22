@@ -117,7 +117,6 @@ const QString effectsItem = QStringLiteral("action:studio_effects");
 const QString brushPrefix = QStringLiteral("brush:");
 const QString shapeToolId = QStringLiteral("KritaShape/KisToolSuperellipse");
 /// The pinned brushes that take the size and opacity in use instead of keeping their own
-const QString sharedSizeKey = QStringLiteral("StudioRailItemsSharedSize");
 /// Set once the effects button has been added to an existing rail, so removing it sticks
 const QString effectsOfferedKey = QStringLiteral("StudioRailEffectsOffered");
 /// The transform tool's Push (liquify), one tap away
@@ -575,7 +574,6 @@ struct KisStudioToolRail::Private
     QHash<QString, ToolSlot> slots;        ///< the built-in slots available in this build, by id
     QHash<QString, QString> currentTool;   ///< slot id -> its current variant
     QSet<QString> hidden;                  ///< variants hidden from their slot's card
-    QSet<QString> sharedSize;              ///< pinned brushes that take the size in use
 
     QStringList items;                     ///< the rail's items, in order
     QVector<QWidget *> widgets;            ///< the widgets showing the items
@@ -790,8 +788,6 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
 
     const QStringList hidden = cfg.readEntry<QStringList>(hiddenKey, QStringList());
     d->hidden = QSet<QString>(hidden.begin(), hidden.end());
-    const QStringList shared = cfg.readEntry<QStringList>(sharedSizeKey, QStringList());
-    d->sharedSize = QSet<QString>(shared.begin(), shared.end());
     d->items = cfg.readEntry<QStringList>(itemsKey, defaultItems());
     // the blending brush a first start used to pin goes back to being the Blend slot, once
     if (!cfg.readEntry<bool>(blendSlotBackKey, false)) {
@@ -1402,17 +1398,6 @@ void KisStudioToolRail::showCard(int index, bool touch)
         if (d->mainWindow->studioFind()) d->mainWindow->studioFind()->item(key, &item);
         card = new KisStudioItemCard(d->mainWindow, key.startsWith(brushPrefix) ? pinnedIcon(item.icon, 28) : item.icon, item.title,
                                      d->shortcutActionFor(key));
-        if (key.startsWith(brushPrefix)) {
-            KisStudioItemCard::Command own;
-            own.toolTip = i18nc("@option:check a brush pinned to the tools keeps its own size and opacity", "Own size");
-            own.checkable = true;
-            own.checked = !d->sharedSize.contains(key);
-            own.run = [this, key]() {
-                if (!d->sharedSize.remove(key)) d->sharedSize.insert(key);
-                KisSettingsRegistry::writeLater(sharedSizeKey, QStringList(d->sharedSize.values()));
-            };
-            card->addCommand(own);
-        }
     }
 
     // as holding between two buttons, for touch where the gap is hard to hit
@@ -1764,8 +1749,6 @@ void KisStudioToolRail::activatePin(const QString &key)
     d->brushSlot = key;
     KisStudioTools::switchTo(brushToolId);
     if (!resources->currentPreset() || resources->currentPreset()->name() != name) {
-        const qreal size = resources->size();
-        const qreal opacity = resources->opacity();
         d->loadingPreset = true;
         if (KisPaintopBox *box = d->mainWindow->viewManager() ? d->mainWindow->viewManager()->paintOpBox() : nullptr) {
             box->resourceSelected(preset);
@@ -1773,10 +1756,6 @@ void KisStudioToolRail::activatePin(const QString &key)
             resources->setPaintOpPreset(preset);
         }
         d->loadingPreset = false;
-        if (d->sharedSize.contains(key)) {
-            resources->setSize(size);
-            resources->setOpacity(opacity);
-        }
     }
     updateActiveSlot();
 }
