@@ -21,6 +21,7 @@ namespace
 constexpr int trackY = 11;
 constexpr int markY = 22;
 constexpr qreal markRadius = 3.0;
+constexpr qreal capsuleHeight = 14.0;
 } // namespace
 
 KisStudioHistoryScrubber::KisStudioHistoryScrubber(QAbstractItemView *steps, QWidget *parent)
@@ -86,7 +87,8 @@ qreal KisStudioHistoryScrubber::lineLeft() const
 {
     int before = 0;
     for (const Mark &mark : m_marks) before += mark.step < 0;
-    return KisModernStyle::space2 + before * (2 * markRadius + KisModernStyle::space1);
+    // the capsule's round end reaches back past the line's start
+    return KisModernStyle::space2 + before * (2 * markRadius + KisModernStyle::space1) + (before ? capsuleHeight / 2 : 0);
 }
 
 QPointF KisStudioHistoryScrubber::markAtPoint(int mark) const
@@ -150,21 +152,25 @@ void KisStudioHistoryScrubber::paintEvent(QPaintEvent *)
     // with one step there is nothing to go along: only the snapshots kept from a history that is gone
     const bool line = count > 1;
 
-    // what is done, and fainter what was undone and can still be redone
+    // a capsule filled as far as the image is now; what is past that can still be redone
+    const qreal capsuleLeft = left - capsuleHeight / 2;
+    const QRectF capsule(capsuleLeft, trackY - capsuleHeight / 2, right + capsuleHeight / 2 - capsuleLeft, capsuleHeight);
+    const QPainterPath shape = KisModernStyle::squircle(capsule, capsuleHeight / 2);
     if (line) {
-        painter.setPen(QPen(ink(0.16), 2, Qt::SolidLine, Qt::RoundCap));
-        painter.drawLine(QPointF(left, trackY), QPointF(right, trackY));
-        painter.setPen(QPen(ink(0.55), 2, Qt::SolidLine, Qt::RoundCap));
-        if (at > left) painter.drawLine(QPointF(left, trackY), QPointF(at, trackY));
-    }
-
-    // each step a dot while there is room for them
-    if (count > 1 && (right - left) / (count - 1) >= 5) {
         painter.setPen(Qt::NoPen);
-        for (int step = 0; step < count; step++) {
-            painter.setBrush(ink(step <= current ? 0.55 : 0.22));
-            painter.drawEllipse(QPointF(xOf(step), trackY), 1.6, 1.6);
+        painter.setBrush(ink(m_dragging ? 0.14 : 0.1));
+        painter.drawPath(shape);
+        painter.save();
+        painter.setClipPath(shape);
+        painter.fillRect(QRectF(capsule.left(), capsule.top(), at + capsuleHeight / 2 - capsule.left(), capsule.height()), ink(m_dragging ? 0.62 : 0.5));
+        // a faint line at each step while they stand apart; more would only be a gray haze
+        if ((right - left) / (count - 1) >= 4) {
+            for (int step = 1; step < count - 1; step++) {
+                const qreal x = xOf(step);
+                painter.fillRect(QRectF(x - 0.5, capsule.top() + 4, 1, capsule.height() - 8), ink(step <= current ? 0.18 : 0.12));
+            }
         }
+        painter.restore();
     }
 
     // the snapshots, where they were kept; rings for those of a history that is gone
@@ -175,13 +181,6 @@ void KisStudioHistoryScrubber::paintEvent(QPaintEvent *)
         painter.setBrush(gone ? Qt::NoBrush : QBrush(markInk));
         painter.drawEllipse(markAtPoint(i), markRadius, markRadius);
     }
-
-    if (!line) return;
-    // where the image is now
-    const QRectF knob(at - 4, trackY - 7, 8, 14);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(ink(m_dragging ? 1.0 : 0.9));
-    painter.drawPath(KisModernStyle::squircle(knob, 4));
 }
 
 void KisStudioHistoryScrubber::mousePressEvent(QMouseEvent *event)

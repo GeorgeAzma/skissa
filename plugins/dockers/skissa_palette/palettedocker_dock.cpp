@@ -206,7 +206,8 @@ public:
             if (last + 1 < m_cells.size()) {
                 m_next = m_cells[last + 1].rect;
                 m_nextSlot = m_cells[last + 1].index;
-            } else {
+            } else if (m_offering) {
+                // a full palette gets a row for it only while a color is dragged over it
                 m_next = QRect(left, y, m_cell, m_cell);
                 y += m_cell;
             }
@@ -293,7 +294,7 @@ protected:
         // empty places are only outlined: a fill read as a pale color on glass
         QColor empty = ink;
         empty.setAlphaF(0.08);
-        const qreal radius = qMin(4.0, m_cell / 5.0);
+        const qreal radius = qMin<qreal>(KisModernStyle::tileRadius, m_cell / 4.0);
         Q_FOREACH (const Cell &cell, m_cells) {
             if (!cell.rect.intersects(exposed)) continue;
             const QRectF rect = QRectF(cell.rect).adjusted(1, 1, -1, -1);
@@ -405,6 +406,7 @@ protected:
         // swatches of this palette, moved; any other color (recent, the color chip, another palette), kept
         if (editable && editable() && (m_dragging || KisColorDrop::carriesColor(event->mimeData()))) {
             event->acceptProposedAction();
+            if (!m_dragging) offer(true);
         }
     }
 
@@ -429,12 +431,22 @@ protected:
     void dragLeaveEvent(QDragLeaveEvent *) override
     {
         m_dropRect = QRect();
+        offer(false);
         update();
+    }
+
+    void offer(bool on)
+    {
+        if (m_offering == on) return;
+        m_offering = on;
+        relayout();
     }
 
     void dropEvent(QDropEvent *event) override
     {
         m_dropRect = QRect();
+        // the row offered for it stays until the drop is handled, then goes with the next layout
+        QTimer::singleShot(0, this, [this]() { offer(false); });
         if (!m_dragging) {
             const QModelIndex under = indexAt(event->pos());
             const bool onEmpty = under.isValid() && !isOccupied(under);
@@ -554,6 +566,7 @@ private:
     QVector<Cell> m_cells;
     QVector<Header> m_headers;
     QRect m_next;
+    bool m_offering {false};
     QPersistentModelIndex m_nextSlot;
     int m_cell {20};
     int m_contentHeight {0};
@@ -626,7 +639,7 @@ protected:
     {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
-        const qreal radius = qMin(4.0, m_cell / 5.0);
+        const qreal radius = qMin<qreal>(KisModernStyle::tileRadius, m_cell / 4.0);
         const QColor ink = palette().color(QPalette::WindowText);
         for (int i = 0; i < m_colors.size() && i < m_columns; i++) {
             const QRectF rect = QRectF(m_left + i * m_cell, 0, m_cell, m_cell).adjusted(1, 1, -1, -1);
