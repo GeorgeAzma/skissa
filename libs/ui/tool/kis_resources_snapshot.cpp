@@ -24,6 +24,7 @@
 #include "kis_algebra_2d.h"
 #include "KisGlobalResourcesInterface.h"
 #include "compositeops/KoCompositeOpMix.h"
+#include "KisPatternTint.h"
 
 struct KisResourcesSnapshot::Private {
     Private()
@@ -75,7 +76,7 @@ KisResourcesSnapshot::KisResourcesSnapshot(KisImageSP image, KisNodeSP currentNo
     m_d->globalCanvasResourcesInterface = resourceManager->canvasResourcesInterface();
     m_d->currentFgColor = resourceManager->resource(KoCanvasResource::ForegroundColor).value<KoColor>();
     m_d->currentBgColor = resourceManager->resource(KoCanvasResource::BackgroundColor).value<KoColor>();
-    m_d->currentPattern = resourceManager->resource(KoCanvasResource::CurrentPattern).value<KoPatternSP>();
+    m_d->currentPattern = KisPatternTint::applied(resourceManager->resource(KoCanvasResource::CurrentPattern).value<KoPatternSP>(), m_d->currentFgColor);
     if (resourceManager->resource(KoCanvasResource::CurrentGradient).value<KoAbstractGradientSP>()) {
         m_d->currentGradient = resourceManager->resource(KoCanvasResource::CurrentGradient).value<KoAbstractGradientSP>();
         if(m_d->currentGradient) {

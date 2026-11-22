@@ -63,6 +63,7 @@
 #include "KisSettingsRegistry.h"
 #include "KisStudioTips.h"
 #include "widgets/KisStudioGradientStrip.h"
+#include "KisStudioGradientDrag.h"
 #include "widgets/KisStudioPopup.h"
 #include <kis_icon_utils.h>
 #include "widgets/gradient/KisGradientChooser.h"
@@ -1001,6 +1002,34 @@ std::optional<TypedColor> readColor(const QString &text)
     }
 }
 
+/// A button that opens on a click and, dragged, carries what \c dragged gives (a gradient)
+class DragButton : public QToolButton
+{
+public:
+    using QToolButton::QToolButton;
+    std::function<KoAbstractGradientSP()> dragged;
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        m_pressed = event->pos();
+        QToolButton::mousePressEvent(event);
+    }
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if ((event->buttons() & Qt::LeftButton) && dragged
+            && (event->pos() - m_pressed).manhattanLength() >= QApplication::startDragDistance()) {
+            setDown(false);
+            KisStudioGradientDrag::start(this, dragged());
+            return;
+        }
+        QToolButton::mouseMoveEvent(event);
+    }
+
+private:
+    QPoint m_pressed;
+};
+
 } // namespace
 
 /// The hex code field: dimmed unless it has focus
@@ -1678,7 +1707,8 @@ KisStudioColorPanel::KisStudioColorPanel()
         auto *gradientRow = new QHBoxLayout(gradientLine);
         gradientRow->setContentsMargins(0, 0, 0, 0);
         gradientRow->setSpacing(KisModernStyle::space1);
-        auto *saved = new QToolButton(gradientLine);
+        auto *saved = new DragButton(gradientLine);
+        saved->dragged = [this]() -> KoAbstractGradientSP { return d->gradient->gradient(); };
         saved->setAutoRaise(true);
         saved->setFocusPolicy(Qt::NoFocus);
         saved->setIconSize(QSize(18, 18));

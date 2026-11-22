@@ -95,6 +95,7 @@ public Q_SLOTS:
 
 protected:
     bool wantsAutoScroll() const override { return false; }
+    void paint(QPainter &painter, const KoViewConverter &converter) override;
 
 protected Q_SLOTS:
     void resetCursorStyle() override;
@@ -152,6 +153,8 @@ private:
     bool m_isFilling {false};
     bool m_isDragging {false};
     QPoint m_fillStartWidgetPosition;
+    /// What a drag drew, in image pixels: a loop is filled inside, an open line where it crossed
+    QVector<QPointF> m_drawn;
     KisSignalCompressor m_compressorFillUpdate;
     QSharedPointer<QRect> m_dirtyRect;
     QVector<QPoint> m_seedPoints;
@@ -203,6 +206,8 @@ private:
     void beginFilling(const QPoint &seedPoint);
     /// The last click's fill made again, from \p seedPoint on \p from, with the settings now
     void fillAgain(const QPoint &seedPoint, FillMode mode, KisNodeWSP from);
+    /// Fills what the drag asked for, once it ends at \p end (widget coordinates)
+    void finishDrag(const QPoint &end);
     void addFillingOperation(const QPoint &seedPoint);
     void addFillingOperation(const QVector<QPoint> &seedPoints);
     void addUpdateOperation();

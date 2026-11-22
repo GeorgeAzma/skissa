@@ -5,6 +5,8 @@
  */
 #include "LayerColorDrop.h"
 
+#include <KisStudioGradientDrag.h>
+
 #include <QApplication>
 #include <QDropEvent>
 #include <QPainter>
@@ -284,6 +286,20 @@ void LayerColorDrop::takeFromList(QDropEvent *)
 bool LayerColorDrop::filter(QEvent *event)
 {
     if (d->forwarding) return false;
+    // a gradient dropped on a row: that layer's gradient map
+    if (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove || event->type() == QEvent::Drop) {
+        auto *drop = static_cast<QDropEvent *>(event);
+        if (KisStudioGradientDrag::carries(drop->mimeData())) {
+            QModelIndex row;
+            const bool onRow = partAt(drop, &row) != Part::None;
+            if (event->type() == QEvent::Drop && onRow) {
+                KisStudioGradientDrag::mapLayer(d->box->m_image, d->nodeAt(row), KisStudioGradientDrag::gradientOf(drop->mimeData()));
+            }
+            drop->setDropAction(Qt::CopyAction);
+            drop->accept();
+            return true;
+        }
+    }
     switch (event->type()) {
     case QEvent::DragEnter:
     case QEvent::DragMove: {

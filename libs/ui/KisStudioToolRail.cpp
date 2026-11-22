@@ -157,7 +157,7 @@ QVector<ToolSlot> toolSlots()
          {QStringLiteral("KritaTransform/KisToolMove"), QStringLiteral("KisToolTransform"), QStringLiteral("KisToolCrop"),
           QStringLiteral("InteractionTool")}},
         {QStringLiteral("fill"), i18nc("@info:tooltip tool slot", "Fill"), QStringLiteral("studio_fill"), BrushMode::None,
-         {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"), QStringLiteral("KisToolEncloseAndFill"),
+         {QStringLiteral("KritaFill/KisToolFill"), QStringLiteral("KritaFill/KisToolGradient"),
           QStringLiteral("KritaShape/KisToolLazyBrush")}},
         {QStringLiteral("shape"), i18nc("@info:tooltip tool slot", "Shape"), QStringLiteral("studio_shape"), BrushMode::None,
          // Line draws straight and bends (Krita's line, polyline and polygon are Line and Shape's Sides); Bezier is the

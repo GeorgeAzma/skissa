@@ -45,6 +45,10 @@
 #include <kis_cmb_composite.h>
 
 #include <processing/fill_processing_visitor.h>
+#include <processing/KisEncloseAndFillProcessingVisitor.h>
+#include <kis_painter.h>
+#include <kis_pixel_selection.h>
+#include <QPainterPath>
 #include <kis_command_utils.h>
 #include <kis_layer_utils.h>
 #include <krita_utils.h>
@@ -186,6 +190,7 @@ void KisToolFill::beginPrimaryAction(KoPointerEvent *event)
     });
 
     m_seedPoints.append(lastImagePosition);
+    m_drawn = {convertToPixelCoord(event)};
     beginFilling(lastImagePosition);
     m_isFilling = true;
 
@@ -194,11 +199,10 @@ void KisToolFill::beginPrimaryAction(KoPointerEvent *event)
 
 void KisToolFill::continuePrimaryAction(KoPointerEvent *event)
 {
-    if (!m_isFilling || m_effectiveFillMode != FillMode_FillContiguousRegion ||
-        m_continuousFillMode == ContinuousFillMode_DoNotUse) {
+    if (!m_isFilling || m_effectiveFillMode != FillMode_FillContiguousRegion) {
         return;
     }
-    
+
     if (!m_isDragging) {
         const int dragDistanceSquared =
             pow2(event->pos().x() - m_fillStartWidgetPosition.x()) +
@@ -209,19 +213,23 @@ void KisToolFill::continuePrimaryAction(KoPointerEvent *event)
         }
 
         m_isDragging = true;
-        // a fill dragged along isn't one click to make again
+        // a drag draws: the click's fill is taken back, and what the drag asks for is filled when it ends
         m_redoLast.forget();
+        image()->cancelStroke(m_fillStrokeId);
+        m_fillStrokeId = nullptr;
     }
 
-    const QPoint newImagePosition = convertToImagePixelCoordFloored(event);
-    m_seedPoints.append(newImagePosition);
-
-    m_compressorFillUpdate.start();
+    m_seedPoints.append(convertToImagePixelCoordFloored(event));
+    m_drawn.append(convertToPixelCoord(event));
+    canvas()->updateCanvas(canvas()->canvasWidget()->rect());
 }
 
-void KisToolFill::endPrimaryAction(KoPointerEvent *)
+void KisToolFill::endPrimaryAction(KoPointerEvent *event)
 {
-    if (m_isFilling) {
+    if (m_isFilling && m_isDragging) {
+        finishDrag(event->pos());
+        canvas()->updateCanvas(canvas()->canvasWidget()->rect());
+    } else if (m_isFilling) {
         m_compressorFillUpdate.stop();
         endFilling();
     }
@@ -229,6 +237,70 @@ void KisToolFill::endPrimaryAction(KoPointerEvent *)
     m_isFilling = false;
     m_isDragging = false;
     m_seedPoints.clear();
+    m_drawn.clear();
+}
+
+void KisToolFill::finishDrag(const QPoint &end)
+{
+    // ended about where it started: a loop, filled inside as Enclose and Fill does
+    const bool loop = m_drawn.size() >= 3 && (end - m_fillStartWidgetPosition).manhattanLength() <= 40;
+    if (!loop) {
+        // an open line fills each area it crossed (Krita's drag fill), or, with that off, the one it started on
+        const QVector<QPoint> crossed = m_continuousFillMode == ContinuousFillMode_DoNotUse ? QVector<QPoint>{m_seedPoints.first()} : m_seedPoints;
+        m_seedPoints = crossed;
+        beginFilling(crossed.first());
+        slotUpdateFill();
+        endFilling();
+        return;
+    }
+
+    KisPixelSelectionSP inside = new KisPixelSelection();
+    {
+        KisPainter painter(inside);
+        painter.setPaintColor(KoColor(Qt::white, inside->colorSpace()));
+        painter.setAntiAliasPolygonFill(false);
+        painter.setFillStyle(KisPainter::FillStyleForegroundColor);
+        painter.setStrokeStyle(KisPainter::StrokeStyleNone);
+        painter.paintPolygon(m_drawn);
+    }
+    const QRect area = inside->selectedExactRect();
+    if (area.isEmpty()) {
+        setMode(KisTool::HOVER_MODE);
+        return;
+    }
+    const QPoint middle = area.center();
+    m_seedPoints = {middle};
+    beginFilling(middle);
+    KisEncloseAndFillProcessingVisitor *visitor =
+        new KisEncloseAndFillProcessingVisitor(m_referencePaintDevice, inside, m_resourcesSnapshot->activeSelection(), m_resourcesSnapshot,
+                                               KisEncloseAndFillPainter::SelectAllRegions, KoColor(), false, false, false,
+                                               m_threshold, m_opacitySpread, m_effectiveCloseGap, m_antiAlias, m_sizemod,
+                                               m_stopGrowingAtDarkestPixel, m_feather, m_useSelectionAsBoundary,
+                                               m_fillType == FillType_FillWithPattern, false, m_fillType == FillType_FillWithBackgroundColor,
+                                               m_useCustomBlendingOptions, m_customOpacity / 100.0, m_customCompositeOp, m_dirtyRect);
+    visitor->setLineArt(m_underLines, m_speckSize);
+    image()->addJob(m_fillStrokeId,
+                    new KisStrokeStrategyUndoCommandBased::Data(KUndo2CommandSP(new KisProcessingCommand(KisProcessingVisitorSP(visitor), m_fillNode)),
+                                                                false, KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE));
+    addUpdateOperation();
+    endFilling();
+}
+
+void KisToolFill::paint(QPainter &painter, const KoViewConverter &converter)
+{
+    KisToolPaint::paint(painter, converter);
+    if (!m_isDragging || m_drawn.size() < 2) return;
+    // the line being drawn, dark under light so it reads on any picture
+    QPainterPath path;
+    path.moveTo(pixelToView(m_drawn.first()));
+    for (int i = 1; i < m_drawn.size(); i++) path.lineTo(pixelToView(m_drawn[i]));
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(QColor(0, 0, 0, 140), 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPath(path);
+    painter.setPen(QPen(QColor(255, 255, 255, 230), 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPath(path);
+    painter.restore();
 }
 
 void KisToolFill::beginAlternateAction(KoPointerEvent *event, AlternateAction action)

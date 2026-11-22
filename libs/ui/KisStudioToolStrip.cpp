@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioToolStrip.h"
+#include "KisPatternTint.h"
 
 #include <QAbstractButton>
 #include <QCheckBox>
@@ -1519,6 +1520,12 @@ void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)
         Q_FOREACH (QLabel *name, chooser->findChildren<QLabel *>()) {
             if (name->inherits("KSqueezedTextLabel")) name->hide();
         }
+        // the pattern in the current color, its darkness as the paint
+        auto *tint = new QCheckBox(i18nc("@option:check a pattern painted in the current color", "Tint"), popup);
+        tint->setToolTip(i18nc("@info:tooltip", "Paint the pattern in the current color"));
+        tint->setChecked(KisPatternTint::isOn());
+        connect(tint, &QCheckBox::toggled, popup, [](bool on) { KisPatternTint::setOn(on); });
+        layout->addWidget(tint);
         chooser->setCurrentPattern(resources->currentPattern());
         connect(chooser, &KisPatternChooser::resourceSelected, resources.data(), &KisCanvasResourceProvider::slotPatternActivated);
         layout->addWidget(chooser);

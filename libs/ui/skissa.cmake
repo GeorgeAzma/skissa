@@ -91,6 +91,8 @@ set(skissa_ui_SRCS
     widgets/KisStudioDabPictures.cpp
     widgets/KisStudioHistoryScrubber.cpp
     widgets/KisStudioGradientStrip.cpp
+    KisStudioGradientDrag.cpp
+    KisPatternTint.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp
     widgets/KisStudioColorField.cpp
