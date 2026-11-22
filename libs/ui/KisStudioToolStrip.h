@@ -82,6 +82,8 @@ private:
 
     QList<QPointer<QWidget>> m_options;
     QPointer<QToolButton> m_more;
+    /// A button of the tool's shown among the bar's own buttons (KisStudioBarButtons::setLeading), gone with the tool
+    QPointer<QToolButton> m_lent;
     /// What goes behind ⋯ once the bar is made: a switch (checkable) or a command, and its text
     struct MoreEntry {
         QPointer<QAbstractButton> source;

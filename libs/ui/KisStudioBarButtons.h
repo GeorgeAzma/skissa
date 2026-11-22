@@ -45,6 +45,10 @@ public:
     /// Drags \p key from \p source, to be dropped on a bar (or the Controls panel); returns what the drop did
     static Qt::DropAction dragItem(const QString &key, QWidget *source);
 
+    /// \p widget first among the buttons, not one of them (the brush tool's snap to guides, shown while there are
+    /// guides); its owner deletes it, null takes it away
+    void setLeading(QWidget *widget);
+
     /// The card to bring buttons back or add any command, at \p globalPos, with \p extra commands of the place's own
     void showRestoreCard(const QPoint &globalPos, const QList<std::function<void(KisStudioItemCard *)>> &extra = {});
 

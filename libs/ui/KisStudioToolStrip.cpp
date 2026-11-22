@@ -20,6 +20,7 @@
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QLabel>
+#include "KisStudioBarButtons.h"
 #include <QButtonGroup>
 #include <QActionGroup>
 #include <QStackedWidget>
@@ -701,6 +702,10 @@ KisStudioToolStrip::KisStudioToolStrip(QWidget *parent)
 void KisStudioToolStrip::clear()
 {
     m_more = nullptr;
+    if (m_lent) {
+        m_lent->hide();
+        m_lent->deleteLater();
+    }
     m_moreLater.clear();
     while (QLayoutItem *item = m_layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
@@ -1307,10 +1312,13 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             KisViewManager *view = window ? window->viewManager() : nullptr;
             KisCanvas2 *canvas = view ? view->canvasBase() : nullptr;
             if (canvas && canvas->paintingAssistantsDecoration() && !canvas->paintingAssistantsDecoration()->assistants().isEmpty()) {
-                addGap();
-                mirror(snap, magnetIcon(ink));
-                if (QWidget *button = m_layout->itemAt(m_layout->count() - 1)->widget()) {
-                    button->setToolTip(i18nc("@info:tooltip lines drawn are pulled onto the image's guides", "Snap to guides"));
+                QToolButton *button = mirror(snap, magnetIcon(ink));
+                button->setToolTip(i18nc("@info:tooltip lines drawn are pulled onto the image's guides", "Snap to guides"));
+                // a switch of how the brush paints, as symmetry is: among the bar's buttons, before it
+                if (KisStudioBarButtons *bar = window ? KisStudioBarButtons::of(window) : nullptr) {
+                    m_layout->removeWidget(button);
+                    bar->setLeading(button);
+                    m_lent = button;
                 }
             }
         }

@@ -197,6 +197,8 @@ struct KisStudioBarButtons::Private {
     QList<int> widgetItem;
     QFrame *indicator {nullptr};
     QPointer<QMenu> symmetryMenu;
+    /// See setLeading()
+    QPointer<QWidget> leading;
 
     /// Items that couldn't be shown yet, since the actions behind them are made after the bar
     bool missing {false};
@@ -319,8 +321,22 @@ void KisStudioBarButtons::setItems(const QStringList &items)
     Q_EMIT sigItemsChanged();
 }
 
+void KisStudioBarButtons::setLeading(QWidget *widget)
+{
+    if (d->leading == widget) return;
+    if (d->leading) d->layout->removeWidget(d->leading);
+    d->leading = widget;
+    if (!widget) return;
+    widget->setParent(this);
+    d->layout->insertWidget(0, widget);
+    widget->show();
+    updateGeometry();
+}
+
 void KisStudioBarButtons::rebuild()
 {
+    // the leading widget isn't the bar's to remake
+    if (d->leading) d->layout->removeWidget(d->leading);
     while (QLayoutItem *item = d->layout->takeAt(0)) {
         if (QWidget *widget = item->widget()) {
             widget->hide();
@@ -425,6 +441,7 @@ void KisStudioBarButtons::rebuild()
         connect(plus, &QToolButton::clicked, this, [this, plus]() { showRestoreCard(plus->mapToGlobal(plus->rect().bottomLeft())); });
         d->layout->addWidget(plus);
     }
+    if (d->leading) d->layout->insertWidget(0, d->leading);
     updateForTool();
     updateGeometry();
 }
