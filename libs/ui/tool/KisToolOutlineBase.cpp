@@ -54,6 +54,10 @@ void KisToolOutlineBase::keyPressEvent(QKeyEvent *event)
 
 void KisToolOutlineBase::keyReleaseEvent(QKeyEvent *event)
 {
+    if (m_clickMode) {
+        KisToolShape::keyReleaseEvent(event);
+        return;
+    }
     if (event->key() == Qt::Key_Control ||
         !(event->modifiers() & Qt::ControlModifier)) {
         m_continuedMode = false;
@@ -183,6 +187,15 @@ void KisToolOutlineBase::beginPrimaryAction(KoPointerEvent *event)
         return;
     }
 
+    if (m_clickMode && !m_points.isEmpty()) {
+        // a click on the first corner closes it
+        const QPointF at = convertToPixelCoord(event);
+        if (m_points.size() > 2 && QLineF(pixelToView(at), pixelToView(m_points.first())).length() < 8) {
+            endStroke();
+            return;
+        }
+    }
+
     setMode(KisTool::PAINT_MODE);
 
     if (!m_continuedMode || m_points.isEmpty()) {
@@ -227,6 +240,23 @@ void KisToolOutlineBase::endPrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
     setMode(KisTool::HOVER_MODE);
+    if (m_type == SELECT && !m_continuedMode && event->spontaneous()) {
+        // a click, not a drag: the selection goes on as corners
+        bool still = true;
+        for (const QPointF &p : qAsConst(m_points)) {
+            if (QLineF(pixelToView(p), pixelToView(m_points.first())).length() > 4) still = false;
+        }
+        if (still && !m_points.isEmpty()) {
+            m_hold.stop();
+            m_points = {m_points.first()};
+            m_clickMode = true;
+            m_continuedMode = true;
+            installBlockActionGuard();
+            updateContinuedMode();
+            event->accept();
+            return;
+        }
+    }
     if (!m_continuedMode) {
         // If the event was not originated by the user releasing the button
         // (for example due to the canvas loosing focus), then we just cancel
@@ -282,6 +312,15 @@ QRectF KisToolOutlineBase::dragBoundingRect()
     return updateRect;
 }
 
+void KisToolOutlineBase::beginPrimaryDoubleClickAction(KoPointerEvent *event)
+{
+    if (m_clickMode) {
+        endStroke();
+        return;
+    }
+    KisToolShape::beginPrimaryDoubleClickAction(event);
+}
+
 void KisToolOutlineBase::updateContinuedMode()
 {
     if (!m_points.isEmpty()) {
@@ -299,6 +338,8 @@ void KisToolOutlineBase::endStroke()
     if (!hasUserInteractionRunning()) {
         return;
     }
+    m_clickMode = false;
+    m_continuedMode = false;
     uninstallBlockActionGuard();
     setMode(KisTool::HOVER_MODE);
     m_hasUserInteractionRunning = false;
@@ -316,6 +357,8 @@ void KisToolOutlineBase::cancelStroke()
     if (!hasUserInteractionRunning()) {
         return;
     }
+    m_clickMode = false;
+    m_continuedMode = false;
     uninstallBlockActionGuard();
     setMode(KisTool::HOVER_MODE);
     m_hasUserInteractionRunning = false;

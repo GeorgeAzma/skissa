@@ -18,6 +18,7 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QDragEnterEvent>
+#include <QDrag>
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QGuiApplication>
@@ -1627,6 +1628,13 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override
     {
         m_keyboard = false;
+        if ((event->buttons() & Qt::LeftButton) && m_pressed >= 0
+            && (event->pos() - m_pressAt).manhattanLength() >= QApplication::startDragDistance()) {
+            const QString path = m_items[arrangement().placed[m_pressed].item].path;
+            m_pressed = -1;
+            dragOut(path);
+            return;
+        }
         const int hovered = placedAt(event->pos());
         const bool clear = !m_filter.isEmpty() && m_clearRect.contains(event->pos());
         setCursor(hovered >= 0 || clear ? Qt::PointingHandCursor : Qt::ArrowCursor);
@@ -1645,6 +1653,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override
     {
         m_pressed = event->button() == Qt::LeftButton ? placedAt(event->pos()) : -1;
+        m_pressAt = event->pos();
         setFocus(Qt::MouseFocusReason);
     }
 
@@ -1952,6 +1961,44 @@ private:
     mutable QRect m_clearRect;
     int m_hovered {-1};
     int m_pressed {-1};
+    QPoint m_pressAt;
+
+    /// Carries the image out to other apps: the file, or a PNG of it where the file is Krita's own or not
+    /// what is open now
+    void dragOut(const QString &path)
+    {
+        KisDocument *open = nullptr;
+        Q_FOREACH (QPointer<KisDocument> doc, KisPart::instance()->documents()) {
+            if (doc && doc->localFilePath() == path) open = doc;
+        }
+        const QString mime = KisMimeDatabase::mimeTypeForFile(path);
+        const bool own = mime == QLatin1String(KisDocument::nativeFormatMimeType()) || mime == QLatin1String("application/x-krita-archive")
+            || mime == QLatin1String("image/openraster");
+        QString file = path;
+        QImage picture;
+        if (open && open->image()) {
+            KisImageSP image = open->image();
+            image->barrierLock(true);
+            picture = image->projection()->convertToQImage(nullptr, image->bounds());
+            image->unlock();
+        } else {
+            picture = readPicture(path, 1 << 15);
+        }
+        if (picture.isNull()) return;
+        if (own || (open && open->isModified())) {
+            const QString folder = KisProfile::tempFolder() + QStringLiteral("/dragged");
+            QDir().mkpath(folder);
+            file = folder + QLatin1Char('/') + QFileInfo(path).completeBaseName() + QStringLiteral(".png");
+            if (!picture.save(file, "PNG")) return;
+        }
+        auto *data = new QMimeData;
+        data->setUrls({QUrl::fromLocalFile(file)});
+        data->setImageData(picture);
+        auto *drag = new QDrag(this);
+        drag->setMimeData(data);
+        drag->setPixmap(QPixmap::fromImage(picture.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+        drag->exec(Qt::CopyAction);
+    }
     int m_selected {0};
     bool m_keyboard {false};
     mutable Arrangement m_arrangement;

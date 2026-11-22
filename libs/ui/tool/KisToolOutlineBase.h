@@ -32,6 +32,7 @@ public:
     ~KisToolOutlineBase() override;
 
     void beginPrimaryAction(KoPointerEvent *event) override;
+    void beginPrimaryDoubleClickAction(KoPointerEvent *event) override;
     void continuePrimaryAction(KoPointerEvent *event) override;
     void endPrimaryAction(KoPointerEvent *event) override;
     void paint(QPainter& gc, const KoViewConverter &converter) override;
@@ -61,6 +62,9 @@ private:
     QPainterPath m_paintPath;
     QVector<QPointF> m_points;
     bool m_continuedMode;
+    /// A selection begun with a click: each click a corner, drags freehand parts, closed on its first point,
+    /// a double click or Enter
+    bool m_clickMode {false};
     QPointF m_lastCursorPos;
     /// A selection's line, held still at its end: the clean shape it roughly drew (KisSelectionGestures)
     QVector<QPointF> m_snapped;

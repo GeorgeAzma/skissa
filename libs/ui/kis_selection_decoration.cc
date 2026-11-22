@@ -219,17 +219,16 @@ void KisSelectionDecoration::drawDecoration(QPainter& gc, const QRectF& updateRe
     Q_UNUSED(updateRect);
     Q_UNUSED(canvas);
 
+    const qreal flashTime = 700;
+    const bool flashing = m_flashing.isValid() && m_flashing.elapsed() < flashTime;
+
     // render Selection Action Bar first, so that it doesn't blink when making a new selection
 
     if ((m_mode == Ants && m_outlinePath.isEmpty()) || (m_mode == Mask && m_thumbnailImage.isNull())
-        || !m_selectionVisibility) {
+        || (!m_selectionVisibility && !flashing)) {
         //The SAP needs to be drawn on top of the decoration, but to avoid the panel flashing when making a new selection, we also need to call draw here
         m_selectionActionsPanel->draw(gc, canvas->displayRendererInterface());
 
-        return;
-    }
-
-    if (!m_selectionVisibility) {
         return;
     }
 
@@ -281,6 +280,19 @@ void KisSelectionDecoration::drawDecoration(QPainter& gc, const QRectF& updateRe
         gc.drawPath(m_outlinePath);
     }
 
+    if (flashing && !m_outlinePath.isEmpty()) {
+        // a glow that fades out
+        const qreal left = 1.0 - m_flashing.elapsed() / flashTime;
+        QColor glow = qApp->palette().color(QPalette::Highlight);
+        glow.setAlphaF(left);
+        QPen pen(glow, 1 + 3 * left);
+        pen.setCosmetic(true);
+        gc.setOpacity(1.0);
+        gc.setRenderHint(QPainter::Antialiasing);
+        gc.setPen(pen);
+        gc.drawPath(m_outlinePath);
+    }
+
     gc.restore();
     m_selectionActionsPanel->draw(gc, canvas->displayRendererInterface());
 }
@@ -288,6 +300,27 @@ void KisSelectionDecoration::drawDecoration(QPainter& gc, const QRectF& updateRe
 void KisSelectionDecoration::setCanvasWidget(KisCanvasWidgetBase* canvas)
 {
     m_selectionActionsPanel->canvasWidgetChanged(canvas);
+}
+
+void KisSelectionDecoration::flash()
+{
+    if (m_mode != Ants || m_outlinePath.isEmpty() || !view() || !view()->canvasBase()) return;
+    m_flashing.start();
+    if (!m_flashFrames.property("wired").toBool()) {
+        m_flashFrames.setProperty("wired", true);
+        m_flashFrames.setInterval(KisFrameRate::frameMs());
+        connect(&m_flashFrames, &QTimer::timeout, this, [this]() {
+            const bool done = !m_flashing.isValid() || m_flashing.elapsed() > 750;
+            if (done) {
+                m_flashFrames.stop();
+                m_flashing.invalidate();
+                KisCanvasDecoration::setVisible(m_selectionVisibility);
+            }
+            if (view() && view()->canvasBase()) view()->canvasBase()->updateCanvas();
+        });
+    }
+    KisCanvasDecoration::setVisible(true);
+    m_flashFrames.start();
 }
 
 void KisSelectionDecoration::setVisible(bool v)

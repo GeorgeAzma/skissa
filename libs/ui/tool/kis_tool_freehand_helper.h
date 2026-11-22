@@ -69,6 +69,7 @@ public:
                    KisDefaultBoundsBaseSP bounds = 0);
     void paintEvent(KoPointerEvent *event );
     void endPaint();
+    void cancelPaint();
     /// Drops the stroke so far, paints \p points in its place and ends it
     void repaintAs(const QVector<KisPaintInformation> &points);
     /// The pen's last report in the stroke being painted, as it came, before any smoothing
@@ -110,7 +111,6 @@ Q_SIGNALS:
     void sigStrokeEnded();
 
 protected:
-    void cancelPaint();
     int elapsedStrokeTime() const;
 
     void initPaintImpl(qreal startAngle,

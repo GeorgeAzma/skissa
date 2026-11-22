@@ -95,6 +95,8 @@ set(skissa_ui_SRCS
     KisPatternTint.cpp
     KisSelectionGestures.cpp
     KisStudioLayerStyles.cpp
+    KisStudioPeek.cpp
+    KisStudioKeyHints.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp
     widgets/KisStudioColorField.cpp

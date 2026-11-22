@@ -1470,6 +1470,33 @@ void KisStudioToolStrip::addFontChip()
         picker->popupBeside(chip, Qt::BottomEdge);
     });
     m_layout->addWidget(chip);
+
+    // the text's size beside its font, dragged like a brush's
+    auto sizeOf = [source]() -> qreal {
+        if (!source) return 0;
+        const KoSvgTextPropertyData data = source->textPropertyData();
+        const QVariant own = data.commonProperties.property(KoSvgTextProperties::FontSizeId);
+        const QVariant size = own.isValid() ? own : data.inheritedProperties.propertyOrDefault(KoSvgTextProperties::FontSizeId);
+        return size.value<KoSvgText::CssLengthPercentage>().value;
+    };
+    auto *size = new KisStudioScrubber(KisStudioScrubber::Kind::Size, i18nc("@info:tooltip the text's size", "Size"), this);
+    size->setRange(1, 1000);
+    size->setDefaultValue(12);
+    size->setValue(sizeOf());
+    connect(provider->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, size, [size, sizeOf](int key, const QVariant &) {
+        if (key == KoCanvasResource::SvgTextPropertyData) size->setValue(sizeOf());
+    });
+    auto setSize = [source](qreal value) {
+        if (!source || value <= 0) return;
+        KoSvgTextPropertyData data = source->textPropertyData();
+        KoSvgText::CssLengthPercentage length = data.commonProperties.propertyOrDefault(KoSvgTextProperties::FontSizeId).value<KoSvgText::CssLengthPercentage>();
+        length.value = value;
+        data.commonProperties.setProperty(KoSvgTextProperties::FontSizeId, QVariant::fromValue(length));
+        source->setTextPropertyData(data);
+    };
+    connect(size, &KisStudioScrubber::valueCommitted, this, setSize);
+    connect(size, &KisStudioScrubber::valueChanging, this, setSize);
+    m_layout->addWidget(size);
 }
 
 void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)

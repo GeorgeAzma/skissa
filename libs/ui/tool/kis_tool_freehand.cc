@@ -48,6 +48,8 @@
 #include <kis_selection.h>
 #include <kis_selection_mask.h>
 #include <brushengine/kis_paintop_preset.h>
+#include <brushengine/kis_paintop_settings.h>
+#include "kis_selection_decoration.h"
 #include <brushengine/KisOptimizedBrushOutline.h>
 
 
@@ -88,7 +90,7 @@ bool hasLockedValidTemporaryStraightRuler(const std::optional<KisTemporaryPaintC
 void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pixel)
 {
     static QElapsedTimer said;
-    if (!canvas || !node || !canvas->image() || (said.isValid() && said.elapsed() < 4000)) return;
+    if (!canvas || !node || !canvas->image()) return;
     KisPaintLayer *layer = dynamic_cast<KisPaintLayer *>(node.data());
     // the selection the stroke is limited to, found as the stroke finds it
     KisSelectionSP selection = canvas->image()->globalSelection();
@@ -103,6 +105,8 @@ void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pix
     KoColor at;
     if (selection && selection->projection()->pixel(pixel.x(), pixel.y(), &at) && at.opacityU8() == OPACITY_TRANSPARENT_U8) {
         why = i18nc("@info on the canvas: a stroke started where the selection leaves nothing to paint", "Outside the selection");
+        // the edge lights at every such stroke; the words only now and then
+        if (auto decoration = qobject_cast<KisSelectionDecoration *>(canvas->decoration(QStringLiteral("selection")).data())) decoration->flash();
     } else if (layer && layer->paintDevice()) {
         KoCanvasResourceProvider *resources = canvas->resourceManager();
         const bool erasing = resources->resource(KoCanvasResource::EraserMode).toBool();
@@ -111,7 +115,7 @@ void explainNothingPainted(KisCanvas2 *canvas, KisNodeSP node, const QPoint &pix
             why = i18nc("@info on the canvas: alpha locked, and the stroke started on a transparent pixel", "Alpha locked: nothing here");
         }
     }
-    if (why.isEmpty()) return;
+    if (why.isEmpty() || (said.isValid() && said.elapsed() < 4000)) return;
     said.restart();
     canvas->viewManager()->showFloatingMessage(why, KisIconUtils::loadIcon(QStringLiteral("object-locked")));
 }
@@ -139,6 +143,9 @@ KisToolFreehand::KisToolFreehand(KoCanvasBase * canvas, const QCursor & cursor,
     m_shapeHold.setSingleShot(true);
     m_shapeHold.setInterval(KisModernStyle::holdInterval());
     connect(&m_shapeHold, &QTimer::timeout, this, &KisToolFreehand::snapToShape);
+    m_sampleHold.setSingleShot(true);
+    m_sampleHold.setInterval(450);
+    connect(&m_sampleHold, &QTimer::timeout, this, &KisToolFreehand::sampleOnHold);
 
     connect(qobject_cast<KisCanvas2*>(canvas)->viewManager(), SIGNAL(brushOutlineToggled()), SLOT(explicitUpdateOutline()));
 
@@ -422,6 +429,15 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
 
     initStroke(event);
 
+    m_sampling = false;
+    m_sampleHoldEvent.reset();
+    // an airbrush held still is meant to build up paint
+    KisPaintOpPresetSP preset = canvas2 ? canvas2->resourceManager()->resource(KoCanvasResource::CurrentPaintOpPreset).value<KisPaintOpPresetSP>() : nullptr;
+    if (preset && preset->settings() && !preset->settings()->isAirbrushing()) {
+        m_sampleHoldEvent = event->deepCopyEvent();
+        m_sampleHold.start();
+    }
+
     m_shapeSnapped = false;
     m_shapePoints.clear();
     m_shapeInputs.clear();
@@ -437,9 +453,22 @@ void KisToolFreehand::beginPrimaryAction(KoPointerEvent *event)
 
 void KisToolFreehand::continuePrimaryAction(KoPointerEvent *event)
 {
+    if (m_sampling) {
+        KisToolPaint::continueAlternateAction(event, SampleFgImage);
+        return;
+    }
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
 
     requestUpdateOutline(temporaryStraightRulerOutlinePosition(event->point), event);
+
+    if (m_sampleHoldEvent) {
+        m_sampleHoldEvent->event.point = event->point;
+        const QInputEvent device(event->isTabletEvent() ? QEvent::TabletMove : event->isTouchEvent() ? QEvent::TouchUpdate : QEvent::MouseMove);
+        if (QLineF(event->pos(), m_sampleHoldEvent->event.pos()).length() > KisModernStyle::dragDistance(&device)) {
+            m_sampleHold.stop();
+            m_sampleHoldEvent.reset();
+        }
+    }
 
     // once it is a shape, the rest of the stroke only waits for the pen to lift
     if (m_shapeSnapped) return;
@@ -505,9 +534,29 @@ void KisToolFreehand::snapToShape()
     m_shapeSnapped = true;
 }
 
+void KisToolFreehand::sampleOnHold()
+{
+    KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas());
+    if (mode() != KisTool::PAINT_MODE || !m_helper->isRunning() || !m_sampleHoldEvent || !canvas2) return;
+    m_shapeHold.stop();
+    m_shapePoints.clear();
+    m_helper->cancelPaint();
+    m_sampling = true;
+    KisToolPaint::activateAlternateAction(SampleFgImage);
+    KisToolPaint::beginAlternateAction(&m_sampleHoldEvent->event, SampleFgImage);
+}
+
 void KisToolFreehand::endPrimaryAction(KoPointerEvent *event)
 {
-    Q_UNUSED(event);
+    m_sampleHold.stop();
+    m_sampleHoldEvent.reset();
+    if (m_sampling) {
+        m_sampling = false;
+        KisToolPaint::endAlternateAction(event, SampleFgImage);
+        KisToolPaint::deactivateAlternateAction(SampleFgImage);
+        if (KisCanvas2 *canvas2 = dynamic_cast<KisCanvas2 *>(canvas())) canvas2->viewManager()->enableControls();
+        return;
+    }
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
 
     endStroke();

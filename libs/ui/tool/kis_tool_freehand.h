@@ -147,6 +147,12 @@ private:
     QPointF m_shapeHoldPos;
     QTimer m_shapeHold;
     bool m_shapeSnapped {false};
+
+    void sampleOnHold();
+    /// A press held still samples the color under it instead of painting, until the pen lifts
+    std::optional<KoPointerEventWrapper> m_sampleHoldEvent;
+    QTimer m_sampleHold;
+    bool m_sampling {false};
 };
 
 

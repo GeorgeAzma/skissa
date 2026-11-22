@@ -32,6 +32,7 @@ public:
     Shortcut mode {RotateModeShortcut};
 
     qreal snapRotation {0.0};
+    qreal startRotation {0.0};
     bool allowRotation {false};
 
     std::unique_ptr<KisCanvasNavigationActionStrategy> actionStrategy;
@@ -114,6 +115,7 @@ void KisRotateCanvasAction::begin(int shortcut, QEvent *event)
 
     d->allowRotation = false;
     d->snapRotation = 0;
+    d->startRotation = inputManager()->canvas() ? inputManager()->canvas()->rotationAngle() : 0.0;
 
     d->mode = (Shortcut)shortcut;
 
@@ -186,6 +188,11 @@ void KisRotateCanvasAction::cursorMovedAbsolute(const QPointF &startPos, const Q
         } else {
             newRotation = 0.0;
         }
+    } else {
+        // hands aim roughly: a turn ending near straight is meant straight
+        const qreal total = d->startRotation + newRotation;
+        const qreal straight = qRound(total / 90.0) * 90.0;
+        if (qAbs(total - straight) < 4.0) newRotation = straight - d->startRotation;
     }
 
     KisCanvasController *canvasController =

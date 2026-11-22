@@ -59,6 +59,8 @@ KRITAUI_EXPORT QString html(const QString &tooltip, const QString &keys = QStrin
 
 /// Shows every tooltip so, with the shortcut \p shortcutOf gives a button
 KRITAUI_EXPORT void install(std::function<QKeySequence(QAbstractButton *)> shortcutOf);
+/// The shortcut a button's tooltip shows
+KRITAUI_EXPORT QKeySequence shortcutOf(QAbstractButton *button);
 
 } // namespace KisStudioTips
 

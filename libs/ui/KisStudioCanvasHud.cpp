@@ -4,6 +4,9 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
+
+#include "KisStudioKeyHints.h"
+#include "KisStudioPeek.h"
 #include <kis_image.h>
 #include <kis_image_animation_interface.h>
 #include "KisStudioGlide.h"
@@ -406,6 +409,21 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         }
     });
     // a press shows it at once: let go quickly it stays, held it was only a look (eventFilter)
+    KisStudioKeyHints::install();
+    KisStudioPeek::springBack(valueView);
+    if (QAction *mirror = d->action("mirror_canvas")) KisStudioPeek::springBack(mirror);
+    // the picture blurred, to judge big shapes and values; a key only
+    auto *squint = new QAction(i18nc("@action", "Squint"), mainWindow);
+    squint->setObjectName(QStringLiteral("studio_squint"));
+    squint->setCheckable(true);
+    squint->setShortcutContext(Qt::WindowShortcut);
+    KisStudioShortcuts::restore(squint);
+    mainWindow->actionCollection()->addAction(squint->objectName(), squint);
+    connect(squint, &QAction::toggled, this, [mainWindow](bool on) {
+        KisView *view = mainWindow->activeView();
+        KisStudioPeek::setSquint(view ? view->canvasBase() : nullptr, on);
+    });
+    KisStudioPeek::springBack(squint);
     d->valueView = valueView;
     d->value = hudButton(this);
     d->value->setDefaultAction(valueView);

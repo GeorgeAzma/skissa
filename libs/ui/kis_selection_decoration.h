@@ -8,6 +8,7 @@
 #define _KIS_SELECTION_DECORATION_H_
 
 #include <QPainterPath>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QPolygon>
 #include <QPen>
@@ -40,6 +41,9 @@ public:
     void setCanvasWidget(KisCanvasWidgetBase* canvas) override;
 
     void toggleSelectionVisibility();
+
+    /// Lights the selection's edge for a moment (shown even while hidden), where a stroke did nothing outside it
+    void flash();
     bool selectionVisible();
 
 protected:
@@ -77,6 +81,9 @@ private:
     KisSelectionActionsPanel *m_selectionActionsPanel;
 
     bool m_selectionVisibility;
+
+    QElapsedTimer m_flashing;
+    QTimer m_flashFrames;
 };
 
 #endif

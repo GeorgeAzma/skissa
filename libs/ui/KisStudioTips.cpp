@@ -598,7 +598,7 @@ QString KisStudioTips::html(const QString &tooltip, const QString &keys)
 void KisStudioTips::install(std::function<QKeySequence(QAbstractButton *)> shortcuts)
 {
     static TipFilter *filter = nullptr;
-    shortcutOf = shortcuts;
+    ::shortcutOf = shortcuts;
     if (filter) return;
     filter = new TipFilter();
     filter->setParent(qApp);
@@ -612,4 +612,9 @@ void KisStudioTips::install(std::function<QKeySequence(QAbstractButton *)> short
     QObject::connect(KisSettingsRegistry::instance(), &KisSettingsRegistry::valueChanged, filter, [delay](const QString &id) {
         if (id == QLatin1String("StudioTooltipDelay")) delay();
     });
+}
+
+QKeySequence KisStudioTips::shortcutOf(QAbstractButton *button)
+{
+    return button && ::shortcutOf ? ::shortcutOf(button) : QKeySequence();
 }
