@@ -1318,7 +1318,7 @@ bool &enabled()
 
 qreal &blurSetting()
 {
-    static qreal blur = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(blurKey, 1.0), KisStudioGlass::maxBlur);
+    static qreal blur = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(blurKey, 4.0), KisStudioGlass::maxBlur);
     return blur;
 }
 
@@ -1354,7 +1354,7 @@ void setLook(qreal &kept, const QString &key, qreal value, qreal most)
 
 qreal &opacitySetting()
 {
-    static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.85), 1.0);
+    static qreal opacity = qBound<qreal>(0, KisConfig(true).readEntry<qreal>(opacityKey, 0.7), 1.0);
     return opacity;
 }
 
@@ -1465,8 +1465,11 @@ protected:
             // Presses on the background, labels, group boxes or plain frames start a drag.
             // (a plain widget that follows the pointer draws something to click: a grid of items, a handle; a class
             // of its own, even without Q_OBJECT and so with QWidget's meta object, handles its own presses)
+            // (a list's or a scroll area's viewport is a plain widget too, the list's items drawn on it)
+            const auto *area = qobject_cast<const QAbstractScrollArea *>(widget->parentWidget());
+            const bool viewport = area && area->viewport() == widget;
             const bool background = widget == dialog || qobject_cast<QLabel *>(widget) || qobject_cast<QGroupBox *>(widget)
-                || (typeid(*widget) == typeid(QWidget) && !widget->hasMouseTracking())
+                || (typeid(*widget) == typeid(QWidget) && !widget->hasMouseTracking() && !viewport)
                 || (qobject_cast<QFrame *>(widget) && !qobject_cast<QAbstractScrollArea *>(widget));
             if (mouse->button() == Qt::LeftButton && background) {
                 m_moving = true;

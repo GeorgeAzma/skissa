@@ -2016,7 +2016,7 @@ void KisConfig::setToolbarSlider(int sliderNumber, const QString &slider)
 
 int KisConfig::layerThumbnailSize(bool defaultValue) const
 {
-    return (defaultValue ? 20 : m_cfg.readEntry("layerThumbnailSize", 20));
+    return (defaultValue ? 35 : m_cfg.readEntry("layerThumbnailSize", 35));
 }
 
 void KisConfig::setLayerThumbnailSize(int size)
@@ -2126,7 +2126,7 @@ void KisConfig::setDefaultBackgroundStyle(const QLatin1String &dialogType, KisCo
 
 int KisConfig::lineSmoothingType(bool defaultValue) const
 {
-    return (defaultValue ? 1 : m_cfg.readEntry("LineSmoothingType", 1));
+    return (defaultValue ? 2 : m_cfg.readEntry("LineSmoothingType", 2));
 }
 
 void KisConfig::setLineSmoothingType(int value)
@@ -2136,7 +2136,7 @@ void KisConfig::setLineSmoothingType(int value)
 
 qreal KisConfig::lineSmoothingDistanceMin(bool defaultValue) const
 {
-    return (defaultValue ? 50.0 : m_cfg.readEntry("LineSmoothingDistanceMin", 50.0));
+    return (defaultValue ? 85.0 : m_cfg.readEntry("LineSmoothingDistanceMin", 85.0));
 }
 
 void KisConfig::setLineSmoothingDistanceMin(qreal value)
@@ -2146,7 +2146,7 @@ void KisConfig::setLineSmoothingDistanceMin(qreal value)
 
 qreal KisConfig::lineSmoothingDistanceMax(bool defaultValue) const
 {
-    return (defaultValue ? 50.0 : m_cfg.readEntry("LineSmoothingDistanceMax", 50.0));
+    return (defaultValue ? 85.0 : m_cfg.readEntry("LineSmoothingDistanceMax", 85.0));
 }
 
 void KisConfig::setLineSmoothingDistanceMax(qreal value)
@@ -2166,7 +2166,7 @@ void KisConfig::setLineSmoothingDistanceKeepAspectRatio(bool value)
 
 qreal KisConfig::lineSmoothingTailAggressiveness(bool defaultValue) const
 {
-    return (defaultValue ? 0.15 : m_cfg.readEntry("LineSmoothingTailAggressiveness", 0.15));
+    return (defaultValue ? 1.0 : m_cfg.readEntry("LineSmoothingTailAggressiveness", 1.0));
 }
 
 void KisConfig::setLineSmoothingTailAggressiveness(qreal value)
@@ -2740,7 +2740,7 @@ void KisConfig::setZoomHorizontal(bool value)
 
 bool KisConfig::selectionActionBar(bool defaultValue) const
 {
-    return defaultValue ? true : m_cfg.readEntry("selectionActionBar", true);
+    return defaultValue ? false : m_cfg.readEntry("selectionActionBar", false);
 }
 
 void KisConfig::setSelectionActionBar(bool value)

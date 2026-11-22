@@ -440,7 +440,7 @@ QVector<Setting> describeAll()
         glass.read = []() { return KisStudioGlass::isEnabled(); };
         glass.write = [](const QVariant &value) { KisStudioGlass::setEnabled(value.toBool()); };
         all << glass;
-        Setting blur = number(QStringLiteral("StudioGlassBlur"), 1.0, 0, KisStudioGlass::maxBlur, i18nc("setting", "Glass blur"), R::Fork | R::OwnNotice);
+        Setting blur = number(QStringLiteral("StudioGlassBlur"), 4.0, 0, KisStudioGlass::maxBlur, i18nc("setting", "Glass blur"), R::Fork | R::OwnNotice);
         blur.read = []() { return KisStudioGlass::blur(); };
         blur.write = [](const QVariant &value) { KisStudioGlass::setBlur(value.toReal()); };
         all << blur;
@@ -456,7 +456,7 @@ QVector<Setting> describeAll()
         grain.read = []() { return KisStudioGlass::grain(); };
         grain.write = [](const QVariant &value) { KisStudioGlass::setGrain(value.toReal()); };
         all << grain;
-        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.85, 0, 1, i18nc("setting", "Glass opacity"), R::Fork | R::OwnNotice);
+        Setting opacity = number(QStringLiteral("StudioGlassOpacity"), 0.7, 0, 1, i18nc("setting", "Glass opacity"), R::Fork | R::OwnNotice);
         opacity.read = []() { return KisStudioGlass::opacity(); };
         opacity.write = [](const QVariant &value) { KisStudioGlass::setOpacity(value.toReal()); };
         all << opacity;
@@ -551,7 +551,7 @@ QVector<Setting> describeAll()
         Setting mask = color(QStringLiteral("selectionOverlayMaskColor"), QColor(255, 0, 0, 128), i18nc("setting", "Selection mask color"));
         mask.alpha = true;
         all << mask;
-        all << toggle(QStringLiteral("selectionActionBar"), true, i18nc("setting", "Selection actions bar"));
+        all << toggle(QStringLiteral("selectionActionBar"), false, i18nc("setting", "Selection actions bar"));
         Setting channels = toggle(QStringLiteral("showSingleChannelAsColor"), false, i18nc("setting", "Channels in color"));
         // The canvas reads this while drawing, so redraw what is already there
         channels.written = [](const QVariant &) {

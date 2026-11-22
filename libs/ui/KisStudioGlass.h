@@ -30,7 +30,7 @@ public:
     static constexpr qreal maxBlurScale = 2.0;
     /// The most Blur (400%)
     static constexpr qreal maxBlur = 4.0;
-    static constexpr qreal defaultVibrancy = 0.5;
+    static constexpr qreal defaultVibrancy = 0.7;
     static constexpr qreal defaultGrain = 0.3;
     /// Blur multiplier for glass of \p size; grows with the square root of its area.
     static qreal blurScale(const QSizeF &size);
