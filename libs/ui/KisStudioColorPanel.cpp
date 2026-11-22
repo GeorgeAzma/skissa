@@ -62,6 +62,10 @@
 #include "kis_image.h"
 #include "KisSettingsRegistry.h"
 #include "KisStudioTips.h"
+#include "widgets/KisStudioGradientStrip.h"
+#include "widgets/KisStudioPopup.h"
+#include <kis_icon_utils.h>
+#include "widgets/gradient/KisGradientChooser.h"
 #include "widgets/KisStudioInlineEdit.h"
 #include "kis_config.h"
 #include <KisModernStyle.h>
@@ -227,6 +231,53 @@ qreal ringAngleAt(const QPointF &offset)
 const QVector<qreal> &ringHues()
 {
     return KoOklch::wheelHues();
+}
+
+/**
+ * Where along the hue ring or strip each pure color sits (0..1 both ways): spaced so that equal steps are equal
+ * changes as seen (distance in OKLab along the loop of pure colors), where HSV's even hue angles gave blues a long
+ * stretch and yellows a sliver
+ */
+const QVector<qreal> &trackTable()
+{
+    static const QVector<qreal> table = []() {
+        constexpr int samples = 3600;
+        QVector<qreal> along(samples + 1);
+        auto lab = [](qreal hsv) {
+            const Oklch c = oklchFromRgb(QColor::fromHsvF(std::fmod(hsv, 1.0), 1.0, 1.0));
+            return std::array<qreal, 3>{c.l, c.c * std::cos(qDegreesToRadians(c.h)), c.c * std::sin(qDegreesToRadians(c.h))};
+        };
+        std::array<qreal, 3> previous = lab(0.0);
+        along[0] = 0.0;
+        for (int i = 1; i <= samples; i++) {
+            const std::array<qreal, 3> here = lab(qreal(i) / samples);
+            along[i] = along[i - 1] + std::hypot(here[0] - previous[0], here[1] - previous[1], here[2] - previous[2]);
+            previous = here;
+        }
+        for (qreal &value : along) value /= along.last();
+        return along;
+    }();
+    return table;
+}
+
+/// The place on the ring or strip of HSV hue \p hsv (0..1)
+qreal trackOfHsv(qreal hsv)
+{
+    const QVector<qreal> &table = trackTable();
+    const qreal at = std::fmod(std::fmod(hsv, 1.0) + 1.0, 1.0) * (table.size() - 1);
+    const int i = qMin(int(at), table.size() - 2);
+    return table[i] + (table[i + 1] - table[i]) * (at - i);
+}
+
+/// The HSV hue (0..1) at place \p track on the ring or strip
+qreal hsvOfTrack(qreal track)
+{
+    const QVector<qreal> &table = trackTable();
+    const qreal t = std::fmod(std::fmod(track, 1.0) + 1.0, 1.0);
+    const auto above = std::upper_bound(table.cbegin(), table.cend(), t);
+    const int i = qBound(1, int(above - table.cbegin()), table.size() - 1);
+    const qreal span = table[i] - table[i - 1];
+    return (i - 1 + (span > 0 ? (t - table[i - 1]) / span : 0.0)) / (table.size() - 1);
 }
 
 /**
@@ -466,9 +517,9 @@ private:
     {
         if (m_layout == HueLayout::Strip) {
             const QRectF strip = stripRect();
-            return QPointF(strip.center().x(), strip.top() + m_hue * strip.height());
+            return QPointF(strip.center().x(), strip.top() + trackOfHsv(m_hue) * strip.height());
         }
-        const qreal angle = m_hue * 2 * M_PI;
+        const qreal angle = trackOfHsv(m_hue) * 2 * M_PI;
         return center() + (outerRadius() - ringWidth() / 2) * QPointF(std::sin(angle), -std::cos(angle));
     }
 
@@ -510,7 +561,7 @@ private:
             const QRectF strip = stripRect();
             const qreal hue = m_layout == HueLayout::Ring ? ringAngleAt(QPointF(pos) - center()) / 360.0
                                                           : qBound(0.0, (pos.y() - strip.top()) / strip.height(), 0.9999);
-            if (huePicked) huePicked(std::fmod(hue, 1.0));
+            if (huePicked) huePicked(hsvOfTrack(hue));
             return;
         }
         const QRectF plane = planeRect();
@@ -541,10 +592,10 @@ private:
     void paintHues(QPainter &painter, qreal dpr)
     {
         if (m_layout == HueLayout::Strip) {
-            // stops every ten degrees: between them HSV's pure colors run straight in RGB
+            // close stops: between them the pure colors run straight in RGB
             const QRectF strip = stripRect();
             QLinearGradient hues(strip.topLeft(), strip.bottomLeft());
-            for (int i = 0; i <= 36; i++) hues.setColorAt(i / 36.0, QColor::fromHsvF(std::fmod(i / 36.0, 1.0), 1.0, 1.0));
+            for (int i = 0; i <= 72; i++) hues.setColorAt(i / 72.0, QColor::fromHsvF(hsvOfTrack(i / 72.0), 1.0, 1.0));
             painter.fillPath(KisModernStyle::squircle(strip, stripWidth / 2), hues);
             return;
         }
@@ -560,7 +611,7 @@ private:
                 for (int x = 0; x < pixels.width(); x++) {
                     const QPointF offset(x + 0.5 - c.x(), y + 0.5 - c.y());
                     const qreal distance = std::hypot(offset.x(), offset.y());
-                    if (distance > inner - 2 && distance < outer + 2) line[x] = QColor::fromHsvF(ringAngleAt(offset) / 360.0, 1.0, 1.0).rgb();
+                    if (distance > inner - 2 && distance < outer + 2) line[x] = QColor::fromHsvF(hsvOfTrack(ringAngleAt(offset) / 360.0), 1.0, 1.0).rgb();
                 }
             }
             QPainterPath ring;
@@ -790,7 +841,7 @@ static QIcon pickerIcon(HueLayout layout, PickerShape shape)
     if (layout == HueLayout::Ring) {
         const QRectF bounds(1, 1, size - 2, size - 2);
         for (int i = 0; i < 72; i++) {
-            painter.setBrush(QColor::fromHsvF(i / 72.0, 1.0, 1.0));
+            painter.setBrush(QColor::fromHsvF(hsvOfTrack(i / 72.0), 1.0, 1.0));
             painter.drawPie(bounds, int((90 - i * 5) * 16), -6 * 16);
         }
         painter.setCompositionMode(QPainter::CompositionMode_Clear);
@@ -804,7 +855,7 @@ static QIcon pickerIcon(HueLayout layout, PickerShape shape)
         area = QRectF(bounds.center() - QPointF(4.2, 4.2), QSizeF(8.4, 8.4));
     } else {
         QLinearGradient hues(QPointF(0, 1.5), QPointF(0, size - 1.5));
-        for (int i = 0; i <= 6; i++) hues.setColorAt(i / 6.0, QColor::fromHsvF(std::fmod(i / 6.0, 1.0), 1.0, 1.0));
+        for (int i = 0; i <= 12; i++) hues.setColorAt(i / 12.0, QColor::fromHsvF(hsvOfTrack(i / 12.0), 1.0, 1.0));
         painter.setBrush(hues);
         painter.setPen(edge);
         painter.drawRoundedRect(QRectF(size - 5.5, 1.5, 4, size - 3), 2, 2);
@@ -1241,6 +1292,9 @@ struct KisStudioColorPanel::Private
     ColorPicker *picker {nullptr};
     Swatches *currentRow {nullptr};
     Swatches *recentRow {nullptr};
+    KisStudioGradientStrip *gradient {nullptr};
+    /// The strip's own edit going to the canvas, not to be shown back to it
+    bool applyingGradient {false};
     HexField *hex {nullptr};
     IntensityChip *intensityChip {nullptr};
     /// Stops brighter than white the color is painted, in images that can hold it
@@ -1607,6 +1661,51 @@ KisStudioColorPanel::KisStudioColorPanel()
     row->addWidget(d->hex);
     layout->addLayout(row);
 
+    // the gradient, out where the colors are, edited in place
+    d->gradient = new KisStudioGradientStrip(contents);
+    d->gradient->setToolTip(i18nc("@info:tooltip the gradient strip", "Gradient\nClick: add a color\nDrag a stop off: remove it\nDouble-click a stop: current color"));
+    d->gradient->currentColor = [this]() { return d->canvas ? d->canvas->resourceManager()->foregroundColor() : KoColor(); };
+    d->gradient->changed = [this](KoStopGradientSP gradient) {
+        auto *kisCanvas = dynamic_cast<KisCanvas2 *>(d->canvas.data());
+        if (!kisCanvas || !kisCanvas->viewManager()) return;
+        d->applyingGradient = true;
+        kisCanvas->viewManager()->canvasResourceProvider()->slotGradientActivated(gradient);
+        d->applyingGradient = false;
+    };
+    {
+        // the saved gradients, beside the strip they go into
+        auto *gradientRow = new QHBoxLayout();
+        gradientRow->setSpacing(KisModernStyle::space1);
+        auto *saved = new QToolButton(contents);
+        saved->setAutoRaise(true);
+        saved->setFocusPolicy(Qt::NoFocus);
+        saved->setIconSize(QSize(18, 18));
+        saved->setIcon(KisIconUtils::loadIcon(QStringLiteral("krita_tool_gradient")));
+        saved->setToolTip(i18nc("@info:tooltip", "Gradients"));
+        connect(saved, &QToolButton::clicked, this, [this, saved]() {
+            auto *kisCanvas = dynamic_cast<KisCanvas2 *>(d->canvas.data());
+            if (!kisCanvas || !kisCanvas->viewManager()) return;
+            QPointer<KisCanvasResourceProvider> provider = kisCanvas->viewManager()->canvasResourceProvider();
+            auto *popup = new KisStudioPopup(saved->window());
+            popup->setAttribute(Qt::WA_DeleteOnClose);
+            auto *popupLayout = new QVBoxLayout(popup);
+            popup->fitLayout(popupLayout, KisModernStyle::space2);
+            auto *chooser = new KisGradientChooser(popup);
+            chooser->setCanvasResourcesInterface(d->canvas->resourceManager()->canvasResourcesInterface());
+            chooser->setEditOptionsVisible(false);
+            chooser->setNameLabelVisible(false);
+            connect(chooser, &KisGradientChooser::resourceSelected, popup, [provider](KoResourceSP resource) {
+                if (provider) provider->slotGradientActivated(resource);
+            });
+            popupLayout->addWidget(chooser);
+            popup->resize(popup->sizeHint().expandedTo(QSize(300, 320) + QSize(2, 2) * popup->shadowMargin()));
+            popup->popupBeside(saved, Qt::LeftEdge);
+        });
+        gradientRow->addWidget(saved);
+        gradientRow->addWidget(d->gradient, 1);
+        layout->addLayout(gradientRow);
+    }
+
     setWidget(contents);
 
     d->picker->started = [this]() { d->remember(); };
@@ -1674,7 +1773,7 @@ KisStudioColorPanel::KisStudioColorPanel()
         d->keepAction->setChecked(d->keepLightness);
     }
     d->showColor(KoColor(Qt::black, KoColorSpaceRegistry::instance()->rgb8()));
-    d->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Ring, savedShape >= 0 ? PickerShape(savedShape) : PickerShape::Oklch);
+    d->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Strip, savedShape >= 0 ? PickerShape(savedShape) : PickerShape::Oklch);
 }
 
 KisStudioColorPanel::~KisStudioColorPanel() = default;
@@ -1714,7 +1813,7 @@ KisStudioColorWheel::KisStudioColorWheel(QWidget *parent)
     const int savedLayout = layoutNames.indexOf(config.readEntry<QString>("StudioColorHues", QString()));
     const int savedShape = shapeNames.indexOf(config.readEntry<QString>("StudioColorShape", QString()));
     d->shape = savedShape >= 0 ? PickerShape(savedShape) : PickerShape::Oklch;
-    d->picker->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Ring, d->shape);
+    d->picker->setStyle(savedLayout >= 0 ? HueLayout(savedLayout) : HueLayout::Strip, d->shape);
     d->keepLightness = config.readEntry<bool>("StudioColorKeepLightness", true);
     auto pick = [this](const QColor &rgb) {
         d->rgb = QColor::fromRgb(rgb.rgb());
@@ -1869,6 +1968,13 @@ void KisStudioColorPanel::setCanvas(KoCanvasBase *canvas)
         d->canvasConnections << connect(history, &KisUniqueColorSet::sigColorMoved, this, changed);
         d->canvasConnections << connect(history, &KisUniqueColorSet::sigColorRemoved, this, changed);
         KisCanvasResourceProvider *provider = kisCanvas->viewManager()->canvasResourceProvider();
+        // the gradient in use, its colors that follow the current ones as they are now
+        auto showGradient = [this, canvas](KoAbstractGradientSP gradient) {
+            if (d->applyingGradient || !gradient || !canvas->resourceManager()) return;
+            d->gradient->setGradient(gradient->cloneAndBakeVariableColors(canvas->resourceManager()->canvasResourcesInterface()));
+        };
+        showGradient(provider->currentGradient());
+        d->canvasConnections << connect(provider, &KisCanvasResourceProvider::sigGradientChanged, this, showGradient);
         d->canvasConnections << connect(provider, &KisCanvasResourceProvider::sigFGColorPainted, this, [this, provider](const KoColor &color) {
             // erasing doesn't use the color
             if (!d->document || provider->eraserMode() || provider->currentCompositeOp() == COMPOSITE_ERASE) return;

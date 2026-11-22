@@ -90,6 +90,7 @@ set(skissa_ui_SRCS
     widgets/KisStudioCurve.cpp
     widgets/KisStudioDabPictures.cpp
     widgets/KisStudioHistoryScrubber.cpp
+    widgets/KisStudioGradientStrip.cpp
     widgets/KisStudioInlineEdit.cpp
     widgets/KisStudioPicker.cpp
     widgets/KisStudioColorField.cpp
