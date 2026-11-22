@@ -113,7 +113,7 @@ QString ThemeManager::currentThemeName() const
     }
     if (themeName.isEmpty()) {
         //qDebug() << "\tfallback";
-        themeName = "Skissa Dark";
+        themeName = "Skissa Light";
     }
     //qDebug() << "\tresult" << themeName;
     return themeName;

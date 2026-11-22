@@ -408,9 +408,9 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
     KisStudioTheme::remake();
-    d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Skissa Dark"), this);
+    d->themeManager = new Digikam::ThemeManager(group.readEntry("Theme", "Skissa Light"), this);
     // as the window starts: taken again only when it changes
-    d->appliedTheme = group.readEntry("Theme", "Skissa Dark") + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
+    d->appliedTheme = group.readEntry("Theme", "Skissa Light") + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
 #endif
     d->windowStateConfig = KSharedConfig::openConfig()->group("MainWindow");
 
@@ -3065,7 +3065,7 @@ void KisMainWindow::configChanged()
     KConfigGroup group( KSharedConfig::openConfig(), "theme");
 #ifndef Q_OS_HAIKU
     // only when it changed: reapplying the palette at every setting change is slow
-    const QString theme = group.readEntry("Theme", "Skissa Dark");
+    const QString theme = group.readEntry("Theme", "Skissa Light");
     // a theme made of choices (KisStudioTheme) keeps its name when changed: its revision tells
     const QString applied = theme + QLatin1Char('#') + QString::number(group.readEntry("Revision", 0));
     if (applied != d->appliedTheme) {

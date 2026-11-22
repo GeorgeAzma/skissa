@@ -533,9 +533,20 @@ void remake()
     static bool done = false;
     if (done) return;
     done = true;
+    // Light became the default look: a profile from before, which has chosen a theme (settle()), keeps the Dark
+    // it started with where it never set the look itself; checked once, so a new profile stays light
+    KConfigGroup themes = KSharedConfig::openConfig()->group("StudioThemes");
+    if (!themes.hasKey("LightDefault")) {
+        if (themes.hasKey("Current")) {
+            KConfigGroup scheme = KSharedConfig::openConfig()->group("theme");
+            if (!scheme.hasKey("Theme")) scheme.writeEntry("Theme", "Skissa Dark");
+            KConfigGroup params = KSharedConfig::openConfig()->group(group);
+            if (!params.hasKey("Lightness")) params.writeEntry("Lightness", 0.252);
+        }
+        themes.writeEntry("LightDefault", true);
+    }
     // shipped themes still as they first shipped take the defaults they ship with now: glass at 85%, not 70%,
     // and Light at 97%, not 95.5%. The values in use follow when the theme is the current one
-    KConfigGroup themes = KSharedConfig::openConfig()->group("StudioThemes");
     if (themes.readEntry("Defaults", 0) < 1 && themes.hasKey("List")) {
         QVector<Theme> list = parse(themes.readEntry("List", QString()));
         const QString current = themes.readEntry("Current", QString());

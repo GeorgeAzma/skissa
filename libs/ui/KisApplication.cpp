@@ -608,7 +608,7 @@ bool KisApplication::start(const KisApplicationArguments &args)
 #ifndef Q_OS_HAIKU
     Digikam::ThemeManager themeManager;
     KisStudioTheme::remake();
-    themeManager.setCurrentTheme(group.readEntry("Theme", "Skissa Dark"));
+    themeManager.setCurrentTheme(group.readEntry("Theme", "Skissa Light"));
 #endif
 
     ResetStarting resetStarting(d->splashScreen, args.filenames().count()); // remove the splash when done

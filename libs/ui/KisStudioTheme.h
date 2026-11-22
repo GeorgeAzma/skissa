@@ -24,7 +24,7 @@ namespace KisStudioTheme
 {
 
 struct Params {
-    qreal lightness {0.252};   ///< window lightness, 0 black to 1 white; defaults to the Dark preset
+    qreal lightness {0.97};    ///< window lightness, 0 black to 1 white; defaults to the Light preset
     QColor tint {Qt::gray};    ///< hue mixed into the backgrounds
     qreal tintAmount {0};      ///< 0 no tint to 1 full
     QColor accent;             ///< selection color; invalid means a neutral gray
