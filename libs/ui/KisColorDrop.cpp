@@ -8,6 +8,7 @@
 #include "KisColorAreas.h"
 #include "widgets/KisStudioValueRow.h"
 #include <kis_default_bounds_base.h>
+#include <limits>
 #include <QAbstractSpinBox>
 
 #include <KisModernStyle.h>
@@ -593,6 +594,33 @@ QImage tintedOverlay(KisPixelSelectionSP region, const QRect &rect, const QColor
     return overlay;
 }
 
+/// Where in \p selection a drop at \p point lands: there, or the nearest selected pixel within \p reach, so a drop
+/// on the selection's outline fills it; (-1, -1) when it lands outside
+QPoint onSelection(KisSelectionSP selection, const QPoint &point, int reach)
+{
+    if (!selection) return QPoint(-1, -1);
+    KisPixelSelectionSP pixels = selection->projection();
+    if (pixels->pixel(point).opacityU8() > 0) return point;
+    const QRect around = QRect(point, QSize(1, 1)).adjusted(-reach, -reach, reach, reach);
+    QVector<quint8> bytes(around.width() * around.height());
+    pixels->readBytes(bytes.data(), around);
+    QPoint nearest(-1, -1);
+    int best = std::numeric_limits<int>::max();
+    for (int y = 0; y < around.height(); y++) {
+        for (int x = 0; x < around.width(); x++) {
+            if (!bytes[y * around.width() + x]) continue;
+            const int dx = x - reach;
+            const int dy = y - reach;
+            const int distance = dx * dx + dy * dy;
+            if (distance <= reach * reach && distance < best) {
+                best = distance;
+                nearest = around.topLeft() + QPoint(x, y);
+            }
+        }
+    }
+    return nearest;
+}
+
 /// The area under the color as the drag goes.
 class Preview : public KisCanvasDecoration
 {
@@ -973,6 +1001,13 @@ struct KisColorDrop::Private {
         return qBound(1, qCeil(2.0 / qMax<qreal>(zoom, 1e-3)), 64);
     }
 
+    /// How near the selection's outline, in image pixels, a drop still fills the selection: a few screen pixels
+    int outlineReach() const
+    {
+        const qreal zoom = canvas() ? canvas()->coordinatesConverter()->effectiveZoom() : 1.0;
+        return qBound(1, qCeil(6.0 / qMax<qreal>(zoom, 1e-3)), 256);
+    }
+
     /// The areas of \p source as already read, if it hasn't changed since
     QSharedPointer<KisColorAreas> knownAreas(KisPaintDeviceSP source) const
     {
@@ -1017,14 +1052,17 @@ struct KisColorDrop::Private {
         pending = false;
         const int ticket = ++generation;
         const QRect bounds = image->bounds();
-        const QPoint at = seed;
+        KisSelectionSP selection = view->viewManager() ? view->viewManager()->selection() : nullptr;
+        const QPoint inside = onSelection(selection, seed, outlineReach());
+        const bool inSelection = inside != QPoint(-1, -1);
+        const QPoint at = inSelection ? inside : seed;
         const int t = threshold;
         const Options o = options;
         const bool all = everywhere;
-        // as the fill will be made: a painting or a flat by the layer's own colors, line art by the picture
+        // as the fill will be made: in a selection all of it, else a painting or a flat by the layer's own colors,
+        // line art by the picture
         KisNodeSP active = view->viewManager() ? view->viewManager()->activeNode() : nullptr;
-        KisSelectionSP selection = view->viewManager() ? view->viewManager()->selection() : nullptr;
-        const bool inSelection = selection && selection->projection()->pixel(at).opacityU8() > 0;
+        const KisPixelSelectionSP whole = inSelection ? new KisPixelSelection(*selection->projection()) : nullptr;
         const ByColor way = inSelection ? ByColor() : byColorAt(image, active, at);
         // a snapshot, as the image may change while this runs
         KisPaintDeviceSP source = way && way.inPlace ? way.node->paintDevice() : image->projection();
@@ -1074,7 +1112,11 @@ struct KisColorDrop::Private {
             Result result;
             // out of memory on a huge image: no preview, rather than an exception thrown into the window's thread
             try {
-                if (byColor) {
+                if (whole) {
+                    result.region = whole;
+                    result.rect = whole->selectedExactRect();
+                    result.overlay = tintedOverlay(whole, result.rect, fill.toQColor());
+                } else if (byColor) {
                     // the picture as it will look
                     result.areas = known ? known : QSharedPointer<KisColorAreas>::create(reference, bounds, earlier.data());
                     result.covered = coveredAt(*result.areas, at, pointer, 0, all);
@@ -1458,8 +1500,11 @@ void KisColorDrop::refillLast()
     d->refilling = false;
 }
 
-bool KisColorDrop::fillAt(const KoColor &color, const QPoint &point)
+bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
 {
+    // on the selection's outline: in the selection
+    const QPoint inside = d->view && d->view->viewManager() ? onSelection(d->view->viewManager()->selection(), dropped, d->outlineReach()) : QPoint(-1, -1);
+    const QPoint point = inside != QPoint(-1, -1) ? inside : dropped;
     KisImageSP image = d->view ? d->view->image() : nullptr;
     KisViewManager *viewManager = d->view ? d->view->viewManager() : nullptr;
     if (!image || !viewManager) return false;
