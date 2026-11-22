@@ -480,6 +480,8 @@ void KisStudioLayout::enter()
         if (d->presetChip) {
             d->presetChipToolTip = d->presetChip->toolTip();
             d->presetChip->setToolTip(i18nc("@info:tooltip", "Brushes\nScroll: next brush\nRight-click: manage"));
+            // the brush chip shows the brush's picture and opens the brushes
+            d->presetChip->setVisible(false);
         }
     }
 
@@ -768,6 +770,7 @@ void KisStudioLayout::leave()
     d->peeking.clear();
     if (d->presetChip) {
         d->presetChip->setToolTip(d->presetChipToolTip);
+        d->presetChip->setVisible(true);
     }
     delete d->brushMemory;
     delete d->canvasRing;
@@ -1106,7 +1109,12 @@ bool KisStudioLayout::eventFilter(QObject *watched, QEvent *event)
         return true;
     }
 
-    if (d->presetChip && watched == d->presetChip && handlePresetChip(event)) {
+    if (d->presetChip && watched == d->presetChip && handlePresetChip(event, d->presetChip)) {
+        return true;
+    }
+    // the brush chip's wheel goes through the brushes, as the picker's chip it stands for did
+    if (d->toolChip && watched == d->toolChip && event->type() == QEvent::Wheel && static_cast<ToolChip *>(d->toolChip.data())->pictureClicked
+        && handlePresetChip(event, d->toolChip)) {
         return true;
     }
 

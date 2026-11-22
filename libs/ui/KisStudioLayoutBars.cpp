@@ -926,6 +926,19 @@ void KisStudioLayout::updateToolChip()
     KisViewManager *view = d->mainWindow->viewManager();
     KisCanvasResourceProvider *resources = view ? view->canvasResourceProvider() : nullptr;
     const QString brush = brushTool && resources && resources->currentPreset() ? KisStudioBrushPicker::title(resources->currentPreset()->name()) : QString();
+    // a brush shows its own picture, a click on which opens the brushes
+    auto *chip = static_cast<ToolChip *>(d->toolChip.data());
+    if (!brush.isEmpty() && !resources->currentPreset()->image().isNull()) {
+        d->toolChip->setIcon(QIcon(QPixmap::fromImage(resources->currentPreset()->image())));
+    }
+    if (brush.isEmpty()) {
+        chip->pictureClicked = nullptr;
+    } else {
+        chip->pictureClicked = [this]() {
+            auto *picker = new KisStudioBrushPicker(d->mainWindow);
+            picker->popupBelow(d->toolChip);
+        };
+    }
     // on the bar beside its icon, which already says what kind it is: the selections by their shape alone
     static const QHash<QString, QString> shortNames = {
         {QStringLiteral("KisToolSelectRectangular"), i18nc("the rectangular selection tool, short", "Rectangle")},
@@ -942,9 +955,9 @@ void KisStudioLayout::updateToolChip()
     // a right click resets the smoothing, instead of showing the chip's card
     d->toolChip->setProperty("ownContextMenu", bool(KisStudioSmoothing::options(d->mainWindow)));
     if (KisStudioSmoothing::options(d->mainWindow)) {
-        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for the brush's settings", "Drag: smoothing\nClick: brush settings\nRight-click: reset"));
+        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: drag sideways for smoothing, click for the brush's settings", "Picture: brushes\nClick: brush settings\nDrag: smoothing\nRight-click: reset"));
     } else if (KisStudioStrokePage::applies(d->mainWindow)) {
-        d->toolChip->setToolTip(i18nc("@info:tooltip", "Brush settings"));
+        d->toolChip->setToolTip(i18nc("@info:tooltip the brush chip: click its picture for the brushes", "Picture: brushes\nClick: brush settings"));
     } else {
         d->toolChip->setToolTip(brush.isEmpty() ? i18nc("@info:tooltip", "Tool options") : i18nc("@info:tooltip tool chip: the tool, its options", "%1 options", toolName));
     }
@@ -1023,7 +1036,7 @@ void KisStudioLayout::syncRail()
     }
 }
 
-bool KisStudioLayout::handlePresetChip(QEvent *event)
+bool KisStudioLayout::handlePresetChip(QEvent *event, QWidget *chip)
 {
     switch (event->type()) {
     case QEvent::MouseButtonPress:
@@ -1048,7 +1061,7 @@ bool KisStudioLayout::handlePresetChip(QEvent *event)
         return true;
     case QEvent::Wheel: {
         // a notch is one brush; a touchpad's small steps add up to one
-        const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), d->presetChip);
+        const int steps = KisModernStyle::wheelSteps(static_cast<QWheelEvent *>(event), chip);
         if (!steps) {
             return true;
         }

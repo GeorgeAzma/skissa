@@ -433,6 +433,8 @@ public:
     /// The amount as shown while dragged
     std::function<QString()> amountText;
     std::function<void()> resetAmount;
+    /// A click on the chip's picture (the brush's): its own, not the chip's
+    std::function<void()> pictureClicked;
 
     explicit ToolChip(QWidget *parent)
         : QToolButton(parent)
@@ -491,11 +493,20 @@ protected:
         m_scrubbing = false;
         m_scrubbedThisPress = false;
         m_pressX = event->pos().x();
+        m_onPicture = pictureClicked && event->button() == Qt::LeftButton && event->pos().x() < padding + iconSize().width() + gap / 2;
+        if (m_onPicture) {
+            event->accept();
+            return;
+        }
         QToolButton::mousePressEvent(event);
     }
 
     void mouseMoveEvent(QMouseEvent *event) override
     {
+        if (m_onPicture) {
+            event->accept();
+            return;
+        }
         const bool scrubbable = amount && setAmount && amount() >= 0;
         if (scrubbable && (event->buttons() & Qt::LeftButton)) {
             const bool fine = event->modifiers() & Qt::ShiftModifier;
@@ -526,6 +537,12 @@ protected:
 
     void mouseReleaseEvent(QMouseEvent *event) override
     {
+        if (m_onPicture) {
+            m_onPicture = false;
+            event->accept();
+            if (rect().contains(event->pos()) && pictureClicked) pictureClicked();
+            return;
+        }
         if (m_scrubbing) {
             m_scrubbing = false;
             setDown(false);
@@ -553,6 +570,7 @@ private:
     }
 
     bool m_scrubbing {false};
+    bool m_onPicture {false};
     bool m_scrubbedThisPress {false};
     bool m_fine {false};
     int m_pressX {0};

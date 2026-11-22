@@ -91,7 +91,7 @@ private:
     /// Creates the settings panel the first time it is needed
     void ensureSettings();
     /// Handles clicks and the wheel on the brush bar's preset button
-    bool handlePresetChip(QEvent *event);
+    bool handlePresetChip(QEvent *event, QWidget *chip);
 
     void togglePanel(QDockWidget *dock, bool show);
     void showFlyout(QDockWidget *dock, QWidget *anchor = nullptr);
