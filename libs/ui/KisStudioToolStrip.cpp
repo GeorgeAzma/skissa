@@ -972,10 +972,10 @@ void KisStudioToolStrip::addCropAspects(QWidget *options)
     for (const QPointer<QToolButton> &button : buttons) connect(button, &QToolButton::clicked, button, light);
 }
 
-void KisStudioToolStrip::addSelectionAdjust()
+void KisStudioToolStrip::addSelectionAdjust(bool gap)
 {
     if (!m_adjust) m_adjust = new KisStudioSelectionAdjust(this);
-    addGap();
+    if (gap) addGap();
     // the selection there is, changed as the value is dragged; at rest each is named, as it is an amount to apply
     KisStudioScrubber *grow = new KisStudioScrubber(KisStudioScrubber::Kind::Grow, i18nc("@info:tooltip grow the selection", "Grow"), this);
     grow->setAccessibleName(i18nc("the selection's grow scrubber, at rest", "Grow"));
@@ -1004,7 +1004,10 @@ void KisStudioToolStrip::addSelectionAdjust()
         });
         m_layout->addWidget(scrubber);
     }
+}
 
+void KisStudioToolStrip::addSelectionCommands()
+{
     // letting the selection go and turning it inside out, a pen's reach from the keys
     KisMainWindow *window = windowOf(this);
     if (!window) return;
@@ -1211,7 +1214,7 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 }
                 tuckSection(actions);
             }
-            addSelectionAdjust();
+            addSelectionCommands();
             // the bar's Grow and Soft do what Krita's grow and feather did (kept while set, so nothing set is hidden);
             // the selection actions bar is a setting, not a tool's option
             if (QCheckBox *bar = withId<QCheckBox>(selection, QStringLiteral("sapCheckBox"))) tuck(bar->parentWidget());
@@ -1235,6 +1238,8 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 mirrorSpin(threshold, int(KisStudioScrubber::Kind::Threshold),
                            i18nc("@info:tooltip how alike colors are selected as one", "Threshold"), contiguous ? 8 : 20);
             }
+            // the values together, the tool's own first
+            addSelectionAdjust(!withId<QSpinBox>(widget, QStringLiteral("sliderThreshold")));
         }
 
         // the color sampler: from the whole image or the layer, and how wide a patch it averages

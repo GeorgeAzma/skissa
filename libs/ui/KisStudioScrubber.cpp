@@ -305,6 +305,7 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
 
 void KisStudioScrubber::mousePressEvent(QMouseEvent *event)
 {
+    endTurn();
     m_moved = false;
     if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
@@ -410,9 +411,21 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
     if (m_kind == Kind::Size) {
         commit(KisValueSteps::turnedBy(m_value, steps, 0, true, qMax<qreal>(m_minimum, 1)));
     } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
-        // whole pixels, at least one a notch
+        // whole pixels, at least one a notch, shown and previewed as a drag is until the wheel rests
+        if (!m_turning) {
+            m_turning = new QTimer(this);
+            m_turning->setSingleShot(true);
+            m_turning->setInterval(700);
+            connect(m_turning, &QTimer::timeout, this, &KisStudioScrubber::endTurn);
+        }
+        if (!m_turned) Q_EMIT dragStarted();
+        m_turned = true;
+        m_turning->start();
         const qreal by = KisValueSteps::turnedBy(0, steps, usualAmount, false);
-        commit(m_value + (steps > 0 ? qMax<qreal>(1, qRound(by)) : qMin<qreal>(-1, qRound(by))));
+        const qreal before = m_value;
+        m_value = bounded(m_value + (steps > 0 ? qMax<qreal>(1, qRound(by)) : qMin<qreal>(-1, qRound(by))));
+        if (m_value != before) Q_EMIT valueChanging(m_value);
+        update();
     } else {
         commit(KisValueSteps::turnedBy(m_value, steps, m_maximum - m_minimum, false));
     }
@@ -420,8 +433,18 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
     event->accept();
 }
 
+void KisStudioScrubber::endTurn()
+{
+    if (!m_turned) return;
+    m_turned = false;
+    m_turning->stop();
+    commit(m_value);
+}
+
 bool KisStudioScrubber::event(QEvent *event)
 {
+    // leaving or hiding applies what was turned in
+    if (event->type() == QEvent::Leave || event->type() == QEvent::Hide) endTurn();
     if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
         update();
     }

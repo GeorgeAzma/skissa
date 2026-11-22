@@ -49,7 +49,10 @@ private:
     void mirrorCombo(QComboBox *combo, const QVector<int> &indexes, const QVector<QIcon> &icons);
 
     /// Grow and Soft, on the selection there is (selection tools)
-    void addSelectionAdjust();
+    /// Grow and Soft, after a gap unless they follow the tool's own value
+    void addSelectionAdjust(bool gap);
+    /// Deselect and Invert
+    void addSelectionCommands();
     /// The text's font, written in itself, opening the fonts
     void addFontChip();
     /// The pattern a fill paints with, shown while \p fillsWithPattern is on; a click picks another

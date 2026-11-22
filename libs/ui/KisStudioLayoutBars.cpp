@@ -6,7 +6,81 @@
 #include "KisStudioLayout.h"
 #include "KisStudioLayout_p.h"
 
+#include <QAbstractSlider>
+#include <QAbstractSpinBox>
+#include <QComboBox>
+#include <QWidgetAction>
+
 // The panel and brush rails, the top bar and its chips, settings and the main menu, peeking at the canvas
+
+namespace
+{
+/// A bar on the top pill takes no room while nothing on it shows (no lent buttons, Krita's brush bar with its parts
+/// hidden): its margins read as a gap at the pill's end
+class ShrinkWhenEmpty : public QObject
+{
+public:
+    explicit ShrinkWhenEmpty(QToolBar *bar)
+        : QObject(bar), m_bar(bar)
+    {
+        bar->installEventFilter(this);
+        check();
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        switch (event->type()) {
+        case QEvent::LayoutRequest:
+        case QEvent::ActionAdded:
+        case QEvent::ActionChanged:
+        case QEvent::ActionRemoved:
+            // once the change has settled
+            if (!m_pending) {
+                m_pending = true;
+                QTimer::singleShot(0, this, [this]() { check(); });
+            }
+            break;
+        default:
+            break;
+        }
+        return false;
+    }
+
+private:
+    void check()
+    {
+        m_pending = false;
+        const int width = hasContent() ? QWIDGETSIZE_MAX : 0;
+        if (m_bar->maximumWidth() != width) m_bar->setMaximumWidth(width);
+    }
+
+    /// Asked of what each item holds, not of whether the bar shows it: squeezed, the bar hides its items itself
+    bool hasContent() const
+    {
+        auto shownWithin = [](QWidget *widget, QWidget *top) {
+            for (QWidget *w = widget; w && w != top; w = w->parentWidget()) {
+                if (w->isHidden()) return false;
+            }
+            return true;
+        };
+        Q_FOREACH (QAction *action, m_bar->actions()) {
+            if (!action->isVisible() || action->isSeparator()) continue;
+            if (!qobject_cast<QWidgetAction *>(action)) return true;
+            QWidget *top = m_bar->widgetForAction(action);
+            if (!top) continue;
+            Q_FOREACH (QWidget *widget, top->findChildren<QWidget *>()) {
+                const bool control = qobject_cast<QAbstractButton *>(widget) || qobject_cast<QAbstractSlider *>(widget)
+                    || qobject_cast<QAbstractSpinBox *>(widget) || qobject_cast<QComboBox *>(widget);
+                if (control && shownWithin(widget, top)) return true;
+            }
+        }
+        return false;
+    }
+
+    QToolBar *m_bar;
+    bool m_pending {false};
+};
+}
 
 void KisStudioLayout::createRail()
 {
@@ -649,6 +723,7 @@ void KisStudioLayout::adoptTopBars()
     int index = 1;
     for (QToolBar *bar : {d->topBar.data(), brushBar, d->buttonsBar.data()}) {
         if (!bar) continue;
+        if (bar != d->topBar && !bar->property("studioShrinks").value<QObject *>()) bar->setProperty("studioShrinks", QVariant::fromValue<QObject *>(new ShrinkWhenEmpty(bar)));
         if (bar->parentWidget() != d->topPill->contents()) {
             d->mainWindow->removeToolBar(bar);
             bar->setMovable(false);
@@ -701,6 +776,9 @@ void KisStudioLayout::releaseTopBars()
     QToolBar *brushBar = d->mainWindow->findChild<QToolBar *>(QStringLiteral("BrushesAndStuff"));
     if (brushBar && brushBar->parentWidget() != d->mainWindow) {
         const bool shown = !brushBar->isHidden();
+        delete brushBar->property("studioShrinks").value<QObject *>();
+        brushBar->setProperty("studioShrinks", QVariant());
+        brushBar->setMaximumWidth(QWIDGETSIZE_MAX);
         KisStudioGlass::setSeeThrough(brushBar, false);
         brushBar->setMovable(true);
         d->mainWindow->addToolBar(Qt::TopToolBarArea, brushBar);

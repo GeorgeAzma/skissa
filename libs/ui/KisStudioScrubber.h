@@ -7,6 +7,7 @@
 #define KISSTUDIOSCRUBBER_H
 
 #include <QPointer>
+#include <QTimer>
 #include <QWidget>
 #include <QtNumeric>
 
@@ -76,6 +77,8 @@ private:
     void commit(qreal value);
     /// Ends a drag, committing the value if it moved
     void endDrag();
+    /// An amount turned in with the wheel is applied once the turning stops
+    void endTurn();
     /// The dab under the scrubber, as it is now; hidden again \p lingerMs after the last change
     void showDab(int lingerMs);
 
@@ -93,6 +96,8 @@ private:
     QPointer<QLineEdit> m_editor;
     std::function<Look()> m_look;
     QPointer<QWidget> m_dab;
+    QTimer *m_turning {nullptr};
+    bool m_turned {false};
 };
 
 #endif // KISSTUDIOSCRUBBER_H
