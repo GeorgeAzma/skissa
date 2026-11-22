@@ -209,68 +209,70 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
     setFixedWidth(contentWidth + 2 * (shadowMargin() + KisModernStyle::space2));
     setFocusPolicy(Qt::StrongFocus);
 
-    // the everyday commands, always in the same places
-    auto *tiles = new QHBoxLayout();
-    tiles->setSpacing(KisModernStyle::hairline);
-    auto addTile = [&](const QString &icon, const QString &name, QAction *action) {
-        auto *tile = new Tile(this);
-        tile->setIcon(KisIconUtils::loadIcon(icon));
-        tile->setToolTip(name);
-        // its key shows in the tooltip
-        if (action) tile->setProperty("runsAction", action->objectName());
-        QPointer<QAction> target(action);
-        connect(tile, &QAbstractButton::clicked, this, [this, target]() {
-            // closed first: what it runs may open a dialog or take the layer away
-            close();
-            if (target) target->trigger();
-        });
-        d->tiles.append({tile, target});
-        tiles->addWidget(tile);
-    };
-    addTile(QStringLiteral("studio_duplicate"), i18nc("@info:tooltip a layer's command", "Duplicate"), d->action(QStringLiteral("duplicatelayer")));
-    addTile(QStringLiteral("studio_merge_down"), i18nc("@info:tooltip a layer's command", "Merge down"), d->action(QStringLiteral("merge_layer")));
-    const bool group = node->inherits("KisGroupLayer") && box->m_nodeManager->selectedNodes().size() <= 1;
-    addTile(group ? QStringLiteral("studio_ungroup") : QStringLiteral("studio_group"),
-            group ? i18nc("@info:tooltip a layer's command", "Ungroup") : i18nc("@info:tooltip a layer's command", "Group"),
-            d->action(group ? QStringLiteral("quick_ungroup") : QStringLiteral("create_quick_group")));
-    addTile(QStringLiteral("studio_copy"), i18nc("@info:tooltip a layer's command", "Copy"), d->action(QStringLiteral("copy_layer_clipboard")));
-    addTile(QStringLiteral("studio_paste"), i18nc("@info:tooltip a layer's command", "Paste"), d->action(QStringLiteral("paste_layer_from_clipboard")));
-    addTile(QStringLiteral("studio_delete"), i18nc("@info:tooltip a layer's command", "Delete"), box->m_removeAction);
-    layout->addLayout(tiles);
-
-    // its color label
-    auto *labels = new QHBoxLayout();
-    labels->setSpacing(0);
-    const QVector<QColor> colors = KisNodeViewColorScheme::instance()->allColorLabels();
-    for (int i = 0; i < colors.size(); i++) {
-        auto *label = new Label(colors[i], this);
-        connect(label, &QAbstractButton::clicked, this, [this, i]() {
-            if (d->box) d->box->slotColorLabelChanged(i);
-            refresh();
-        });
-        d->labels << label;
-        labels->addWidget(label);
-    }
-    layout->addLayout(labels);
-
-    auto *line = new QWidget(this);
-    line->setFixedHeight(1);
-    line->setAutoFillBackground(true);
-    QPalette linePalette = line->palette();
-    linePalette.setColor(QPalette::Window, inkAt(this, 0.1));
-    line->setPalette(linePalette);
-    layout->addSpacing(KisModernStyle::hairline);
-    layout->addWidget(line);
-    layout->addSpacing(KisModernStyle::hairline);
-
-    // the rarer ones: a command, or a menu opening beside the row
-    auto addRow = [&](const QString &icon, const QString &text, std::function<void(QMenu *)> fill, QAction *run = nullptr) {
-        auto *row = new Row(icon, text, bool(fill), this);
-        QPointer<QAction> target(run);
-        connect(row, &QAbstractButton::clicked, this, [this, row, fill, target]() {
-            if (!fill) {
+    // a layer's own: the everyday commands, its color label
+    if (node) {
+        // the everyday commands, always in the same places
+        auto *tiles = new QHBoxLayout();
+        tiles->setSpacing(KisModernStyle::hairline);
+        auto addTile = [&](const QString &icon, const QString &name, QAction *action) {
+            auto *tile = new Tile(this);
+            tile->setIcon(KisIconUtils::loadIcon(icon));
+            tile->setToolTip(name);
+            // its key shows in the tooltip
+            if (action) tile->setProperty("runsAction", action->objectName());
+            QPointer<QAction> target(action);
+            connect(tile, &QAbstractButton::clicked, this, [this, target]() {
+                // closed first: what it runs may open a dialog or take the layer away
                 close();
                 if (target) target->trigger();
+            });
+            d->tiles.append({tile, target});
+            tiles->addWidget(tile);
+        };
+        addTile(QStringLiteral("studio_duplicate"), i18nc("@info:tooltip a layer's command", "Duplicate"), d->action(QStringLiteral("duplicatelayer")));
+        addTile(QStringLiteral("studio_merge_down"), i18nc("@info:tooltip a layer's command", "Merge down"), d->action(QStringLiteral("merge_layer")));
+        const bool group = node->inherits("KisGroupLayer") && box->m_nodeManager->selectedNodes().size() <= 1;
+        addTile(group ? QStringLiteral("studio_ungroup") : QStringLiteral("studio_group"),
+                group ? i18nc("@info:tooltip a layer's command", "Ungroup") : i18nc("@info:tooltip a layer's command", "Group"),
+                d->action(group ? QStringLiteral("quick_ungroup") : QStringLiteral("create_quick_group")));
+        addTile(QStringLiteral("studio_copy"), i18nc("@info:tooltip a layer's command", "Copy"), d->action(QStringLiteral("copy_layer_clipboard")));
+        addTile(QStringLiteral("studio_paste"), i18nc("@info:tooltip a layer's command", "Paste"), d->action(QStringLiteral("paste_layer_from_clipboard")));
+        addTile(QStringLiteral("studio_delete"), i18nc("@info:tooltip a layer's command", "Delete"), box->m_removeAction);
+        layout->addLayout(tiles);
+
+        // its color label
+        auto *labels = new QHBoxLayout();
+        labels->setSpacing(0);
+        const QVector<QColor> colors = KisNodeViewColorScheme::instance()->allColorLabels();
+        for (int i = 0; i < colors.size(); i++) {
+            auto *label = new Label(colors[i], this);
+            connect(label, &QAbstractButton::clicked, this, [this, i]() {
+                if (d->box) d->box->slotColorLabelChanged(i);
+                refresh();
+            });
+            d->labels << label;
+            labels->addWidget(label);
+        }
+        layout->addLayout(labels);
+
+        auto *line = new QWidget(this);
+        line->setFixedHeight(1);
+        line->setAutoFillBackground(true);
+        QPalette linePalette = line->palette();
+        linePalette.setColor(QPalette::Window, inkAt(this, 0.1));
+        line->setPalette(linePalette);
+        layout->addSpacing(KisModernStyle::hairline);
+        layout->addWidget(line);
+        layout->addSpacing(KisModernStyle::hairline);
+    }
+
+    // the rarer ones: a command, or a menu opening beside the row
+    auto addRow = [&](const QString &icon, const QString &text, std::function<void(QMenu *)> fill, std::function<void(QWidget *)> run = nullptr) {
+        auto *row = new Row(icon, text, bool(fill), this);
+        connect(row, &QAbstractButton::clicked, this, [this, row, fill, run]() {
+            if (!fill) {
+                close();
+                if (run) run(row);
                 return;
             }
             if (!d->box) return;
@@ -301,10 +303,37 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
         });
         layout->addWidget(row);
     };
+    auto trigger = [this](const QString &id) {
+        QPointer<QAction> action(d->action(id));
+        return [action](QWidget *) {
+            if (action) action->trigger();
+        };
+    };
     addRow(QStringLiteral("studio_add"), i18nc("@action:button new layers, in a layer's card", "New"), [this](QMenu *menu) {
-        d->box->fillNewLayerMenu(menu, true);
+        d->box->fillNewLayerMenu(menu, bool(d->node));
     });
-    addRow(QStringLiteral("studio_select"), i18nc("@action:button a layer's command", "Select its pixels"), nullptr, d->action(QStringLiteral("selectopaque")));
+    if (!node) {
+        // empty rows: what concerns the whole list
+        addRow(QStringLiteral("studio_paste"), i18nc("@action:button layers, in the layer list's card", "Paste"), nullptr,
+               trigger(QStringLiteral("paste_layer_from_clipboard")));
+        addRow(QStringLiteral("studio_find"), i18nc("@action:button in the layer list's card", "Find a layer"), nullptr, [this](QWidget *) {
+            if (d->box) d->box->startFiltering(QString());
+        });
+        addRow(QStringLiteral("studio_layers"), i18nc("@action:button in the layer list's card", "Select layers"), [this](QMenu *menu) {
+            LayerBox *box = d->box;
+            box->addMenuEntry(menu, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
+            box->addMenuEntry(menu, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
+            box->addMenuEntry(menu, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
+            box->addMenuEntry(menu, "select_locked_layers", i18nc("@action:inmenu select layers", "Locked"));
+            box->addMenuEntry(menu, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
+        });
+        // the list's own look, in the menu it has always been
+        addRow(QStringLiteral("studio_settings"), i18nc("@action:button the layer list's look", "List"), nullptr, [this](QWidget *row) {
+            if (d->box) d->box->m_configureMenu->popup(row->mapToGlobal(QPoint(row->width() + KisModernStyle::space1, 0)));
+        });
+    } else {
+        addRow(QStringLiteral("studio_select"), i18nc("@action:button a layer's command", "Select its pixels"), nullptr, trigger(QStringLiteral("selectopaque")));
+    }
     if (qobject_cast<KisLayer *>(node.data())) {
         addRow(QStringLiteral("studio_effects"), i18nc("@action:button a layer's menu", "Style"), [this](QMenu *menu) {
             LayerBox *box = d->box;
@@ -314,7 +343,7 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
             if (KisClipboard::instance()->hasLayerStyles()) box->addMenuEntry(menu, "paste_layer_style", i18nc("@action:inmenu layer style", "Paste"));
         });
     }
-    addRow(QStringLiteral("studio_more"), i18nc("@action:button a layer's menu", "More"), [this](QMenu *menu) {
+    if (node) addRow(QStringLiteral("studio_more"), i18nc("@action:button a layer's menu", "More"), [this](QMenu *menu) {
         LayerBox *box = d->box;
         box->addMenuEntry(menu, "create_quick_clipping_group", i18nc("@action:inmenu", "Clipping group"));
         box->addMenuEntry(menu, "flatten_layer", i18nc("@action:inmenu", "Flatten layer"));
@@ -344,15 +373,13 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
             box->addMenuEntry(menu, "isolate_active_group", i18nc("@action:inmenu", "Isolate group"));
         }
         box->addMenuEntry(menu, "pin_to_timeline", i18nc("@action:inmenu", "Pin to timeline"));
-        menu->addSeparator();
-        box->addMenuEntry(menu, box->m_propertiesAction, i18nc("@action:inmenu", "Properties…"));
     });
 
     // what changes the layer elsewhere (a key, its row) shows here too, once things settle
     d->later.setSingleShot(true);
     d->later.setInterval(40);
     connect(&d->later, &QTimer::timeout, this, [this]() { refresh(); });
-    connect(box->m_nodeModel, &QAbstractItemModel::dataChanged, this, [this]() { d->later.start(); });
+    if (node) connect(box->m_nodeModel, &QAbstractItemModel::dataChanged, this, [this]() { d->later.start(); });
     refresh();
 }
 

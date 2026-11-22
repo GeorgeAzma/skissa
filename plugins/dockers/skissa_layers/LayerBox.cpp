@@ -1008,23 +1008,9 @@ void LayerBox::slotContextMenuRequested(const QPoint &pos, const QModelIndex &in
         showCard(index);
         return;
     }
-    QMenu menu;
-    {
-        addMenuEntry(&menu, "add_new_paint_layer", i18nc("@action:inmenu", "New Layer"));
-        addNewLayerMenu(&menu, false);
-        addMenuEntry(&menu, "paste_layer_from_clipboard", i18nc("@action:inmenu", "Paste"));
-        menu.addSeparator();
-        QAction *filter = menu.addAction(i18nc("@action:inmenu", "Filter…") + QLatin1Char('\t') + QKeySequence(QKeySequence::Find).toString(QKeySequence::NativeText));
-        connect(filter, &QAction::triggered, this, [this]() { startFiltering(QString()); });
-        QMenu *select = menu.addMenu(KisSentenceCase::of(i18nc("@title:menu", "Select")));
-        addMenuEntry(select, "select_all_layers", i18nc("@action:inmenu select layers", "All"));
-        addMenuEntry(select, "select_visible_layers", i18nc("@action:inmenu select layers", "Visible"));
-        addMenuEntry(select, "select_invisible_layers", i18nc("@action:inmenu select layers", "Hidden"));
-        addMenuEntry(select, "select_locked_layers", i18nc("@action:inmenu select layers", "Locked"));
-        addMenuEntry(select, "select_unlocked_layers", i18nc("@action:inmenu select layers", "Unlocked"));
-        menu.addMenu(m_configureMenu);
-    }
-    menu.exec(pos);
+    // empty rows: the list's own card
+    auto *card = new LayerCard(this, KisNodeSP());
+    card->popupBesideRow(QRect(pos, QSize(1, 1)), this);
 }
 
 QAction *LayerBox::addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled)
@@ -1053,11 +1039,6 @@ QAction *LayerBox::addMenuEntry(QMenu *menu, const QString &id, const QString &l
 {
     if (!m_canvas) return nullptr;
     return addMenuEntry(menu, m_canvas->viewManager()->actionManager()->actionByName(id), label, onlyIfEnabled);
-}
-
-void LayerBox::addNewLayerMenu(QMenu *menu, bool below)
-{
-    fillNewLayerMenu(menu->addMenu(KisSentenceCase::of(i18nc("@title:menu other kinds of layer", "New"))), below);
 }
 
 void LayerBox::fillNewLayerMenu(QMenu *kinds, bool below)
@@ -1486,6 +1467,17 @@ void LayerBox::slotPropertiesClicked()
 {
     if (!m_canvas) return;
     if (KisNodeSP active = m_nodeManager->activeNode()) {
+        // in the Studio, a layer whose properties are all on its row (and in Settings) shows its card; filter, fill and
+        // file layers and masks keep their own editors
+        QWidget *window = m_canvas->viewManager()->mainWindowAsQWidget();
+        const bool studio = window && window->property("studioLayoutActive").toBool();
+        const bool onRow = active->inherits("KisPaintLayer") || active->inherits("KisGroupLayer") || active->inherits("KisShapeLayer")
+                           || active->inherits("KisCloneLayer");
+        if (studio && onRow) {
+            const QModelIndex index = m_filteringModel->indexFromNode(active);
+            if (index.isValid()) showCard(index);
+            return;
+        }
         m_nodeManager->nodeProperties(active);
     }
 }

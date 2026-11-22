@@ -18,10 +18,12 @@ class QModelIndex;
 /**
  * A layer's right click: only what can't be done on its row by hand. The everyday commands as icons always in
  * the same places, its color label, then a few rows for the rarer ones, opening their menus beside the card.
+ * Without a layer (a right click on empty rows), what concerns the whole list: new layers, paste, find, select.
  */
 class LayerCard : public KisStudioPopup
 {
 public:
+    /// \p node: the layer it is for, or none for the list itself
     LayerCard(LayerBox *box, KisNodeSP node);
     ~LayerCard() override;
 

@@ -165,8 +165,6 @@ private:
     /// A short entry for \p action, its shortcut beside it; none if \p onlyIfEnabled and it is disabled
     QAction *addMenuEntry(QMenu *menu, QAction *action, const QString &label, bool onlyIfEnabled = false);
     QAction *addMenuEntry(QMenu *menu, const QString &id, const QString &label, bool onlyIfEnabled = false);
-    /// "New": every kind of layer and mask, and a paint layer below the current one if \p below
-    void addNewLayerMenu(QMenu *menu, bool below);
     /// The kinds of layer and mask that can be added, into \p kinds
     void fillNewLayerMenu(QMenu *kinds, bool below);
     // reimp from KisNodeManager
