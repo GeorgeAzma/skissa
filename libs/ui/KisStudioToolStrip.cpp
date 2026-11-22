@@ -53,6 +53,8 @@
 #include <kis_canvas2.h>
 #include <kis_painting_assistants_decoration.h>
 #include <ksharedconfig.h>
+#include <kis_config.h>
+#include <kis_config_notifier.h>
 #include "KisSettingsRegistry.h"
 #include <kconfiggroup.h>
 
@@ -1008,27 +1010,39 @@ void KisStudioToolStrip::addSelectionAdjust(bool gap)
 
 void KisStudioToolStrip::addSelectionCommands()
 {
-    // letting the selection go and turning it inside out, a pen's reach from the keys
+    // letting the selection go and turning it inside out, here only while the selection's own bar is off
     KisMainWindow *window = windowOf(this);
     if (!window) return;
-    bool gap = false;
+    QVector<QWidget *> shown;
     for (const auto &command : {qMakePair(QStringLiteral("deselect"), QStringLiteral("studio_deselect")),
                                 qMakePair(QStringLiteral("invert_selection"), QStringLiteral("studio_select_invert"))}) {
         QAction *action = window->actionCollection()->action(command.first);
         if (!action) continue;
-        if (!gap) addGap();
-        gap = true;
+        if (shown.isEmpty() && m_layout->count() > 0) {
+            auto *gap = new QWidget(this);
+            gap->setFixedWidth(10);
+            m_layout->addWidget(gap);
+            shown << gap;
+        }
         QToolButton *button = addButton(KisIconUtils::loadIcon(command.second), KisSentenceCase::of(QString(action->text()).remove(QLatin1Char('&'))));
         button->setCheckable(false);
+        shown << button;
         const QPointer<QAction> target = action;
         connect(button, &QToolButton::clicked, this, [target]() {
             if (target) target->trigger();
         });
-        // always there, so the bar keeps its width and the buttons their places; usable while there is a selection
+        // usable while there is a selection
         auto follow = [button, target]() { button->setEnabled(target && target->isEnabled()); };
         follow();
         connect(action, &QAction::changed, button, follow);
     }
+    if (shown.isEmpty()) return;
+    auto place = [shown]() {
+        const bool bar = KisConfig(true).selectionActionBar();
+        for (QWidget *widget : shown) widget->setVisible(!bar);
+    };
+    place();
+    connect(KisConfigNotifier::instance(), &KisConfigNotifier::configChanged, shown.last(), place);
 }
 
 void KisStudioToolStrip::addGuides(QWidget *options, QComboBox *types)
