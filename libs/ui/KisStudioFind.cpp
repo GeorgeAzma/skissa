@@ -1255,6 +1255,7 @@ void KisStudioFind::registerButtons()
     KisStudioTips::install([fallback = QPointer<KisStudioFind>(this)](QAbstractButton *button) {
         auto *tool = qobject_cast<QToolButton *>(button);
         if (tool && tool->defaultAction()) return tool->defaultAction()->shortcut();
+        if (auto *own = qobject_cast<QAction *>(button->property("studioCardAction").value<QObject *>())) return own->shortcut();
         // the Find of the button's own window: each window installs this, the last one replacing the others
         QPointer<KisStudioFind> self = fallback;
         for (QWidget *w = button; w; w = w->parentWidget()) {
@@ -1677,6 +1678,11 @@ bool KisStudioFind::showCard(QAbstractButton *button)
         action = tool->defaultAction();
         key = QStringLiteral("action:") + action->objectName();
         title = plainText(action->text());
+    } else if (auto *own = qobject_cast<QAction *>(button->property("studioCardAction").value<QObject *>())) {
+        // a button that mirrors a tool's option, standing for the command that toggles it
+        action = own;
+        key = QStringLiteral("action:") + own->objectName();
+        title = button->toolTip().section(QLatin1Char('\n'), 0, 0);
     } else {
         registerButtons();
         for (auto it = d->buttons.constBegin(); it != d->buttons.constEnd(); ++it) {

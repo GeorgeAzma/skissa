@@ -1317,6 +1317,10 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
             if (canvas && canvas->paintingAssistantsDecoration() && !canvas->paintingAssistantsDecoration()->assistants().isEmpty()) {
                 QToolButton *button = mirror(snap, magnetIcon(ink));
                 button->setToolTip(i18nc("@info:tooltip lines drawn are pulled onto the image's guides", "Snap to guides"));
+                // its card records a key for Krita's command that toggles it (the brush tools')
+                if (QAction *toggle = window ? window->actionCollection()->action(QStringLiteral("toggle_assistant")) : nullptr) {
+                    button->setProperty("studioCardAction", QVariant::fromValue<QObject *>(toggle));
+                }
                 // a switch of how the brush paints, as symmetry is: among the bar's buttons, before it
                 if (KisStudioBarButtons *bar = window ? KisStudioBarButtons::of(window) : nullptr) {
                     m_layout->removeWidget(button);
