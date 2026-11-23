@@ -11,6 +11,7 @@
  */
 
 #include "LayerBox.h"
+#include <kis_filter_manager.h>
 #include <KisStudioTools.h>
 #include <KisSentenceCase.h>
 #include <KisFrameRate.h>
@@ -1481,6 +1482,8 @@ void LayerBox::slotPropertiesClicked()
             if (index.isValid()) showCard(index);
             return;
         }
+        // an effect's settings open on the canvas
+        if (studio && m_canvas->viewManager()->filterManager()->editInline(active)) return;
         m_nodeManager->nodeProperties(active);
     }
 }

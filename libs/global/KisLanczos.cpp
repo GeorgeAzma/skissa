@@ -94,6 +94,10 @@ QImage boxShrink(const QImage &image, int fx, int fy)
     const int w = (image.width() + fx - 1) / fx;
     const int h = (image.height() + fy - 1) / fy;
     QImage out(w, h, QImage::Format_ARGB32_Premultiplied);
+    if (out.isNull()) return out;
+    // taken once: scanLine() may detach, which threads must not do at once
+    uchar *outBits = out.bits();
+    const qsizetype outStride = out.bytesPerLine();
     forRows(h, qint64(image.width()) * image.height(), [&](int firstRow, int lastRow) {
         std::vector<quint32> sums(size_t(w) * 4);
         for (int y = firstRow; y < lastRow; y++) {
@@ -111,7 +115,7 @@ QImage boxShrink(const QImage &image, int fx, int fy)
                     s[3] += qAlpha(p);
                 }
             }
-            QRgb *dst = reinterpret_cast<QRgb *>(out.scanLine(y));
+            QRgb *dst = reinterpret_cast<QRgb *>(outBits + y * outStride);
             for (int x = 0; x < w; x++) {
                 const quint32 n = quint32((std::min(image.width(), (x + 1) * fx) - x * fx) * (bottom - top));
                 const quint32 *s = &sums[size_t(x) * 4];
@@ -139,6 +143,7 @@ QImage KisLanczos::scaled(const QImage &image, const QSize &size, Qt::AspectRati
     const int fx = std::max(1, source.width() / (2 * target.width()));
     const int fy = std::max(1, source.height() / (2 * target.height()));
     if (fx > 1 || fy > 1) source = boxShrink(source, fx, fy);
+    if (source.isNull()) return QImage();
 
     const int inW = source.width();
     const int inH = source.height();
@@ -172,6 +177,9 @@ QImage KisLanczos::scaled(const QImage &image, const QSize &size, Qt::AspectRati
     });
 
     QImage out(target, QImage::Format_ARGB32_Premultiplied);
+    if (out.isNull()) return out;
+    uchar *outBits = out.bits();
+    const qsizetype outStride = out.bytesPerLine();
     forRows(outH, qint64(outH) * outW * down.most, [&](int first, int last) {
         std::vector<float> sum(size_t(outW) * 4);
         for (int y = first; y < last; y++) {
@@ -182,7 +190,7 @@ QImage KisLanczos::scaled(const QImage &image, const QSize &size, Qt::AspectRati
                 const float k = w[i];
                 for (int x = 0; x < outW * 4; x++) sum[x] += k * row[x];
             }
-            QRgb *dst = reinterpret_cast<QRgb *>(out.scanLine(y));
+            QRgb *dst = reinterpret_cast<QRgb *>(outBits + y * outStride);
             for (int x = 0; x < outW; x++) {
                 // the overshoot Lanczos rings with stays within what premultiplied pixels can hold
                 const int a = std::clamp(int(std::lround(sum[x * 4 + 3])), 0, 255);

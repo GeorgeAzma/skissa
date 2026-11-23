@@ -56,8 +56,12 @@ public:
         std::function<bool(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig)> open;
         std::function<void()> accept;
         std::function<void()> reject;
+        /// Edits a filter mask's or filter layer's own settings in place
+        std::function<bool(KisNodeSP node)> edit;
     };
     void setInlineEditor(const InlineEditor &editor);
+    /// Returns false when there is no inline editor or it can't edit \p node
+    bool editInline(KisNodeSP node);
 
     void apply(KisFilterConfigurationSP filterConfig);
     void finish();

@@ -45,10 +45,12 @@
 #include <filter/kis_filter.h>
 #include <filter/kis_filter_configuration.h>
 #include <filter/kis_filter_registry.h>
+#include <commands/kis_change_filter_command.h>
 #include <commands/kis_image_layer_add_command.h>
 #include <kactioncollection.h>
 #include <klocalizedstring.h>
 #include <kis_filter_mask.h>
+#include <kis_node_filter_interface.h>
 #include <kis_image.h>
 #include <kis_undo_adapter.h>
 #include "KisStudioEffectBrush.h"
@@ -670,7 +672,17 @@ struct KisStudioEffectOverlay::Private
 
     KisViewManager *viewManager() const { return mainWindow->viewManager(); }
     KisFilterManager *filterManager() const { return viewManager() ? viewManager()->filterManager() : nullptr; }
-    bool maskPossible() const { return node && filter && !node->inherits("KisMask") && filter->supportsAdjustmentLayers(); }
+    bool maskPossible() const { return node && filter && !editedWas && !node->inherits("KisMask") && filter->supportsAdjustmentLayers(); }
+
+    /// The settings the edited filter mask or filter layer had when the panel opened; null when not editing one
+    KisFilterConfigurationSP editedWas;
+    void setEdited(KisFilterConfigurationSP config)
+    {
+        auto *filtered = dynamic_cast<KisNodeFilterInterface *>(node.data());
+        if (!filtered || !config) return;
+        filtered->setFilter(config->cloneWithResourcesSnapshot());
+        node->setDirty();
+    }
     /// Whether the document it was opened on is still the one shown
     bool current() const
     {
@@ -817,6 +829,9 @@ KisStudioEffectOverlay::KisStudioEffectOverlay(KisMainWindow *mainWindow)
         }
         if (on) {
             startApplying();
+        } else if (d->editedWas) {
+            d->compressor.stop();
+            d->setEdited(d->editedWas);
         } else if (filterManager->isStrokeRunning()) {
             d->compressor.stop();
             filterManager->cancelRunningStroke();
@@ -936,13 +951,41 @@ bool KisStudioEffectOverlay::open(KisFilterSP filter, KisFilterConfigurationSP o
         }
     }
 
+    return begin(filter, overrideDefaultConfig, viewManager->activeNode(), viewManager->activeNode()->paintDevice(), false);
+}
+
+bool KisStudioEffectOverlay::edit(KisNodeSP node)
+{
+    auto *filtered = dynamic_cast<KisNodeFilterInterface *>(node.data());
+    KisFilterConfigurationSP config = filtered ? filtered->filter() : KisFilterConfigurationSP();
+    KisFilterSP filter = config ? KisFilterRegistry::instance()->value(config->name()) : KisFilterSP();
+    KisViewManager *viewManager = d->viewManager();
+    if (!filter || !node->image() || !viewManager || !viewManager->canvasBase() || viewManager->image() != node->image()) {
+        return false;
+    }
+    // a mask works on its layer's pixels, a filter layer on everything under it
+    KisPaintDeviceSP source = node->inherits("KisMask") && node->parent() ? node->parent()->paintDevice()
+                                                                          : node->image()->projection();
+    if (!source) return false;
+    return begin(filter, config->cloneWithResourcesSnapshot(), node, source, true);
+}
+
+bool KisStudioEffectOverlay::begin(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig, KisNodeSP node,
+                                   KisPaintDeviceSP source, bool editing)
+{
+    KisViewManager *viewManager = d->viewManager();
+    if (isVisible()) {
+        reject();
+    }
+
     d->filter = filter;
-    d->node = viewManager->activeNode();
+    d->node = node;
+    d->editedWas = editing ? overrideDefaultConfig->cloneWithResourcesSnapshot() : KisFilterConfigurationSP();
 
     auto *selector = new KisFilterSelectorWidget(d->scroll);
     selector->setView(viewManager);
     selector->showFilterGallery(false);
-    selector->setPaintDevice(true, d->node->paintDevice());
+    selector->setPaintDevice(true, source);
     selector->setFilter(filter, overrideDefaultConfig);
     // show only the settings; presets and XML stay in the dialog
     for (const char *name : {"comboBoxPresets", "chkRememberPreset", "pushButtonEditPresets", "btnXML", "filtersSelector"}) {
@@ -1042,6 +1085,10 @@ void KisStudioEffectOverlay::startApplying()
     if (!config) {
         return;
     }
+    if (d->editedWas) {
+        d->setEdited(config);
+        return;
+    }
     // the layer's channel locks, as applying keeps them; a mask keeps none, so neither does its preview
     auto *layer = qobject_cast<KisPaintLayer *>(d->node.data());
     if (layer && !d->endsAsMask(config)) {
@@ -1054,6 +1101,20 @@ void KisStudioEffectOverlay::accept()
 {
     KisFilterManager *filterManager = d->filterManager();
     if (!isVisible() || !filterManager) {
+        return;
+    }
+    if (d->editedWas) {
+        d->compressor.stop();
+        KisFilterConfigurationSP config = d->selector ? d->selector->configuration() : KisFilterConfigurationSP();
+        KisImageSP image = d->node->image();
+        if (config && image && config->toXML() != d->editedWas->toXML()) {
+            // one step from the settings it had; redoing it sets the ones shown
+            image->undoAdapter()->addCommand(new KisChangeFilterCmd(d->node, d->editedWas, config->cloneWithResourcesSnapshot()));
+            KisFilterManager::rememberLastUsed(config, KisPaintDeviceSP());
+        } else {
+            d->setEdited(d->editedWas);
+        }
+        finishEditing();
         return;
     }
     // its image is gone, or its preview went with the view: nothing is left to keep
@@ -1093,7 +1154,9 @@ void KisStudioEffectOverlay::reject()
 {
     KisFilterManager *filterManager = d->filterManager();
     d->compressor.stop();
-    if (filterManager && filterManager->isStrokeRunning()) {
+    if (d->editedWas) {
+        d->setEdited(d->editedWas);
+    } else if (filterManager && filterManager->isStrokeRunning()) {
         filterManager->cancelRunningStroke();
     }
     finishEditing();
@@ -1203,6 +1266,7 @@ void KisStudioEffectOverlay::finishEditing()
     }
     d->filter = nullptr;
     d->node = nullptr;
+    d->editedWas = nullptr;
 }
 
 void KisStudioEffectOverlay::noteChange()

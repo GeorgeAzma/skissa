@@ -191,15 +191,20 @@ QRect NodeDelegate::opacityRect(const QModelIndex &index, const QRect &row, Qt::
 
 /// A layer's opacity in percent, read from the layer, not its shown text (other scripts write other digits); -1 for
 /// what has none (masks)
+static KisNodeSP nodeOf(const QModelIndex &index)
+{
+    if (!index.isValid()) return KisNodeSP();
+    if (const auto *filter = qobject_cast<const KisNodeFilterProxyModel *>(index.model())) {
+        return filter->nodeFromIndex(index);
+    } else if (const auto *model = qobject_cast<const KisNodeModel *>(index.model())) {
+        return model->nodeFromIndex(index);
+    }
+    return KisNodeSP();
+}
+
 static int opacityPercentOf(const QModelIndex &index)
 {
-    if (!index.isValid()) return -1;
-    KisNodeSP node;
-    if (const auto *filter = qobject_cast<const KisNodeFilterProxyModel *>(index.model())) {
-        node = filter->nodeFromIndex(index);
-    } else if (const auto *model = qobject_cast<const KisNodeModel *>(index.model())) {
-        node = model->nodeFromIndex(index);
-    }
+    KisNodeSP node = nodeOf(index);
     return node && node->inherits("KisLayer") ? node->percentOpacity() : -1;
 }
 
@@ -1369,6 +1374,16 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
             (index.data(KisNodeModel::FilterMaskColorRole).isNull() == false) &&
             filterRect.isValid() &&
             filterRect.contains(mouseEvent->pos());
+
+        // an effect's row opens its settings, double-clicked anywhere but on its switches
+        KisNodeSP clicked = event->type() == QEvent::MouseButtonDblClick ? nodeOf(index) : KisNodeSP();
+        if (leftButton && clicked && mouseEvent->modifiers() == Qt::NoModifier && !decorationClicked
+            && (clicked->inherits("KisFilterMask") || clicked->inherits("KisAdjustmentLayer"))
+            && !d->propForMousePos(index, mouseEvent->pos(), option)) {
+            d->view->setCurrentIndex(index);
+            Q_EMIT d->view->propertiesRequested();
+            return true;
+        }
 
         if (leftButton) {
             if (decorationClicked) {

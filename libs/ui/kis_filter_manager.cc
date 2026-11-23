@@ -216,6 +216,11 @@ void KisFilterManager::setInlineEditor(const InlineEditor &editor)
     d->inlineEditor = editor;
 }
 
+bool KisFilterManager::editInline(KisNodeSP node)
+{
+    return node && d->inlineEditor.edit && d->inlineEditor.edit(node);
+}
+
 void KisFilterManager::showFilterDialog(const QString &filterId, KisFilterConfigurationSP overrideDefaultConfig)
 {
     if (!d->view->activeNode()->isEditable()) {

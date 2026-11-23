@@ -27,6 +27,8 @@ public:
 
     /// Starts editing \p filter; returns false if that isn't possible, so that the dialog can be used instead.
     bool open(KisFilterSP filter, KisFilterConfigurationSP overrideDefaultConfig);
+    /// Edits a filter mask's or filter layer's settings, previewed by the node itself
+    bool edit(KisNodeSP node);
     void accept();
     void reject();
 
@@ -43,6 +45,8 @@ protected:
     void hideEvent(QHideEvent *event) override;
 
 private:
+    /// Opens the panel for \p node, whose pixels the settings' pictures read from \p source
+    bool begin(KisFilterSP filter, KisFilterConfigurationSP config, KisNodeSP node, KisPaintDeviceSP source, bool editing);
     void startApplying();
     /// The reset to defaults shows while the settings differ from them
     void showReset();

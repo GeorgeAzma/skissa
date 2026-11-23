@@ -597,6 +597,7 @@ void KisStudioLayout::enter()
             [overlay](KisFilterSP filter, KisFilterConfigurationSP config) { return overlay && overlay->open(filter, config); },
             [overlay]() { if (overlay) overlay->accept(); },
             [overlay]() { if (overlay) overlay->reject(); },
+            [overlay](KisNodeSP node) { return overlay && overlay->edit(node); },
         });
     }
 
