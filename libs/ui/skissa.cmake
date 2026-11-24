@@ -32,6 +32,7 @@ set(skissa_ui_SRCS
     KisStudioEffectsPicker.cpp
     KisStudioEmptyStates.cpp
     KisStudioFind.cpp
+    KisStudioGestures.cpp
     KisStudioGlass.cpp
     KisStudioHoldKeys.cpp
     KisStudioItemCard.cpp

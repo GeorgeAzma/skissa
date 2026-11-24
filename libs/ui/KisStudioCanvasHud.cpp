@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasHud.h"
+#include "KisStudioGestures.h"
 
 #include "KisStudioKeyHints.h"
 #include "KisStudioPeek.h"
@@ -412,6 +413,7 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
     KisStudioKeyHints::install();
     KisStudioPeek::springBack(valueView);
     if (QAction *mirror = d->action("mirror_canvas")) KisStudioPeek::springBack(mirror);
+    KisStudioGestures::install(mainWindow);
     // the picture blurred, to judge big shapes and values; a key only
     auto *squint = new QAction(i18nc("@action", "Squint"), mainWindow);
     squint->setObjectName(QStringLiteral("studio_squint"));

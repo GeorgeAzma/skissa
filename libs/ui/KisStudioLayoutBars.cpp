@@ -868,6 +868,7 @@ void KisStudioLayout::showMainMenu(QWidget *button)
         }
     }
     menu->addSeparator();
+    add({"studio_gestures"});
     add({"file_quit"});
 
     // right-aligned under the button

@@ -441,6 +441,7 @@ QHash<QString, QStringList> aliasTable()
         {"action:skissa_restart_to_update", i18nc("@info find aliases, comma separated", "install update, update now, upgrade")},
         {"action:help_about_app", i18nc("@info find aliases, comma separated", "about, version, credits")},
         {"action:options_configure", i18nc("@info find aliases, comma separated", "settings, preferences, options, configure, setup")},
+        {"action:studio_gestures", i18nc("@info find aliases, comma separated", "how to, how do I, help, tips, tutorial, mouse, pen, hold, drag, right-click, hidden")},
         {"action:find_anything", i18nc("@info find aliases, comma separated", "command palette, search, quick actions, spotlight")},
         {"action:file_new", i18nc("@info find aliases, comma separated", "new document, new canvas, new file, new image")},
         {"action:file_open", i18nc("@info find aliases, comma separated", "open file, load, import image")},
