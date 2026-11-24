@@ -6,6 +6,7 @@
 #ifndef KISSTUDIOTOOLRAIL_H
 #define KISSTUDIOTOOLRAIL_H
 
+#include <QIcon>
 #include <QWidget>
 
 #include <memory>
@@ -38,6 +39,17 @@ public:
     void addItem(const QString &key);
     bool hasItem(const QString &key) const;
     void removeItem(const QString &key);
+    /// Puts a slot's tool back within reach: its slot if that was taken off, the variant if it was hidden
+    void bringBack(const QString &toolId);
+    struct SlotEntry {
+        QString id;
+        QString title;
+        QIcon icon;
+    };
+    /// The tool slots this build has, for Find
+    QVector<SlotEntry> slotEntries() const;
+    /// Picks the slot's tool, putting the slot back on the rail if it was taken off
+    void pickSlot(const QString &slotId);
     /// Rebuilds the buttons, e.g. once the commands they represent exist
     void refresh();
     /// Whether an item had no command yet when the buttons were last built

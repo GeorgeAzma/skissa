@@ -933,8 +933,28 @@ void KisStudioFind::rebuildIndex()
         d->entries.append({QStringLiteral("tool:") + id, Kind::Tool,
                            KisStudioToolRail::toolName(factory), QString(),
                            factory->section(), shortcut, KisIconUtils::loadIcon(factory->iconName()),
-                           [id]() { KisStudioTools::switchTo(id); }});
+                           [id, mainWindow]() {
+                               // a tool of a slot taken off the rail, or hidden in it, comes back
+                               if (auto *rail = mainWindow->findChild<KisStudioToolRail *>()) rail->bringBack(id);
+                               KisStudioTools::switchTo(id);
+                           }});
         d->entries.last().action = action;
+    }
+
+    // the rail's slots, so one taken off can be found and comes back; a slot named like a tool is that tool's
+    if (auto *rail = mainWindow->findChild<KisStudioToolRail *>()) {
+        QSet<QString> toolTitles;
+        Q_FOREACH (const Entry &entry, d->entries) {
+            if (entry.kind == Kind::Tool) toolTitles.insert(entry.title);
+        }
+        QPointer<KisStudioToolRail> railPointer = rail;
+        Q_FOREACH (const KisStudioToolRail::SlotEntry &slot, rail->slotEntries()) {
+            if (toolTitles.contains(slot.title)) continue;
+            d->entries.append({QStringLiteral("slot:") + slot.id, Kind::Tool, slot.title, QString(), QString(), QString(), slot.icon,
+                               [railPointer, id = slot.id]() {
+                                   if (railPointer) railPointer->pickSlot(id);
+                               }});
+        }
     }
 
     // the shape tool's shapes, each drawing at once

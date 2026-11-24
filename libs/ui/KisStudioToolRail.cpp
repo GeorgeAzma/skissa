@@ -151,8 +151,8 @@ QVector<ToolSlot> toolSlots()
          {brushToolId}},
         {QStringLiteral("select"), i18nc("@info:tooltip tool slot", "Select"), QStringLiteral("studio_select"), BrushMode::None,
          {QStringLiteral("KisToolSelectRectangular"), QStringLiteral("KisToolSelectElliptical"), QStringLiteral("KisToolSelectOutline"),
-          QStringLiteral("KisToolSelectContiguous"), QStringLiteral("KisToolSelectSimilar"),
-          QStringLiteral("KisToolSelectPath")}},
+          // a lasso's clicked corners move, and its lines take new ones where dragged: no curve tool
+          QStringLiteral("KisToolSelectContiguous"), QStringLiteral("KisToolSelectSimilar")}},
         {QStringLiteral("move"), i18nc("@info:tooltip tool slot", "Transform"), QStringLiteral("studio_move"), BrushMode::None,
          {QStringLiteral("KritaTransform/KisToolMove"), QStringLiteral("KisToolTransform"), QStringLiteral("KisToolCrop"),
           QStringLiteral("InteractionTool")}},
@@ -1020,6 +1020,48 @@ void KisStudioToolRail::addItem(const QString &key)
     if (!d->items.contains(item)) {
         setItems(d->items + QStringList{item});
     }
+}
+
+void KisStudioToolRail::bringBack(const QString &toolId)
+{
+    bool reachable = d->items.contains(toolPrefix + toolId);
+    bool inSlot = false;
+    for (auto it = d->slots.constBegin(); it != d->slots.constEnd(); ++it) {
+        if (!it->tools.contains(toolId)) continue;
+        inSlot = true;
+        reachable = reachable || d->items.contains(slotPrefix + it.key());
+    }
+    if (!inSlot) return;
+    if (d->hidden.remove(toolId)) {
+        KisSettingsRegistry::writeLater(hiddenKey, QStringList(d->hidden.values()));
+        if (reachable) {
+            rebuild();
+            updateActiveSlot();
+        }
+    }
+    if (!reachable) addItem(toolPrefix + toolId);
+}
+
+QVector<KisStudioToolRail::SlotEntry> KisStudioToolRail::slotEntries() const
+{
+    QVector<SlotEntry> entries;
+    Q_FOREACH (const ToolSlot &slot, toolSlots()) {
+        if (d->slots.contains(slot.id)) entries.append({slot.id, slot.title, KisIconUtils::loadIcon(slot.icon)});
+    }
+    return entries;
+}
+
+void KisStudioToolRail::pickSlot(const QString &slotId)
+{
+    if (!d->slots.contains(slotId)) return;
+    const QString toolId = d->currentTool.value(slotId);
+    if (d->hidden.remove(toolId)) KisSettingsRegistry::writeLater(hiddenKey, QStringList(d->hidden.values()));
+    if (!d->items.contains(slotPrefix + slotId)) {
+        setItems(d->items + QStringList{slotPrefix + slotId});
+    } else {
+        rebuild();
+    }
+    activateTool(slotId, toolId);
 }
 
 bool KisStudioToolRail::hasItem(const QString &key) const
