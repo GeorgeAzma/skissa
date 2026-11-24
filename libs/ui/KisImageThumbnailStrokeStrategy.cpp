@@ -76,7 +76,7 @@ void KisImageThumbnailStrokeStrategyBase::initStrokeCallback()
         KoDummyUpdaterHolder updaterHolder;
         qreal xscale = m_thumbnailSize.width() / (qreal)m_thumbnailOversampledSize.width();
         qreal yscale = m_thumbnailSize.height() / (qreal)m_thumbnailOversampledSize.height();
-        QString algorithm = m_isPixelArt ? "Box" : "Bilinear";
+        QString algorithm = m_isPixelArt ? "Box" : "Lanczos3";
         KisTransformWorker worker(m_thumbnailDevice, xscale, yscale, 0.0, 0.0, 0.0, 0.0, 0.0,
                                   updaterHolder.updater(), KisFilterStrategyRegistry::instance()->value(algorithm));
         worker.run();
