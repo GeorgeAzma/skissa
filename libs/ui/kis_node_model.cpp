@@ -8,6 +8,7 @@
 #include "KisColorDrop.h"
 #include "KisStudioItemCard.h"
 #include "KisStudioItemDrop.h"
+#include "KisStudioPatternDrag.h"
 #include <KoColor.h>
 
 #include <iostream>
@@ -806,6 +807,7 @@ QStringList KisNodeModel::mimeTypes() const
     types << QLatin1String("application/x-color");
     types << QLatin1String("krita/x-colorsetentry");
     types << KisStudioShortcuts::itemMimeType();
+    types << KisStudioPatternDrag::mimeType();
     return types;
 }
 
@@ -852,6 +854,14 @@ bool KisNodeModel::dropMimeData(const QMimeData * data, Qt::DropAction action, i
         return true;
     }
     if (data->hasFormat(KisStudioShortcuts::itemMimeType())) return false;
+
+    // a pattern onto a layer paints its paint with it
+    if (KisStudioPatternDrag::carries(data)) {
+        KisNodeSP node = row == -1 && parent.isValid() ? nodeFromIndex(parent) : KisNodeSP();
+        if (!KisStudioPatternDrag::canFillLayer(node)) return false;
+        KisStudioPatternDrag::fillLayer(m_d->image, node, KisStudioPatternDrag::patternOf(data));
+        return true;
+    }
 
     bool copyNode = (action == Qt::CopyAction);
 
@@ -903,13 +913,14 @@ void KisNodeModel::setDropEnabled(const QMimeData *data) {
     m_d->dropEnabled.clear();
     updateDropEnabled(nodes);
     if (KisColorDrop::carriesColor(data)) updateColorDropEnabled();
-    if (!KisStudioItemDrop::effectOf(data).isEmpty()) updateEffectDropEnabled();
+    if (!KisStudioItemDrop::effectOf(data).isEmpty() || KisStudioPatternDrag::carries(data)) updateEffectDropEnabled();
 }
 
 void KisNodeModel::updateEffectDropEnabled(QModelIndex parent)
 {
     for (int r = 0; r < rowCount(parent); r++) {
         const QModelIndex idx = index(r, 0, parent);
+        // effects and patterns go onto the same layers: ones with paint that can change
         if (KisStudioItemDrop::takesEffect(nodeFromIndex(idx))) {
             m_d->dropEnabled.insert(idx.internalId());
             Q_EMIT dataChanged(idx, idx);

@@ -7,6 +7,7 @@
 #include "KisPatternTint.h"
 #include "KisSelectionGestures.h"
 
+#include <QAbstractItemView>
 #include <QAbstractButton>
 #include <QCheckBox>
 #include <QComboBox>
@@ -70,6 +71,7 @@
 #include <resources/KoPattern.h>
 
 #include "KisStudioFontPicker.h"
+#include "KisStudioPatternDrag.h"
 #include "KisStudioSymbols.h"
 #include "widgets/KisStudioPopup.h"
 #include "KisStudioTools.h"
@@ -1578,6 +1580,7 @@ void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)
     show(provider->currentPattern());
     connect(provider, &KisCanvasResourceProvider::sigPatternChanged, chip, show);
     chip->setVisible(fillsWithPattern->isChecked());
+    KisStudioPatternDrag::makeDraggable(chip, [resources]() { return resources ? resources->currentPattern() : KoPatternSP(); });
     connect(fillsWithPattern, &QAbstractButton::toggled, chip, &QWidget::setVisible);
 
     connect(chip, &QToolButton::clicked, this, [chip, resources]() {
@@ -1602,6 +1605,12 @@ void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)
         layout->addWidget(tint);
         chooser->setCurrentPattern(resources->currentPattern());
         connect(chooser, &KisPatternChooser::resourceSelected, resources.data(), &KisCanvasResourceProvider::slotPatternActivated);
+        // a pattern dragged out paints where it is dropped
+        Q_FOREACH (QAbstractItemView *view, chooser->findChildren<QAbstractItemView *>()) {
+            KisStudioPatternDrag::makeDraggable(view->viewport(), [chooser]() {
+                return chooser->currentResource().dynamicCast<KoPattern>();
+            });
+        }
         layout->addWidget(chooser);
         popup->resize(popup->sizeHint().expandedTo(QSize(300, 320) + QSize(2, 2) * popup->shadowMargin()));
         popup->popupBeside(chip, Qt::BottomEdge);
