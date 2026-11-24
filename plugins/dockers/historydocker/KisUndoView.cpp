@@ -58,6 +58,13 @@
 #include <QWidgetAction>
 #include <QGridLayout>
 #include <kis_config.h>
+#include <KisLanczos.h>
+#include <KSharedConfig>
+#include <KConfigGroup>
+#include <QStyledItemDelegate>
+#include <QWheelEvent>
+#include <QScrollBar>
+#include <QTimer>
 #include <KisKineticScroller.h>
 
 #include "kis_double_parse_spin_box.h"
@@ -82,6 +89,46 @@
     \image KisUndoView.png
 */
 
+namespace
+{
+KConfigGroup historyGroup()
+{
+    return KSharedConfig::openConfig()->group(QStringLiteral("StudioHistory"));
+}
+
+/// Shows each step's picture at the list's size; the model keeps them larger for the history line
+class PictureDelegate : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    int size {35};
+
+protected:
+    void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override
+    {
+        QStyledItemDelegate::initStyleOption(option, index);
+        const QImage picture = index.data(Qt::DecorationRole).value<QImage>();
+        if (picture.isNull()) return;
+        const qreal ratio = picture.devicePixelRatio();
+        const QSize fitted = (picture.size() / ratio).scaled(QSize(size, size), Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+        const QString key = QString::number(picture.cacheKey()) + QLatin1Char('/') + QString::number(size);
+        if (key != m_key) {
+            QImage shown = KisLanczos::scaled(picture, fitted * ratio);
+            shown.setDevicePixelRatio(ratio);
+            m_key = key;
+            m_icon = QIcon(QPixmap::fromImage(shown));
+        }
+        option->icon = m_icon;
+        option->decorationSize = fitted;
+    }
+
+private:
+    // the last one made: each row is asked for more than once while painted
+    mutable QString m_key;
+    mutable QIcon m_icon;
+};
+}
+
 class KisUndoViewPrivate
 {
 public:
@@ -92,6 +139,10 @@ public:
 #endif
     KisUndoModel *model {0};
     KisUndoView *q {0};
+    PictureDelegate *pictures {nullptr};
+    /// Whether the list follows its newest step, or keeps where it was scrolled to
+    bool atEnd {true};
+    int scrolledTo {0};
 
     void init(KisUndoView* view);
 };
@@ -103,6 +154,11 @@ void KisUndoViewPrivate::init(KisUndoView* view)
     model->setDevicePixelRatio(view->devicePixelRatioF());
     q->setModel(model);
     q->setSelectionModel(model->selectionModel());
+    pictures = new PictureDelegate(q);
+    pictures->size = qBound(20, historyGroup().readEntry("PictureSize", 35), 128);
+    q->setItemDelegate(pictures);
+    // each change rebuilds the list: Qt's scroll to the current row made it jump while painting
+    q->setAutoScroll(false);
 }
 
 /*!
@@ -115,16 +171,52 @@ KisUndoView::KisUndoView(QWidget *parent)
 {
     d->init(this);
 
+    auto noteScroll = [this]() {
+        QScrollBar *bar = verticalScrollBar();
+        d->atEnd = bar->value() >= bar->maximum() - 2;
+        d->scrolledTo = bar->value();
+    };
+    // after the action: actionTriggered comes before the bar moves
+    connect(verticalScrollBar(), &QAbstractSlider::actionTriggered, this, [noteScroll]() { QTimer::singleShot(0, noteScroll); });
+    connect(verticalScrollBar(), &QAbstractSlider::sliderReleased, this, noteScroll);
+
     QScroller *scroller = KisKineticScroller::createPreconfiguredScroller(this);
     if (scroller) {
         connect(scroller, SIGNAL(stateChanged(QScroller::State)),
                 this, SLOT(slotScrollerStateChanged(QScroller::State)));
+        connect(scroller, &QScroller::stateChanged, this, [noteScroll](QScroller::State state) {
+            if (state == QScroller::Inactive) noteScroll();
+        });
     }
 }
 
 /*!
     Constructs a new view with parent \a parent and sets the observed stack to \a stack.
 */
+
+void KisUndoView::updateGeometries()
+{
+    QListView::updateGeometries();
+    QScrollBar *bar = verticalScrollBar();
+    bar->setValue(d->atEnd ? bar->maximum() : d->scrolledTo);
+}
+
+void KisUndoView::wheelEvent(QWheelEvent *event)
+{
+    if (!(event->modifiers() & Qt::ControlModifier)) {
+        QListView::wheelEvent(event);
+        return;
+    }
+    event->accept();
+    const int steps = event->angleDelta().y() / 120;
+    if (!steps) return;
+    const int size = qBound(20, d->pictures->size + 5 * steps, 128);
+    if (size == d->pictures->size) return;
+    d->pictures->size = size;
+    historyGroup().writeEntry("PictureSize", size);
+    scheduleDelayedItemsLayout();
+    viewport()->update();
+}
 
 KisUndoView::KisUndoView(KUndo2QStack *stack, QWidget *parent)
     : KisUndoView(parent)

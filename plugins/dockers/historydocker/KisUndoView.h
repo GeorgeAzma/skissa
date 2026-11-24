@@ -97,6 +97,12 @@ public Q_SLOTS:
 
     void slotScrollerStateChanged(QScroller::State state){KisKineticScroller::updateCursor(this, state);}
 
+protected:
+    /// Ctrl+wheel makes the pictures larger or smaller, as in the layer panel
+    void wheelEvent(QWheelEvent *event) override;
+    /// The list stays at its newest step unless scrolled away from it
+    void updateGeometries() override;
+
 
 private:
     KisUndoViewPrivate* const d;
