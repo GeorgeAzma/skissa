@@ -43,6 +43,7 @@
 #include <QInputMethodEvent>
 #include <QBuffer>
 #include <QWidget>
+#include <KisStudioLayout.h>
 
 #ifdef Q_OS_ANDROID
 #include <config-qt-patches-present.h>
@@ -1324,6 +1325,8 @@ void SvgTextCursor::canvasResourceChanged(int key, const QVariant &value)
 {
     if (!d->shape || (key != KoCanvasResource::ForegroundColor && key != KoCanvasResource::BackgroundColor))
         return;
+    // in the Studio the back color is only the other paint color: an outline is a layer style
+    if (key == KoCanvasResource::BackgroundColor && KisStudioLayout::isEnabledInConfig()) return;
 
     KoSvgTextProperties props;
     KoSvgTextProperties shapeProps = hasSelection()? d->shape->propertiesForPos(qMin(d->pos, d->anchor), true): d->shape->textProperties();

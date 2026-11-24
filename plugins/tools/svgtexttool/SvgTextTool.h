@@ -229,6 +229,10 @@ private:
     QPointer<GlyphPaletteDialog> m_glyphPalette;
     QPointF m_lastMousePos;
     DragMode m_dragging {DragMode::None};
+    /// Pressed on a text that wasn't chosen: a drag moves it, a click starts typing in it
+    bool m_pressedOther {false};
+    QPointF m_pressedAt;
+    Qt::KeyboardModifiers m_pressedModifiers;
     std::unique_ptr<KoInteractionStrategy> m_interactionStrategy;
     HighlightItem m_highlightItem {HighlightItem::None};
     bool m_strategyAddingCommand {false};

@@ -1497,6 +1497,44 @@ void KisStudioToolStrip::addFontChip()
     connect(size, &KisStudioScrubber::valueCommitted, this, setSize);
     connect(size, &KisStudioScrubber::valueChanging, this, setSize);
     m_layout->addWidget(size);
+
+    // where its lines line up: a click goes on to the next of start, middle and end
+    auto alignmentOf = [source]() -> int {
+        if (!source) return 0;
+        const KoSvgTextPropertyData data = source->textPropertyData();
+        const QVariant own = data.commonProperties.property(KoSvgTextProperties::TextAnchorId);
+        return (own.isValid() ? own : data.inheritedProperties.propertyOrDefault(KoSvgTextProperties::TextAnchorId)).toInt();
+    };
+    auto *align = new QToolButton(this);
+    align->setAutoRaise(true);
+    align->setFocusPolicy(Qt::NoFocus);
+    align->setIconSize(QSize(18, 18));
+    auto showAlignment = [align, alignmentOf]() {
+        static const QStringList icons = {QStringLiteral("studio_align_start"), QStringLiteral("studio_align_center"),
+                                          QStringLiteral("studio_align_end")};
+        const QStringList names = {i18nc("@info:tooltip text lined up at the start of its lines", "Align start"),
+                                   i18nc("@info:tooltip text lined up in the middle of its lines", "Align center"),
+                                   i18nc("@info:tooltip text lined up at the end of its lines", "Align end")};
+        const int at = qBound(0, alignmentOf(), 2);
+        align->setIcon(KisIconUtils::loadIcon(icons[at]));
+        align->setToolTip(names[at]);
+    };
+    showAlignment();
+    connect(provider->resourceManager(), &KoCanvasResourceProvider::canvasResourceChanged, align, [showAlignment](int key, const QVariant &) {
+        if (key == KoCanvasResource::SvgTextPropertyData) showAlignment();
+    });
+    connect(align, &QToolButton::clicked, this, [source, alignmentOf]() {
+        if (!source) return;
+        static const KoSvgText::TextAnchor anchors[] = {KoSvgText::AnchorStart, KoSvgText::AnchorMiddle, KoSvgText::AnchorEnd};
+        static const KoSvgText::TextAlign aligns[] = {KoSvgText::AlignStart, KoSvgText::AlignCenter, KoSvgText::AlignEnd};
+        const int next = (qBound(0, alignmentOf(), 2) + 1) % 3;
+        KoSvgTextPropertyData data = source->textPropertyData();
+        // lines as typed follow the anchor, wrapped ones the alignment
+        data.commonProperties.setProperty(KoSvgTextProperties::TextAnchorId, int(anchors[next]));
+        data.commonProperties.setProperty(KoSvgTextProperties::TextAlignAllId, int(aligns[next]));
+        source->setTextPropertyData(data);
+    });
+    m_layout->addWidget(align);
 }
 
 void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)

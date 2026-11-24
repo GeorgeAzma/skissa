@@ -879,7 +879,9 @@ void SvgTextTool::mousePressEvent(KoPointerEvent *event)
     QPainterPath hoverPath = KisToolUtils::shapeHoverInfoCrossLayer(canvas(), event->point, shapeType);
     bool crossLayerPossible = !hoverPath.isEmpty() && shapeType == KoSvgTextShape_SHAPEID;
 
-    if (!selectedShape && !hoveredShape && !hoveredFlowShape && !crossLayerPossible) {
+    if (!hoveredShape && !hoveredFlowShape && !crossLayerPossible) {
+        // a press on empty canvas starts a new text there, also while another is chosen
+        if (selectedShape) canvas()->shapeManager()->selection()->deselectAll();
         QPointF point = canvas()->snapGuide()->snap(event->point, event->modifiers());
         m_interactionStrategy.reset(new SvgCreateTextStrategy(this, point));
         m_dragging = DragMode::Create;
@@ -889,6 +891,15 @@ void SvgTextTool::mousePressEvent(KoPointerEvent *event)
             canvas()->shapeManager()->selection()->deselectAll();
             canvas()->shapeManager()->selection()->select(hoveredShape);
             m_hoveredShapeHighlightRect = QPainterPath();
+            // another text: dragged, it moves; clicked, the cursor goes there (on release)
+            m_pressedOther = true;
+            m_pressedAt = event->point;
+            m_pressedModifiers = event->modifiers();
+            m_interactionStrategy.reset(new SvgMoveTextStrategy(this, hoveredShape, event->point));
+            m_dragging = DragMode::Move;
+            event->accept();
+            repaintDecorations();
+            return;
         }
         m_interactionStrategy.reset(new SvgSelectTextStrategy(this, &m_textCursor, event->point, event->modifiers()));
         m_dragging = DragMode::Select;
@@ -944,6 +955,15 @@ void SvgTextTool::mouseMoveEvent(KoPointerEvent *event)
     m_hoveredShapeHighlightRect = QPainterPath();
     m_textCursor.updateModifiers(event->modifiers());
 
+    if (m_interactionStrategy && m_pressedOther) {
+        // a text pressed on moves once the pointer has gone a little way, so a click doesn't nudge it
+        const QPointF moved = canvas()->viewConverter()->documentToView(event->point - m_pressedAt);
+        if (qAbs(moved.x()) + qAbs(moved.y()) < 4) {
+            event->accept();
+            return;
+        }
+        m_pressedOther = false;
+    }
     if (m_interactionStrategy) {
         m_interactionStrategy->handleMouseMove(event->point, event->modifiers());
         if (m_dragging == DragMode::Create) {
@@ -1099,6 +1119,11 @@ void SvgTextTool::mouseReleaseEvent(KoPointerEvent *event)
         m_interactionStrategy = nullptr;
         if (m_dragging != DragMode::Select) {
             useCursor(m_base_cursor);
+        }
+        if (m_pressedOther) {
+            // not dragged: typing starts where it was clicked
+            m_pressedOther = false;
+            m_textCursor.setPosToPoint(m_pressedAt, !(m_pressedModifiers & Qt::ShiftModifier));
         }
         m_textOnPathHelper.setStrategyActive(false);
         m_textOutlineHelper->setDrawTextWrappingArea(true);

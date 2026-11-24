@@ -268,6 +268,10 @@ ICONS = {
     'snapshots': sq(3.5, 7, 17, 13, 2.4) + p('M8.5 7 10 4.5h4L15.5 7') + c(12, 13.5, 3.5),
     'symbols': p('M12 4c4.7 0 8.5 3 8.5 6.8s-3.8 6.7-8.5 6.7c-1 0-2-.1-2.9-.4L4.5 19.5l1.4-3.9C4.4 14.4 3.5 12.7 3.5 10.8 3.5 7 7.3 4 12 4Z'),
     'text_properties': p('M3.5 18.5 8.5 5.5h1l5 13M5.4 14h7.2') + p('M17 9.5h3.5M17 14h3.5M17 18.5h3.5'),
+    # a text's lines lined up at the start, the middle or the end
+    'align_start': p('M4 6h16M4 10h10M4 14h16M4 18h10'),
+    'align_center': p('M4 6h16M7 10h10M4 14h16M7 18h10'),
+    'align_end': p('M4 6h16M10 10h10M4 14h16M10 18h10'),
 
     # ---- the panels, shown (see KisIconUtils: a button's On state)
     'layers_on': (solid('M12 3.5 20.5 8 12 12.5 3.5 8Z') + p('M3.5 12 12 16.5 20.5 12') + p('M3.5 16 12 20.5 20.5 16')),
