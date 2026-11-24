@@ -5,6 +5,7 @@
  */
 
 #include "KisTextureMaskInfo.h"
+#include <KisLanczos.h>
 
 #include <kis_paintop_settings.h>
 #include <resources/KoPattern.h>
@@ -165,7 +166,7 @@ void KisTextureMaskInfo::recalculateMask()
         QTransform tf;
         tf.scale(scale, scale);
         QRect rc = KisAlgebra2D::ensureRectNotSmaller(tf.mapRect(mask.rect()), QSize(2,2));
-        mask = mask.scaled(rc.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        mask = KisLanczos::scaled(mask, rc.size(), Qt::KeepAspectRatio);
     } else {
         // detach the mask from the file loaded from the storage
         mask = QImage(mask);

@@ -5,6 +5,7 @@
  */
 
 #include "kis_qimage_pyramid.h"
+#include <KisLanczos.h>
 
 #include <limits>
 #include <QPainter>
@@ -21,6 +22,8 @@ KisQImagePyramid::KisQImagePyramid(const QImage &baseImage, bool useSmoothingFor
     KIS_SAFE_ASSERT_RECOVER_RETURN(!baseImage.isNull());
 
     m_originalSize = baseImage.size();
+    // its levels are made through Lanczos 3, which returns the format it is given
+    const QImage source = baseImage.convertToFormat(QImage::Format_ARGB32);
 
 
     qreal scale = MAX_MIPMAP_SCALE;
@@ -36,7 +39,7 @@ KisQImagePyramid::KisQImagePyramid(const QImage &baseImage, bool useSmoothingFor
             }
 
             if (useSmoothingForEnlarging) {
-                appendPyramidLevel(baseImage.scaled(scaledSize,  Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+                appendPyramidLevel(KisLanczos::scaled(source, scaledSize));
             } else {
                 appendPyramidLevel(baseImage.scaled(scaledSize,  Qt::IgnoreAspectRatio, Qt::FastTransformation));
             }
@@ -57,7 +60,7 @@ KisQImagePyramid::KisQImagePyramid(const QImage &baseImage, bool useSmoothingFor
         if (scaledSize.width() == 0 ||
                 scaledSize.height() == 0) break;
 
-        appendPyramidLevel(baseImage.scaled(scaledSize,  Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+        appendPyramidLevel(KisLanczos::scaled(source, scaledSize));
 
         scale *= 0.5;
     }
