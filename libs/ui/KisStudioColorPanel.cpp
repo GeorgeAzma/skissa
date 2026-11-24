@@ -1748,6 +1748,24 @@ KisStudioColorPanel::KisStudioColorPanel()
         });
     }
 
+    {
+        // the palette panel's swatches, put here by the Studio (KisStudioPanelPages)
+        auto *paletteSlot = new QWidget(contents);
+        paletteSlot->setObjectName(QStringLiteral("studioPaletteSlot"));
+        auto *slotLayout = new QVBoxLayout(paletteSlot);
+        slotLayout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(paletteSlot, 1);
+        const bool shown = KisConfig(true).readEntry<bool>("StudioColorPalette", false);
+        paletteSlot->setVisible(shown);
+        QAction *paletteAction = styles->addAction(i18nc("@item:inmenu color panel, the palette's swatches", "Palette"));
+        paletteAction->setCheckable(true);
+        paletteAction->setChecked(shown);
+        connect(paletteAction, &QAction::toggled, paletteSlot, [paletteSlot](bool on) {
+            paletteSlot->setVisible(on);
+            KisConfig(false).writeEntry("StudioColorPalette", on);
+        });
+    }
+
     setWidget(contents);
 
     d->picker->started = [this]() { d->remember(); };

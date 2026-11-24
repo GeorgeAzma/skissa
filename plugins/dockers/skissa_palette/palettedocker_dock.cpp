@@ -323,6 +323,12 @@ protected:
         }
 
         if (!m_dropRect.isNull()) {
+            // on a swatch: the color it would become
+            if (m_dropColor.isValid()) {
+                painter.setPen(Qt::NoPen);
+                painter.setBrush(m_dropColor);
+                painter.drawPath(KisModernStyle::squircle(QRectF(m_dropRect).adjusted(1, 1, -1, -1), radius));
+            }
             painter.setBrush(Qt::NoBrush);
             painter.setPen(QPen(palette().color(QPalette::Highlight), 2));
             painter.drawPath(KisModernStyle::squircle(QRectF(m_dropRect).adjusted(1, 1, -1, -1), radius));
@@ -401,6 +407,13 @@ protected:
         update();
     }
 
+    static QColor draggedColor(const QMimeData *mime)
+    {
+        if (mime->hasColor()) return qvariant_cast<QColor>(mime->colorData());
+        KoColor color;
+        return KisColorDrop::colorOf(mime, &color) ? color.toQColor() : QColor();
+    }
+
     void dragEnterEvent(QDragEnterEvent *event) override
     {
         // swatches of this palette, moved; any other color (recent, the color chip, another palette), kept
@@ -415,10 +428,12 @@ protected:
         const QModelIndex target = indexAt(event->pos());
         bool ok;
         if (!m_dragging) {
-            // a color from elsewhere goes in the empty slot under it, or else after the last swatch
-            const bool onEmpty = target.isValid() && !isOccupied(target);
-            ok = onEmpty || !m_next.isNull();
-            m_dropRect = !ok ? QRect() : onEmpty ? cellRect(target) : m_next;
+            // a color from elsewhere goes in the empty slot under it, in place of the swatch under it, or else after
+            // the last swatch
+            const bool onCell = target.isValid();
+            ok = onCell || !m_next.isNull();
+            m_dropRect = !ok ? QRect() : onCell ? cellRect(target) : m_next;
+            m_dropColor = onCell && isOccupied(target) ? draggedColor(event->mimeData()) : QColor();
         } else {
             ok = target.isValid() && QPersistentModelIndex(target) != m_press;
             m_dropRect = ok ? cellRect(target) : QRect();
@@ -431,6 +446,7 @@ protected:
     void dragLeaveEvent(QDragLeaveEvent *) override
     {
         m_dropRect = QRect();
+        m_dropColor = QColor();
         offer(false);
         update();
     }
@@ -445,16 +461,16 @@ protected:
     void dropEvent(QDropEvent *event) override
     {
         m_dropRect = QRect();
+        m_dropColor = QColor();
         // the row offered for it stays until the drop is handled, then goes with the next layout
         QTimer::singleShot(0, this, [this]() { offer(false); });
         if (!m_dragging) {
             const QModelIndex under = indexAt(event->pos());
-            const bool onEmpty = under.isValid() && !isOccupied(under);
-            if (!onEmpty && m_next.isNull()) {
+            if (!under.isValid() && m_next.isNull()) {
                 event->ignore();
                 return;
             }
-            const QModelIndex target = onEmpty ? under : QModelIndex(m_nextSlot);
+            const QModelIndex target = under.isValid() ? under : QModelIndex(m_nextSlot);
             event->acceptProposedAction();
             // the drag's own event loop is still running: change the palette after it
             if (event->mimeData()->hasFormat(recentMimeType)) {
@@ -580,6 +596,8 @@ private:
     bool m_scrolling {false};
     bool m_dragging {false};
     QRect m_dropRect;
+    /// The color a drop would put in place of the swatch under it
+    QColor m_dropColor;
 };
 
 /// The colors last painted with, newest first, lined up with the palette's columns; dragged into the palette to keep one
@@ -1063,7 +1081,10 @@ void PaletteDockerDock::addColor(const KoColor &color, const QModelIndex &emptyS
     if (!canEdit() || !m_resourceProvider) {
         return;
     }
-    const KisSwatch swatch = newSwatch(color);
+    KisSwatch swatch = newSwatch(color);
+    if (emptySlot.isValid() && isOccupied(emptySlot)) {
+        swatch.setName(m_model->getSwatch(emptySlot).name());
+    }
     if (emptySlot.isValid()) {
         m_model->setSwatch(swatch, emptySlot);
     } else {

@@ -432,6 +432,8 @@ QHash<QString, QStringList> aliasTable()
         {"action:paste_as_reference", i18nc("@info find aliases, comma separated", "reference image, paste reference")},
         {"action:set_stabilizer_brush_smoothing", i18nc("@info find aliases, comma separated", "stabilizer, streamline, lazy mouse, lazy nezumi, smoothing, stroke smoothing")},
         {"action:toggle_brush_outline", i18nc("@info find aliases, comma separated", "brush cursor, cursor outline")},
+        {"panel:StudioColor", i18nc("@info find aliases, comma separated", "palette, swatches, color picker, colour")},
+        {"panel:OverviewDocker", i18nc("@info find aliases, comma separated", "time-lapse, timelapse, record, recording, navigator, minimap")},
         {"action:recorder_export", i18nc("@info find aliases, comma separated", "timelapse, time-lapse, replay, export timelapse")},
         {"action:studio_squint", i18nc("@info find aliases, comma separated", "squint, blur view, judge values")},
         {"action:studio_value_view", i18nc("@info find aliases, comma separated", "value check, values, grayscale view, black and white view, luminosity")},

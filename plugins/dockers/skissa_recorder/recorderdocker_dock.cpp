@@ -85,9 +85,6 @@ const QString inactiveColorGray(" color='#3e3e3e'");
 
 const QColor recordRed(0xe5, 0x48, 0x4d);
 
-/// The video's frame rate when its length is worked out.
-constexpr int videoFps = 30;
-
 QColor inkOf(const QWidget *widget, qreal alpha)
 {
     QColor ink = widget->palette().color(QPalette::WindowText);
@@ -95,15 +92,9 @@ QColor inkOf(const QWidget *widget, qreal alpha)
     return ink;
 }
 
-/// m:ss
-QString clock(qint64 seconds)
-{
-    return QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char('0'));
-}
-
 /**
- * The recording itself: the latest frame, or any earlier one while dragging across it. The play button
- * runs it as the video will. A double or right click goes back to the latest frame.
+ * The recording itself: the latest frame, or an earlier one while the time line is dragged. Over the overview
+ * (its "studioOverlay" property) it shows only while looking back.
  */
 class TimelapseView : public QWidget
 {
@@ -111,19 +102,8 @@ public:
     explicit TimelapseView(QWidget *parent)
         : QWidget(parent)
     {
-        setMouseTracking(true);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        setToolTip(i18nc("@info:tooltip the time-lapse preview, scrubbed", "Earlier ← → now"));
-        m_play.setInterval(1000 / videoFps);
-        QObject::connect(&m_play, &QTimer::timeout, this, [this]() {
-            if (m_index < 0 || m_index >= m_frames.size() - 1) {
-                m_play.stop();
-                m_index = -1;
-            } else {
-                m_index++;
-            }
-            update();
-        });
+        setAttribute(Qt::WA_TransparentForMouseEvents);
         QObject::connect(&m_decoding, &QFutureWatcher<Decoded>::finished, this, [this]() {
             const Decoded decoded = m_decoding.result();
             // unreadable (still being written): not tried again until a newer frame comes
@@ -150,6 +130,14 @@ public:
         update();
     }
 
+    /// The frame shown; -1 is the latest
+    void setIndex(int index)
+    {
+        m_index = index < 0 || index >= m_frames.size() ? -1 : index;
+        if (overlay()) setVisible(m_index >= 0);
+        update();
+    }
+
     bool hasHeightForWidth() const override { return true; }
 
     int heightForWidth(int width) const override
@@ -166,10 +154,11 @@ protected:
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing, true);
         const QRectF tile = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
-        const QPainterPath shape = KisModernStyle::squircle(tile, KisModernStyle::cardRadius);
-        painter.fillPath(shape, inkOf(this, 0.06));
+        const QPainterPath shape = KisModernStyle::squircle(tile, overlay() ? KisModernStyle::cornerRadius : KisModernStyle::cardRadius);
+        if (!overlay()) painter.fillPath(shape, inkOf(this, 0.06));
 
         if (m_frames.isEmpty()) {
+            if (overlay()) return;
             // nothing yet: the record mark, faintly
             painter.setPen(QPen(inkOf(this, 0.18), 2));
             painter.setBrush(Qt::NoBrush);
@@ -182,116 +171,20 @@ protected:
         }
 
         const QImage frame = frameAt(shown());
-        if (!frame.isNull()) {
-            const QSizeF size = QSizeF(frame.size()) / frame.devicePixelRatioF();
-            QRectF target(QPointF(), size.scaled(tile.size(), Qt::KeepAspectRatio));
-            target.moveCenter(tile.center());
-            painter.save();
-            painter.setClipPath(shape);
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            KisLanczos::draw(painter, target, frame);
-            painter.restore();
-        }
-
-        if (m_frames.size() < 2) return;
-        // where in the recording this is, along the bottom
-        const QRectF track(tile.left() + 10, tile.bottom() - 7, tile.width() - 20, 3);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(0, 0, 0, 90));
-        painter.drawRoundedRect(track.adjusted(-1, -1, 1, 1), 2.5, 2.5);
-        QRectF done = track;
-        done.setWidth(track.width() * (shown() + 1) / m_frames.size());
-        painter.setBrush(QColor(255, 255, 255, 220));
-        painter.drawRoundedRect(done, 1.5, 1.5);
-
-        if (underMouse() || m_play.isActive() || m_scrubbing) {
-            const QRectF button = playButton();
-            painter.setBrush(QColor(0, 0, 0, 120));
-            painter.drawEllipse(button);
-            painter.setBrush(Qt::white);
-            const QPointF c = button.center();
-            if (m_play.isActive()) {
-                painter.drawRoundedRect(QRectF(c.x() - 5, c.y() - 6, 3.5, 12), 1, 1);
-                painter.drawRoundedRect(QRectF(c.x() + 1.5, c.y() - 6, 3.5, 12), 1, 1);
-            } else {
-                painter.drawPolygon(QPolygonF({c + QPointF(-4, -6.5), c + QPointF(7, 0), c + QPointF(-4, 6.5)}));
-            }
-            // the time in the video, while looking back
-            if (m_index >= 0) {
-                const QString time = clock(m_index / videoFps) + QStringLiteral(" / ") + clock(m_frames.size() / videoFps);
-                QFont font = KisModernStyle::textFont(this->font(), 0.85);
-                painter.setFont(font);
-                const QFontMetricsF metrics(font);
-                QRectF pill(0, 0, metrics.horizontalAdvance(time) + 14, metrics.height() + 4);
-                pill.moveTopRight(tile.topRight() + QPointF(-8, 8));
-                painter.setBrush(QColor(0, 0, 0, 120));
-                painter.drawPath(KisModernStyle::squircle(pill, pill.height() / 2));
-                painter.setPen(Qt::white);
-                painter.drawText(pill, Qt::AlignCenter, time);
-            }
-        }
+        if (frame.isNull()) return;
+        const QSizeF size = QSizeF(frame.size()) / frame.devicePixelRatioF();
+        QRectF target(QPointF(), size.scaled(tile.size(), Qt::KeepAspectRatio));
+        target.moveCenter(tile.center());
+        painter.setClipPath(overlay() ? KisModernStyle::squircle(target, KisModernStyle::cornerRadius) : shape);
+        KisLanczos::draw(painter, target, frame);
     }
 
-    void mousePressEvent(QMouseEvent *event) override
-    {
-        if (event->button() == Qt::RightButton) {
-            showLatest();
-            return;
-        }
-        if (event->button() != Qt::LeftButton || m_frames.isEmpty()) return;
-        if (m_frames.size() > 1 && playButton().contains(event->pos())) {
-            if (m_play.isActive()) {
-                m_play.stop();
-            } else {
-                if (m_index < 0 || m_index >= m_frames.size() - 1) m_index = 0;
-                m_play.start();
-            }
-            update();
-            return;
-        }
-        m_play.stop();
-        m_scrubbing = true;
-        scrubTo(event->pos().x());
-    }
-
-    void mouseMoveEvent(QMouseEvent *event) override
-    {
-        if (m_scrubbing) scrubTo(event->pos().x());
-        else update();
-    }
-
-    void mouseReleaseEvent(QMouseEvent *) override
-    {
-        m_scrubbing = false;
-        update();
-    }
-
-    void mouseDoubleClickEvent(QMouseEvent *event) override
-    {
-        if (!playButton().contains(event->pos())) showLatest();
-    }
-
-    void leaveEvent(QEvent *) override { update(); }
     void resizeEvent(QResizeEvent *) override { m_cache.clear(); }
 
 private:
+    bool overlay() const { return property("studioOverlay").toBool(); }
+
     int shown() const { return m_index < 0 ? m_frames.size() - 1 : m_index; }
-
-    QRectF playButton() const { return QRectF(10, height() - 46, 32, 32); }
-
-    void scrubTo(int x)
-    {
-        const qreal share = qBound<qreal>(0, (x - 10.0) / qMax(1, width() - 20), 1);
-        m_index = qRound(share * (m_frames.size() - 1));
-        update();
-    }
-
-    void showLatest()
-    {
-        m_play.stop();
-        m_index = -1;
-        update();
-    }
 
     struct Decoded {
         QImage image;
@@ -348,8 +241,6 @@ private:
     QStringList m_frames;
     /// The frame shown; -1 follows the latest.
     int m_index {-1};
-    bool m_scrubbing {false};
-    QTimer m_play;
     QHash<int, QImage> m_cache;
     QSize m_aspect;
     /// The frame last decoded, shown while a newer one is read
@@ -357,6 +248,110 @@ private:
     QFutureWatcher<Decoded> m_decoding;
     QString m_decodingPath;
     QSize m_decodingSize;
+};
+
+/// The recording from its first stroke to now: dragging along it shows the picture as it was then, letting go
+/// comes back to now.
+class TimeLine : public QWidget
+{
+public:
+    std::function<void(int)> showing;
+
+    explicit TimeLine(QWidget *parent)
+        : QWidget(parent)
+    {
+        setFixedHeight(24);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setCursor(Qt::SizeHorCursor);
+    }
+
+    void setCount(int count)
+    {
+        m_count = count;
+        if (m_index >= m_count) m_index = -1;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        const QRectF track = this->track();
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(inkOf(this, underMouse() || m_index >= 0 ? 0.16 : 0.10));
+        painter.drawRoundedRect(track.adjusted(0, -2, 0, 2), 3, 3);
+        const qreal share = m_index < 0 || m_count < 2 ? 1.0 : qreal(m_index) / (m_count - 1);
+        QRectF done = track.adjusted(0, -2, 0, 2);
+        done.setWidth(track.width() * share);
+        painter.setBrush(inkOf(this, 0.35));
+        painter.drawRoundedRect(done, 3, 3);
+        painter.setBrush(palette().color(QPalette::WindowText));
+        painter.drawEllipse(QPointF(track.left() + track.width() * share, track.center().y()), 6, 6);
+    }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton || m_count < 2) return;
+        m_dragging = true;
+        scrubTo(event->pos().x());
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (m_dragging) scrubTo(event->pos().x());
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        if (!m_dragging) return;
+        m_dragging = false;
+        m_index = -1;
+        if (showing) showing(-1);
+        update();
+    }
+
+    void enterEvent(QEvent *) override { update(); }
+    void leaveEvent(QEvent *) override { update(); }
+
+private:
+    QRectF track() const { return QRectF(7, height() / 2.0 - 1, qMax(1, width() - 14), 2); }
+
+    void scrubTo(int x)
+    {
+        const QRectF track = this->track();
+        const qreal share = qBound<qreal>(0, (x - track.left()) / track.width(), 1);
+        const int index = qRound(share * (m_count - 1));
+        if (index == m_index) return;
+        m_index = index;
+        if (showing) showing(index);
+        update();
+    }
+
+    int m_count {0};
+    int m_index {-1};
+    bool m_dragging {false};
+};
+
+/// Calls \p shown when the widget it watches is shown
+class OnShow : public QObject
+{
+public:
+    OnShow(QWidget *watched, std::function<void()> shown)
+        : QObject(watched)
+        , m_shown(std::move(shown))
+    {
+        watched->installEventFilter(this);
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::Show) m_shown();
+        return false;
+    }
+
+private:
+    std::function<void()> m_shown;
 };
 
 /// The round record button: a red dot to record, a red square to stop; while frames are taken, it glows.
@@ -367,7 +362,7 @@ public:
         : QAbstractButton(parent)
     {
         setCheckable(true);
-        setFixedSize(44, 44);
+        setFixedSize(32, 32);
         setCursor(Qt::PointingHandCursor);
     }
 
@@ -399,9 +394,9 @@ protected:
         painter.setBrush(isEnabled() ? recordRed : inkOf(this, 0.18));
         const QPointF c = ring.center();
         if (isChecked()) {
-            painter.drawPath(KisModernStyle::squircle(QRectF(c - QPointF(7, 7), QSizeF(14, 14)), 4));
+            painter.drawPath(KisModernStyle::squircle(QRectF(c - QPointF(5, 5), QSizeF(10, 10)), 3));
         } else {
-            painter.drawEllipse(c, 9, 9);
+            painter.drawEllipse(c, 7, 7);
         }
     }
 
@@ -610,8 +605,14 @@ public:
 
     TimelapseView *view = nullptr;
     RecordButton *recordButton = nullptr;
-    QLabel *lengthLabel = nullptr;
-    QList<QToolButton *> formatButtons;
+    QWidget *controls = nullptr;
+    TimeLine *timeLine = nullptr;
+    /// "Record time-lapse", or what is being recorded, until there is a recording to drag along
+    QLabel *recordLabel = nullptr;
+    /// How many strokes, the video's length and Save, once there is a recording
+    QWidget *result = nullptr;
+    QLabel *strokes = nullptr;
+    QActionGroup *formatActions = nullptr;
     LengthValue *lengthValue = nullptr;
     ExportButton *exportButton = nullptr;
     QToolButton *menuButton = nullptr;
@@ -766,9 +767,36 @@ public:
     {
         frameCount = all.size();
         view->setFrames(all);
-        lengthLabel->setText(clock(frameCount / videoFps));
-        lengthLabel->setVisible(frameCount > 0);
+        timeLine->setCount(frameCount);
+        updateRows();
         updateExportEnabled();
+    }
+
+    /// The time line once there is something to drag along; before that, what pressing record does
+    void updateRows()
+    {
+        const bool recording = recordButton->isChecked();
+        timeLine->setVisible(frameCount > 1);
+        recordLabel->setVisible(frameCount <= 1);
+        recordLabel->setText(recording ? i18nc("the time-lapse records a frame after each stroke", "Recording each stroke")
+                                       : i18nc("@action:button", "Record time-lapse"));
+        result->setVisible(frameCount > 0);
+        strokes->setText(i18ncp("time-lapse: the strokes recorded, then the video's length", "%1 stroke →", "%1 strokes →", frameCount));
+    }
+
+    /// The format the video is saved in, as the menu and Save name it
+    int formatIndex() const
+    {
+        const int profile = RecorderExportConfig(true).profileIndex();
+        for (int i = 0; i < videoFormats().size(); i++) {
+            if (videoFormats()[i].profile == profile) return i;
+        }
+        return 0;
+    }
+
+    QString saveText() const
+    {
+        return i18nc("Save the time-lapse video as MP4, GIF or WebM", "Save %1", videoFormats()[formatIndex()].name);
     }
 
     void updateExportEnabled()
@@ -799,6 +827,7 @@ public:
         } else {
             recordButton->setEnabled(!canvas.isNull());
         }
+        updateRows();
         if (isRecording) framesTimer.start();
         else framesTimer.stop();
         if (canvas) {
@@ -874,60 +903,49 @@ public:
         layout->setSpacing(KisModernStyle::space2);
 
         view = new TimelapseView(page);
+        view->setObjectName(QStringLiteral("timelapsePreview"));
         layout->addWidget(view);
 
-        auto *recordRow = new QHBoxLayout();
-        recordRow->setSpacing(KisModernStyle::space2);
-        recordButton = new RecordButton(page);
-        recordRow->addWidget(recordButton);
-        lengthLabel = new QLabel(page);
-        QFont font = KisModernStyle::textFont(lengthLabel->font(), 1.15, QFont::DemiBold);
-        lengthLabel->setFont(font);
-        lengthLabel->setToolTip(i18nc("@info:tooltip", "Time-lapse so far"));
-        recordRow->addWidget(lengthLabel);
-        recordRow->addStretch(1);
-        menuButton = new QToolButton(page);
+        // what the Studio puts under the overview, the preview going over its picture
+        controls = new QWidget(page);
+        controls->setObjectName(QStringLiteral("timelapseControls"));
+        auto *rows = new QVBoxLayout(controls);
+        rows->setContentsMargins(0, 0, 0, 0);
+        rows->setSpacing(KisModernStyle::space1);
+
+        auto *top = new QHBoxLayout();
+        top->setSpacing(KisModernStyle::space2);
+        recordButton = new RecordButton(controls);
+        top->addWidget(recordButton);
+        timeLine = new TimeLine(controls);
+        timeLine->showing = [this](int index) { view->setIndex(index); };
+        top->addWidget(timeLine, 1);
+        recordLabel = new QLabel(controls);
+        top->addWidget(recordLabel, 1);
+        menuButton = new QToolButton(controls);
         menuButton->setAutoRaise(true);
         menuButton->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
         menuButton->setPopupMode(QToolButton::InstantPopup);
         menuButton->setToolTip(i18nc("@info:tooltip", "More"));
         menuButton->setStyleSheet(QStringLiteral("QToolButton::menu-indicator { image: none; }"));
-        recordRow->addWidget(menuButton);
-        layout->addLayout(recordRow);
+        top->addWidget(menuButton);
+        rows->addLayout(top);
 
-        auto *exportRow = new QHBoxLayout();
-        exportRow->setSpacing(KisModernStyle::space1);
-        RecorderExportConfig exportConfig(true);
-        const int profile = exportConfig.profileIndex();
-        for (const VideoFormat &videoFormat : videoFormats()) {
-            auto *button = new QToolButton(page);
-            button->setText(videoFormat.name);
-            button->setToolTip(videoFormat.toolTip);
-            button->setCheckable(true);
-            button->setAutoExclusive(true);
-            button->setAutoRaise(true);
-            button->setProperty(KisModernStyle::tabButtonProperty, true);
-            button->setChecked(videoFormat.profile == profile);
-            QObject::connect(button, &QToolButton::toggled, q, [videoFormat](bool on) {
-                if (on) RecorderExportConfig(false).setProfileIndex(videoFormat.profile);
-            });
-            formatButtons << button;
-            exportRow->addWidget(button);
-        }
-        // a format of the classic dialog's: shown as the first, kept until one is picked
-        if (std::none_of(formatButtons.begin(), formatButtons.end(), [](QToolButton *b) { return b->isChecked(); })) {
-            const QSignalBlocker blocker(formatButtons.first());
-            formatButtons.first()->setChecked(true);
-        }
-        exportRow->addSpacing(KisModernStyle::space1);
-        lengthValue = new LengthValue(page);
+        result = new QWidget(controls);
+        auto *resultRow = new QHBoxLayout(result);
+        resultRow->setContentsMargins(0, 0, 0, 0);
+        resultRow->setSpacing(KisModernStyle::space1);
+        strokes = new QLabel(result);
+        resultRow->addWidget(strokes);
+        lengthValue = new LengthValue(result);
         lengthValue->setSeconds(KisConfig(true).readEntry<int>("recorder_export/lengthSec", LengthValue::standard));
         lengthValue->changed = [](int seconds) { KisConfig(false).writeEntry("recorder_export/lengthSec", seconds); };
-        exportRow->addWidget(lengthValue);
-        exportRow->addStretch(1);
-        exportButton = new ExportButton(i18nc("Save the time-lapse video", "Save"), page);
-        exportRow->addWidget(exportButton);
-        layout->addLayout(exportRow);
+        resultRow->addWidget(lengthValue);
+        resultRow->addStretch(1);
+        exportButton = new ExportButton(saveText(), result);
+        resultRow->addWidget(exportButton);
+        rows->addWidget(result);
+        layout->addWidget(controls);
         layout->addStretch(1);
 
         buildMenu();
@@ -943,7 +961,10 @@ public:
         framesTimer.setInterval(1500);
         // the folder listed only while the panel is seen: it holds thousands of frames after a long session
         QObject::connect(&framesTimer, &QTimer::timeout, q, [this]() {
-            if (q->isVisible()) refreshFrames();
+            if (controls->isVisible()) refreshFrames();
+        });
+        new OnShow(controls, [this]() {
+            if (framesTimer.isActive()) refreshFrames();
         });
         QObject::connect(q, &QDockWidget::visibilityChanged, q, [this](bool visible) {
             if (visible && framesTimer.isActive()) refreshFrames();
@@ -951,7 +972,7 @@ public:
         showTimer.setSingleShot(true);
         showTimer.setInterval(8000);
         QObject::connect(&showTimer, &QTimer::timeout, q, [this]() {
-            exportButton->setText(i18nc("Save the time-lapse video", "Save"));
+            exportButton->setText(saveText());
 #ifndef Q_OS_ANDROID
             exportedFile.clear();
 #endif
@@ -970,16 +991,31 @@ public:
         });
 
         menu->addSeparator();
-        menu->addAction(KisIconUtils::loadIcon("folder"), i18nc("@action:inmenu where recordings are kept", "Recordings folder…"), q,
-                        SLOT(slotSelectSnapshotDirectory()));
-        menu->addAction(i18nc("@action:inmenu", "Manage recordings…"), q, [this]() {
+        formatActions = new QActionGroup(menu);
+        for (const VideoFormat &videoFormat : videoFormats()) {
+            QAction *action = menu->addAction(videoFormat.name);
+            action->setToolTip(videoFormat.toolTip);
+            action->setCheckable(true);
+            formatActions->addAction(action);
+            QObject::connect(action, &QAction::triggered, q, [this, videoFormat]() {
+                RecorderExportConfig(false).setProfileIndex(videoFormat.profile);
+                if (exportButton->isEnabled()) exportButton->setText(saveText());
+            });
+        }
+        menu->setToolTipsVisible(true);
+
+        menu->addSeparator();
+        menu->addAction(i18nc("@action:inmenu the time-lapse recordings kept, to look through or delete", "Recordings…"), q, [this]() {
             RecorderSnapshotsManager snapshotsManager(q);
             snapshotsManager.execFor(snapshotDirectory);
             refreshFrames();
         });
-        menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Export options…"), q, SLOT(onExportOptionsClicked()));
+        menu->addAction(i18nc("@action:inmenu where time-lapse recordings are kept", "Keep recordings in…"), q,
+                        SLOT(slotSelectSnapshotDirectory()));
+        menu->addAction(i18nc("@action:inmenu the full time-lapse export dialog", "Video options…"), q, SLOT(onExportOptionsClicked()));
         QObject::connect(menu, &QMenu::aboutToShow, q, [this]() {
             autoRecordAction->setChecked(recordAutomatically);
+            formatActions->actions()[formatIndex()]->setChecked(true);
         });
         menuButton->setMenu(menu);
     }
@@ -1394,7 +1430,7 @@ void RecorderDockerDock::onExporterFinishedWithError(QString error)
 {
 #ifndef Q_OS_ANDROID
     d->finishExport();
-    d->exportButton->setText(i18nc("Save the time-lapse video", "Save"));
+    d->exportButton->setText(d->saveText());
     QMessageBox::critical(this, i18nc("@title:window", "Time-lapse"), i18n("The video could not be saved:") % "\n\n" % error);
 #else
     Q_UNUSED(error);

@@ -225,6 +225,28 @@ std::function<void()> animationTitleBar(QDockWidget *dock)
 }
 
 /// Lets a right-click put the view back to the whole image
+/// Keeps a widget over the whole of the one it watches
+class Cover : public QObject
+{
+public:
+    Cover(QWidget *under, QWidget *over)
+        : QObject(under)
+        , m_over(over)
+    {
+        under->installEventFilter(this);
+        over->setGeometry(under->rect());
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Resize && m_over) m_over->setGeometry(static_cast<QWidget *>(watched)->rect());
+        return false;
+    }
+
+private:
+    QPointer<QWidget> m_over;
+};
+
 class FitOnRightClick : public QObject
 {
 public:
@@ -248,8 +270,53 @@ public:
     }
 };
 
+/// The time-lapse under the overview's picture, its frames shown over the picture while its line is dragged
+std::function<void()> withTimelapse(QDockWidget *dock, QWidget *content, QWidget *picture)
+{
+    QWidget *window = dock->window();
+    QDockWidget *recorder = window ? window->findChild<QDockWidget *>(QStringLiteral("RecorderDocker")) : nullptr;
+    QWidget *page = recorder ? recorder->widget() : nullptr;
+    auto *pageLayout = page ? qobject_cast<QBoxLayout *>(page->layout()) : nullptr;
+    QWidget *controls = page ? page->findChild<QWidget *>(QStringLiteral("timelapseControls")) : nullptr;
+    QWidget *preview = page ? page->findChild<QWidget *>(QStringLiteral("timelapsePreview")) : nullptr;
+    if (!pageLayout || !controls || !preview) return {};
+
+    auto *box = new QWidget;
+    auto *layout = new QVBoxLayout(box);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(KisModernStyle::space2);
+    layout->addWidget(content, 1);
+    layout->addWidget(controls);
+    controls->show();
+    preview->setParent(picture);
+    preview->setProperty("studioOverlay", true);
+    preview->hide();
+    auto *cover = new Cover(picture, preview);
+    dock->setWidget(box);
+
+    QPointer<QDockWidget> panel = dock;
+    QPointer<QWidget> shownContent = content;
+    QPointer<QWidget> merged = box;
+    QPointer<QWidget> theirPage = page;
+    QPointer<QWidget> theirControls = controls;
+    QPointer<QWidget> theirPreview = preview;
+    QPointer<Cover> covering = cover;
+    return [panel, shownContent, merged, theirPage, theirControls, theirPreview, covering]() {
+        if (covering) covering->deleteLater();
+        if (panel && shownContent) panel->setWidget(shownContent);
+        auto *pageLayout = theirPage ? qobject_cast<QBoxLayout *>(theirPage->layout()) : nullptr;
+        if (pageLayout && theirPreview) {
+            theirPreview->setProperty("studioOverlay", false);
+            pageLayout->insertWidget(0, theirPreview);
+            theirPreview->show();
+        }
+        if (pageLayout && theirControls) pageLayout->insertWidget(1, theirControls);
+        if (merged) merged->deleteLater();
+    };
+}
+
 /// The overview as the picture alone, its view frame dragged; zoom, turning and mirroring are on the canvas
-std::function<void()> overviewPage(QWidget *content)
+std::function<void()> overviewPage(QDockWidget *dock, QWidget *content)
 {
     QWidget *picture = nullptr;
     Q_FOREACH (QWidget *child, content->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly)) {
@@ -272,7 +339,9 @@ std::function<void()> overviewPage(QWidget *content)
     picture->installEventFilter(fit);
     relayout();
     QPointer<FitOnRightClick> filter = fit;
-    return [page, shown, minimum, filter, relayout]() {
+    const std::function<void()> timelapse = withTimelapse(dock, content, picture);
+    return [page, shown, minimum, filter, relayout, timelapse]() {
+        if (timelapse) timelapse();
         if (filter) filter->deleteLater();
         if (shown) {
             shown->setAutoFillBackground(true);
@@ -280,6 +349,23 @@ std::function<void()> overviewPage(QWidget *content)
         }
         if (page) page->setProperty("studioPictureOnly", false);
         relayout();
+    };
+}
+
+/// The palette inside the color panel, under its picker
+std::function<void()> colorPage(QDockWidget *dock)
+{
+    QWidget *window = dock->window();
+    QDockWidget *palette = window ? window->findChild<QDockWidget *>(QStringLiteral("PaletteDocker")) : nullptr;
+    QWidget *swatches = palette ? palette->widget() : nullptr;
+    QWidget *slot = dock->findChild<QWidget *>(QStringLiteral("studioPaletteSlot"));
+    if (!swatches || !slot || !slot->layout()) return {};
+    slot->layout()->addWidget(swatches);
+    swatches->show();
+    QPointer<QDockWidget> theirs = palette;
+    QPointer<QWidget> moved = swatches;
+    return [theirs, moved]() {
+        if (theirs && moved) theirs->setWidget(moved);
     };
 }
 
@@ -292,7 +378,8 @@ std::function<void()> KisStudioPanelPages::apply(QDockWidget *dock)
     const QString id = dock->objectName();
     if (id == QLatin1String("OnionSkinsDocker")) return onionSkinsPage(content);
     if (id == QLatin1String("History")) return KisStudioHistoryPage::apply(dock);
-    if (id == QLatin1String("OverviewDocker")) return overviewPage(content);
+    if (id == QLatin1String("OverviewDocker")) return overviewPage(dock, content);
+    if (id == QLatin1String("StudioColor")) return colorPage(dock);
     if (id == QLatin1String("TimelineDocker") || id == QLatin1String("AnimationCurvesDocker")) return animationTitleBar(dock);
     return {};
 }
