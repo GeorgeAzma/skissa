@@ -193,6 +193,7 @@ private:
     /// Returns the brush bar to the window's top row
     void releaseTopBars();
     void syncRail();
+    void fitRail();
     /// Keeps the start page clear of the tool rail over it
     /// The Studio's start page in place of Krita's welcome page, or Krita's back
     void showStartPage(bool show);

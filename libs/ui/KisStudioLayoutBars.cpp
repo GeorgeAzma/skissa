@@ -10,6 +10,7 @@
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
 #include <QComboBox>
+#include <QStyle>
 #include <QWidgetAction>
 
 // The panel and brush rails, the top bar and its chips, settings and the main menu, peeking at the canvas
@@ -81,6 +82,25 @@ private:
     QToolBar *m_bar;
     bool m_pending {false};
 };
+
+class OnResize : public QObject
+{
+public:
+    OnResize(QWidget *widget, std::function<void()> resized)
+        : QObject(widget), m_resized(std::move(resized))
+    {
+        widget->installEventFilter(this);
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::Resize) m_resized();
+        return false;
+    }
+
+private:
+    std::function<void()> m_resized;
+};
 }
 
 void KisStudioLayout::createRail()
@@ -144,6 +164,7 @@ void KisStudioLayout::createRail()
         picker->popupBelow(addPanel);
     });
     rail->addWidget(addPanel);
+    new OnResize(rail, [this]() { fitRail(); });
 
     // shows where a dragged rail button will go
     auto *indicator = new QFrame(rail);
@@ -365,9 +386,11 @@ bool KisStudioLayout::handleRailDrag(QObject *watched, QEvent *event)
         int indicatorX = 0;
         for (int i = 0; i < d->railPanels.size(); i++) {
             QWidget *widget = d->rail->widgetForAction(d->railActions.value(d->railPanels[i]));
-            if (!widget) {
+            // a button that didn't fit isn't a place to drop: past the last one shown is
+            if (!widget || !widget->isVisible()) {
                 continue;
             }
+            drag.targetIndex = i + 1;
             indicatorX = widget->geometry().right() + 1;
             if (x < widget->geometry().center().x()) {
                 drag.targetIndex = i;
@@ -980,6 +1003,36 @@ void KisStudioLayout::syncRail()
         QDockWidget *dock = d->mainWindow->dockWidget(it.key());
         QSignalBlocker blocker(it.value());
         it.value()->setChecked(dock && !dock->isHidden());
+    }
+    fitRail();
+}
+
+/// Only as many panel buttons as fit, the open panels' first, so ⋯ always shows: the rest are one click away in it
+void KisStudioLayout::fitRail()
+{
+    QToolBar *rail = d->rail;
+    if (!rail || !d->addPanelButton || d->railActions.isEmpty()) return;
+    QWidget *first = rail->widgetForAction(d->railActions.value(d->railPanels.value(0)));
+    if (!first) return;
+    QStyle *style = rail->style();
+    const int spacing = rail->layout() ? rail->layout()->spacing() : 0;
+    const int frame = 2 * (style->pixelMetric(QStyle::PM_ToolBarFrameWidth, nullptr, rail)
+                           + style->pixelMetric(QStyle::PM_ToolBarItemMargin, nullptr, rail));
+    const QMargins margins = rail->contentsMargins();
+    const int room = rail->width() - margins.left() - margins.right() - frame - d->stripGrip->minimumWidth()
+        - d->addPanelButton->sizeHint().width() - 2 * spacing;
+    const int fit = qMax(1, room / qMax(1, first->sizeHint().width() + spacing));
+
+    QStringList shown;
+    Q_FOREACH (const QString &id, d->railPanels) {
+        if (shown.size() < fit && d->railActions.value(id) && d->railActions.value(id)->isChecked()) shown << id;
+    }
+    Q_FOREACH (const QString &id, d->railPanels) {
+        if (shown.size() < fit && !shown.contains(id)) shown << id;
+    }
+    for (auto it = d->railActions.begin(); it != d->railActions.end(); ++it) {
+        const bool visible = shown.contains(it.key());
+        if (it.value()->isVisible() != visible) it.value()->setVisible(visible);
     }
 }
 
