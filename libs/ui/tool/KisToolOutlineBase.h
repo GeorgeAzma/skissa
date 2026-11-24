@@ -65,6 +65,8 @@ private:
     /// A selection begun with a click: each click a corner, drags freehand parts, closed on its first point,
     /// a double click or Enter
     bool m_clickMode {false};
+    /// The corner being dragged in click mode; a press on a line between corners adds one there
+    int m_movedCorner {-1};
     QPointF m_lastCursorPos;
     /// A selection's line, held still at its end: the clean shape it roughly drew (KisSelectionGestures)
     QVector<QPointF> m_snapped;

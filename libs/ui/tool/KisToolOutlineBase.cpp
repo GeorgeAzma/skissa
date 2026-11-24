@@ -190,8 +190,34 @@ void KisToolOutlineBase::beginPrimaryAction(KoPointerEvent *event)
     if (m_clickMode && !m_points.isEmpty()) {
         // a click on the first corner closes it
         const QPointF at = convertToPixelCoord(event);
-        if (m_points.size() > 2 && QLineF(pixelToView(at), pixelToView(m_points.first())).length() < 8) {
+        const QPointF seen = pixelToView(at);
+        if (m_points.size() > 2 && QLineF(seen, pixelToView(m_points.first())).length() < 8) {
             endStroke();
+            return;
+        }
+        // a press on a corner moves it, on a line between two bends it there with a new corner
+        m_movedCorner = -1;
+        for (int i = 1; i < m_points.size(); i++) {
+            if (QLineF(seen, pixelToView(m_points[i])).length() < 8) {
+                m_movedCorner = i;
+                break;
+            }
+        }
+        for (int i = 0; m_movedCorner < 0 && i + 1 < m_points.size(); i++) {
+            const QPointF a = pixelToView(m_points[i]);
+            const QPointF b = pixelToView(m_points[i + 1]);
+            const QPointF ab = b - a;
+            const qreal length2 = QPointF::dotProduct(ab, ab);
+            if (length2 < 1) continue;
+            const qreal t = QPointF::dotProduct(seen - a, ab) / length2;
+            if (t <= 0 || t >= 1 || QLineF(seen, a + t * ab).length() >= 6) continue;
+            m_points.insert(i + 1, at);
+            ++m_numberOfContinuedModePoints;
+            m_movedCorner = i + 1;
+        }
+        if (m_movedCorner >= 0) {
+            setMode(KisTool::PAINT_MODE);
+            canvas()->updateCanvas(canvas()->canvasWidget()->rect());
             return;
         }
     }
@@ -215,6 +241,12 @@ void KisToolOutlineBase::beginPrimaryAction(KoPointerEvent *event)
 void KisToolOutlineBase::continuePrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
+
+    if (m_movedCorner >= 0 && m_movedCorner < m_points.size()) {
+        m_points[m_movedCorner] = convertToPixelCoordAndSnap(event);
+        canvas()->updateCanvas(canvas()->canvasWidget()->rect());
+        return;
+    }
 
     QPointF point = convertToPixelCoord(event);
     if (m_type == SELECT && !m_continuedMode && !m_points.isEmpty()) {
@@ -240,6 +272,12 @@ void KisToolOutlineBase::endPrimaryAction(KoPointerEvent *event)
 {
     CHECK_MODE_SANITY_OR_RETURN(KisTool::PAINT_MODE);
     setMode(KisTool::HOVER_MODE);
+    if (m_movedCorner >= 0) {
+        m_movedCorner = -1;
+        canvas()->updateCanvas(canvas()->canvasWidget()->rect());
+        event->accept();
+        return;
+    }
     if (m_type == SELECT && !m_continuedMode && event->spontaneous()) {
         // a click, not a drag: the selection goes on as corners
         bool still = true;
@@ -286,6 +324,10 @@ void KisToolOutlineBase::paint(QPainter& gc, const KoViewConverter &converter)
         }
         if (m_continuedMode && mode() != KisTool::PAINT_MODE) {
             outline.lineTo(pixelToView(m_lastCursorPos));
+        }
+        // corners placed by clicks can be grabbed
+        if (m_clickMode) {
+            for (const QPointF &corner : qAsConst(m_points)) outline.addEllipse(pixelToView(corner), 3, 3);
         }
         paintToolOutline(&gc, outline);
     }
