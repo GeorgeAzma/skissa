@@ -154,7 +154,6 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
     KisStudioPicker::Source source;
     source.pinnedKey = rail.key;
     source.initialPinned = rail.defaults;
-    source.groupsKey = rail.key + QStringLiteral("Groups");
     source.allIds = [docks]() {
         const QHash<QString, QDockWidget *> all = docks();
         QStringList ids = all.keys();
@@ -202,6 +201,8 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
         return dock && icon ? icon(dock) : QIcon();
     };
     source.tiles = true;
+    // the strip is the list: a panel picked joins it, one dragged off it leaves
+    source.stars = false;
     source.tileSize = tileSize;
     source.yoursTitle = i18nc("panels group: the ones on the rail", "On the rail");
     source.searchPlaceholder = i18nc("@info:placeholder", "Search panels");

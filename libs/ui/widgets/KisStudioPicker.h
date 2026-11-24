@@ -66,6 +66,8 @@ public:
         std::function<QStringList()> recent;
         /// Tiles with large previews instead of rows with swatches
         bool tiles {false};
+        /// Stars that put an item in the user's list or take it out; without them the list is changed where it shows
+        bool stars {true};
         /// Tile size including the name; invalid for the default landscape tile
         QSize tileSize;
         /// How long the pointer rests on an item before it is previewed, in ms

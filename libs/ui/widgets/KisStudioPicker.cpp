@@ -501,7 +501,7 @@ protected:
 
             // among matches and recent items, pinned ones always show their star: nothing else marks them
             const bool pinned = item.list == 0 || m_d->pinned.contains(item.id);
-            if (highlighted || (pinned && item.list != 0) || KisTouchMode::isActive()) {
+            if (m_d->source.stars && (highlighted || (pinned && item.list != 0) || KisTouchMode::isActive())) {
                 const QRectF star = starRect(item.rect, tiles);
                 if (tiles) {
                     painter.setPen(Qt::NoPen);
@@ -602,6 +602,7 @@ protected:
         }
         const int index = itemAt(pos);
         if (index < 0) return;
+        if (!m_d->source.stars) return;
         if (m_d->source.groupsKey.isEmpty()) togglePinned(m_d->items[index].id);
         else listsMenu(m_d->items[index].id, event->globalPos());
     }
@@ -718,7 +719,7 @@ protected:
             return;
         }
         const Item &item = m_d->items[index];
-        if (!m_lifted && starRect(item.rect, m_d->source.tiles).adjusted(-4, -6, 4, 6).contains(event->pos())) {
+        if (!m_lifted && m_d->source.stars && starRect(item.rect, m_d->source.tiles).adjusted(-4, -6, 4, 6).contains(event->pos())) {
             togglePinned(item.id);
             return;
         }

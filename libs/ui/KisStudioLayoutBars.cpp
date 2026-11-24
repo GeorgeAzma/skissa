@@ -156,7 +156,7 @@ void KisStudioLayout::createRail()
             if (!d->pinned.contains(id)) setPinned(dock, true);
             showPanel(dock);
         });
-        // the picker may have starred, unstarred or reordered the rail's panels
+        // the picker may have moved panels onto the rail, off it or along it
         connect(picker, &QObject::destroyed, this, [this]() {
             const QStringList panels = KisConfig(true).readEntry<QStringList>(panelsKey, defaultRailPanels());
             if (panels != d->railPanels) setRailPanels(panels);
