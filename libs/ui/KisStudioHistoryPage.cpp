@@ -218,7 +218,7 @@ std::function<void()> KisStudioHistoryPage::apply(QDockWidget *history)
     keep->setFocusPolicy(Qt::NoFocus);
     keep->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_add")));
     keep->setIconSize(QSize(18, 18));
-    keep->setText(i18nc("@action:button history panel: the chosen steps, kept to be done again", "Keep as recipe"));
+    keep->setText(i18nc("@action:button history panel: the chosen steps become a button that does them again", "Save as a button"));
     keep->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     keep->hide();
     box->addWidget(keep, 0, Qt::AlignLeft);
@@ -266,26 +266,37 @@ std::function<void()> KisStudioHistoryPage::apply(QDockWidget *history)
     };
     QObject::connect(keep, &QToolButton::clicked, merged, keepChosen);
 
-    auto *choosing = new EventHook(steps->viewport(), [chosen, anchor, stepsView, showChosen, keepChosen](QEvent *event) {
+    auto *choosing = new EventHook(steps->viewport(), [chosen, anchor, stepsView, showChosen, keepChosen, commandAt](QEvent *event) {
         if (!stepsView) return false;
         if (event->type() == QEvent::ContextMenu) {
             auto *menuEvent = static_cast<QContextMenuEvent *>(event);
             const int row = stepsView->indexAt(menuEvent->pos()).row();
             if (row < 1 && chosen->isEmpty()) return false;
             QMenu menu;
+            // what is saved becomes a button under the steps that does them again, on any image
             QAction *keepThem = nullptr;
+            QAction *thisOne = nullptr;
             QAction *fromHere = nullptr;
+            const int last = stepsView->model()->rowCount() - 1;
+            auto repeatable = [commandAt](int from, int to) {
+                for (int r = from; r <= to; r++) {
+                    if (!commandAt(r).isEmpty()) return true;
+                }
+                return false;
+            };
             if (!chosen->isEmpty()) {
-                keepThem = menu.addAction(i18nc("@action history panel", "Keep as recipe"));
+                keepThem = menu.addAction(i18nc("@action history panel", "Save chosen steps as a button"));
+            } else if (repeatable(row, last)) {
+                if (repeatable(row, row)) thisOne = menu.addAction(i18nc("@action history panel", "Save this step as a button"));
+                if (row < last) fromHere = menu.addAction(i18nc("@action history panel: this step and the ones below it", "Save this and later steps as a button"));
             } else {
-                fromHere = menu.addAction(i18nc("@action history panel: this step and the ones after it", "Keep from here as recipe"));
+                menu.addAction(i18nc("@action history panel", "Strokes can't be done again"))->setEnabled(false);
             }
             QAction *picked = menu.exec(menuEvent->globalPos());
-            if (picked == fromHere && fromHere) {
-                const int last = stepsView->model()->rowCount() - 1;
-                for (int r = row; r <= last; r++) chosen->insert(r);
+            if (picked && (picked == fromHere || picked == thisOne)) {
+                for (int r = row; r <= (picked == thisOne ? row : last); r++) chosen->insert(r);
                 keepChosen();
-            } else if (picked == keepThem && keepThem) {
+            } else if (picked && picked == keepThem) {
                 keepChosen();
             }
             return true;
