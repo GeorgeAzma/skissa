@@ -156,11 +156,10 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 Proposed and not built yet; build from the top when there is nothing else, remove what is done or declined.
 
 - **Approved by the owner (November 2026), in this order** (and later all the items below but Fewer settings, Vector and the small ones; the selection outline is wanted visible but easy to hide, now a zoom pill switch):
-  1. Drag onto what it should change: colors, gradients, patterns, brushes, effects and layer styles as draggable tiles; on the canvas they act on what is under the pointer, on a layer on that layer, on a selection inside it (replaces Fill with, Apply to layer, New fill layer).
-  2. Right-click card for what is under the pointer (layers, selections, guides, swatches, canvas areas): its few actions, picture, key, reset. Only where it is better than what is there.
+  1. Drag onto what it should change: colors, gradients, patterns and effects drop on the canvas, a selection and layer rows (`KisStudioItemDrop`, `KisStudioPatternDrag`); left: layer styles, and patterns or gradients onto the area under the pointer as a color drop does.
+  2. Right-click card for what is under the pointer: layers, selections and guides have theirs; left: swatches.
   3. Previews instead of names: hovering an image-changing command previews it (Flatten, Merge down, Crop to selection, Fill, Clear); layer styles redesigned like the Shape effect, with previews; resampling and dithering choices as pictures.
   4. One value control everywhere: every number a draggable row, right click resets (all pills too), wheel changes; convert the remaining spin boxes and sliders (find them with the UI tour).
-  5. History: the scrubber gets labeled thumbnails; holding over a step previews the image there.
   6. Handles on the canvas: canvas size, crop, image resize, guides, gradients, pattern placement, text boxes, selection grow and soften, symmetry axis.
   7. Retire Krita dialogs: Image size, Layer properties, Color space conversion, Export options, Preferences pages Settings doesn't cover; each a popup of value rows with a live preview, or gone.
   8. Defaults that learn: last value per task (fill threshold, effect settings, smoothing per brush); use counts order the pickers' Recent sections.
