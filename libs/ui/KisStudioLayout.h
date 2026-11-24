@@ -184,9 +184,8 @@ private:
     void updateToolChip();
     /// In canvas-only mode, brings back the bars, tool rail and panels while the pointer is at their edge
     void peek(const QPoint &global);
-    /// Puts the document, menu, Settings, Find and window buttons on the window pill
+    /// Puts the image name, Settings, Find and window buttons on the window pill
     void placeWindowButtons();
-    void showMainMenu(QWidget *button);
     /// A command shown the Studio's way: in sentence case, or hidden when only the classic layout has it
     void tidyCommand(QAction *action);
     /// Moves the tool and brush bars into the top pill and shows or hides the pills

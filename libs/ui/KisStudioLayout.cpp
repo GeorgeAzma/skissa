@@ -715,8 +715,6 @@ void KisStudioLayout::updateDocumentButton()
         return;
     }
     QMdiArea *area = mdiArea();
-    const QList<QMdiSubWindow *> windows = area ? area->subWindowList() : QList<QMdiSubWindow *>();
-
     auto nameOf = [](QMdiSubWindow *window) {
         KisView *view = qobject_cast<KisView *>(window->widget());
         KisDocument *document = view ? view->document() : nullptr;
@@ -732,30 +730,7 @@ void KisStudioLayout::updateDocumentButton()
     };
 
     QMdiSubWindow *current = area ? area->currentSubWindow() : nullptr;
-    d->documentButton->setText(current ? nameOf(current) : QString());
-
-    QMenu *menu = d->documentButton->menu();
-    menu->clear();
-    Q_FOREACH (QMdiSubWindow *window, windows) {
-        QAction *action = menu->addAction(nameOf(window));
-        action->setCheckable(true);
-        action->setChecked(window == current);
-        QPointer<QMdiSubWindow> target = window;
-        connect(action, &QAction::triggered, this, [area, target]() {
-            if (target && area) area->setActiveSubWindow(target);
-        });
-    }
-    menu->addSeparator();
-    KisKActionCollection *actions = d->mainWindow->actionCollection();
-    for (const char *name : {"file_new", "file_open", "file_close"}) {
-        if (QAction *action = actions->action(QLatin1String(name))) {
-            menu->addAction(action);
-        }
-    }
-    // no switcher for a single document
-    if (d->documentButtonAction) {
-        d->documentButtonAction->setVisible(windows.size() > 1 && !isRailHidden());
-    }
+    d->documentButton->setText(current ? nameOf(current) : i18nc("the image name button with no image open", "Images"));
 }
 
 void KisStudioLayout::leave()
@@ -799,7 +774,7 @@ void KisStudioLayout::leave()
     releaseDocuments();
     mainWindow->statusBar()->setVisible(KisConfig(true).showStatusBar());
     for (QAction *action : {d->windowButtonsAction.data(), d->toolStripAction.data(), d->documentButtonAction.data(),
-                            d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+                            d->settingsButtonAction.data(), d->findFieldAction.data()}) {
         if (action) action->setVisible(false);
     }
 
@@ -946,7 +921,7 @@ void KisStudioLayout::normalize()
     placeWindowButtons();
     // also on the start page, where the window pill acts as the title bar
     const bool windowShown = !canvasOnly || d->peeking.contains(QPointer<QWidget>(d->windowPill.data()));
-    for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+    for (QAction *action : {d->documentButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
         if (action) action->setVisible(windowShown);
     }
     if (d->windowButtonsAction) {

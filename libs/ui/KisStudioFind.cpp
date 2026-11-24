@@ -20,6 +20,7 @@
 #include <QDockWidget>
 #include <QContextMenuEvent>
 #include <QDrag>
+#include <QMap>
 #include <QMimeData>
 #include <QScopeGuard>
 #include <QKeyEvent>
@@ -1317,11 +1318,21 @@ void KisStudioFind::updateCommands(const QString &query)
             appendHeader(i18nc("@title find results", "Most used"));
             Q_FOREACH (int index, often) appendResult(index, detailOf(index));
         }
-        std::sort(commands.begin(), commands.end(), [this](int a, int b) {
-            return d->entries[a].title.localeAwareCompare(d->entries[b].title) < 0;
-        });
-        appendHeader(i18nc("@title find results", "All"));
-        Q_FOREACH (int index, commands) appendResult(index, detailOf(index));
+        // then everything to browse, under the menu each is in
+        auto groupOf = [this](int index) {
+            const Entry &entry = d->entries[index];
+            const QString menu = entry.kind == Kind::Command ? entry.detail.section(QStringLiteral(" › "), 0, 0) : QString();
+            return menu.isEmpty() ? kindTitle(entry.kind) : menu;
+        };
+        QMap<QString, QVector<int>> groups;
+        Q_FOREACH (int index, commands) groups[groupOf(index)] << index;
+        for (auto it = groups.begin(); it != groups.end(); ++it) {
+            std::sort(it->begin(), it->end(), [this](int a, int b) {
+                return d->entries[a].title.localeAwareCompare(d->entries[b].title) < 0;
+            });
+            appendHeader(it.key());
+            Q_FOREACH (int index, *it) appendResult(index, detailOf(index));
+        }
     } else {
         QVector<QPair<qreal, int>> scored;
         Q_FOREACH (int i, commands) {

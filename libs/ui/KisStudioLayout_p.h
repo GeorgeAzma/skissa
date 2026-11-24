@@ -36,12 +36,9 @@ struct KisStudioLayout::Private
     QPointer<QToolBar> buttonsBar;
     QPointer<QWidget> findField;
     QPointer<QAction> findFieldAction;
-    QPointer<QWidget> menuButton;
-    QPointer<QAction> menuButtonAction;
     QPointer<QWidget> settingsButton;
     QPointer<QAction> settingsButtonAction;
     QPointer<KisStudioSettings> settings;
-    QPointer<QMenu> mainMenu;
     /// When the main menu last closed: a press on its button closes it, and the click that follows mustn't open it again
     /// The brush bar whose menu buttons were switched to open on a long press, and those buttons
     QPointer<QToolBar> placedOnBar;

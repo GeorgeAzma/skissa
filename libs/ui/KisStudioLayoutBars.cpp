@@ -5,6 +5,7 @@
  */
 #include "KisStudioLayout.h"
 #include "KisStudioLayout_p.h"
+#include "KisStudioImagePage.h"
 
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
@@ -626,16 +627,15 @@ void KisStudioLayout::createTopBar()
         d->brushValuesAction->setVisible(false);
     }
 
-    // shows the document's name, with every open document a click away
+    // the image's name, opening the images and what to do with them
     auto *documents = new QToolButton(mainWindow);
     documents->setObjectName(QStringLiteral("studio_documents"));
     documents->setAutoRaise(true);
     documents->setFocusPolicy(Qt::NoFocus);
     documents->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    documents->setPopupMode(QToolButton::InstantPopup);
-    documents->setToolTip(i18nc("@info:tooltip", "Open documents"));
+    documents->setToolTip(i18nc("@info:tooltip the image's name: a click shows the images and what to do with them", "Images"));
     documents->hide();
-    documents->setMenu(new QMenu(documents));
+    connect(documents, &QAbstractButton::clicked, this, [this, documents]() { KisStudioImagePage::open(d->mainWindow, mdiArea(), documents); });
     d->documentButton = documents;
 
     KisStudioGlass::setSeeThrough(bar, true);
@@ -650,12 +650,6 @@ void KisStudioLayout::createTopBar()
     KisStudioGlass::setSeeThrough(buttonsBar, true);
     d->buttonsBar = buttonsBar;
 
-    // placed on the window pill by placeWindowButtons()
-    auto *menuButton = new PillButton(QStringLiteral("studio_menu"), i18nc("@info:tooltip", "Menu"), mainWindow);
-    menuButton->setAccessibleName(i18nc("@action:button", "Menu"));
-    menuButton->hide();
-    connect(menuButton, &QAbstractButton::clicked, this, [this, menuButton]() { showMainMenu(menuButton); });
-    d->menuButton = menuButton;
 
     auto *settingsButton = new PillButton(QStringLiteral("studio_settings"), i18nc("@info:tooltip", "Settings\nRight-click: Quick"), mainWindow);
     settingsButton->hide();
@@ -828,55 +822,6 @@ void KisStudioLayout::openSettings(const QString &cardId, bool toggle)
     else d->settings->open(cardId);
 }
 
-void KisStudioLayout::showMainMenu(QWidget *button)
-{
-    // the most used file commands, then the menu bar's menus; rebuilt each time to pick up recent files
-    if (!d->mainMenu) d->mainMenu = new QMenu(d->mainWindow);
-    QMenu *menu = d->mainMenu;
-    menu->clear();
-    qDeleteAll(menu->findChildren<QMenu *>(QString(), Qt::FindDirectChildrenOnly));
-    KisKActionCollection *actions = d->mainWindow->actionCollection();
-    QSet<QAction *> shown;
-    auto add = [&](std::initializer_list<const char *> names) {
-        for (const char *name : names) {
-            if (QAction *action = actions->action(QLatin1String(name))) {
-                menu->addAction(action);
-                shown.insert(action);
-            }
-        }
-        menu->addSeparator();
-    };
-    add({"file_new", "file_open", "file_open_recent"});
-    add({"file_save", "file_save_as", "file_export_file"});
-    Q_FOREACH (QAction *top, d->mainWindow->menuBar()->actions()) {
-        if (!top->menu() || !top->isVisible() || !hasContent(top->menu())) continue;
-        if (top->menu()->objectName() != QLatin1String("file")) {
-            menu->addAction(top);
-            continue;
-        }
-        // File without the commands listed above it
-        QMenu *file = menu->addMenu(top->text());
-        bool separate = false;
-        Q_FOREACH (QAction *action, top->menu()->actions()) {
-            if (action->isSeparator()) {
-                separate = !file->isEmpty();
-            } else if (!shown.contains(action) && action->isVisible() && action->objectName() != QLatin1String("file_quit")) {
-                if (separate) file->addSeparator();
-                separate = false;
-                file->addAction(action);
-            }
-        }
-    }
-    menu->addSeparator();
-    add({"studio_gestures"});
-    add({"file_quit"});
-
-    // right-aligned under the button
-    const QSize size = menu->sizeHint();
-    const QPoint corner = button->mapToGlobal(QPoint(button->width(), button->height() + 4));
-    menu->popup(QPoint(corner.x() - size.width(), corner.y()));
-}
-
 void KisStudioLayout::placeWindowButtons()
 {
     // add each widget to the window pill's bar once
@@ -888,7 +833,6 @@ void KisStudioLayout::placeWindowButtons()
         if (d->windowBar) d->windowBar->addAction(widgetAction);
     };
     place(d->documentButton, d->documentButtonAction);
-    place(d->menuButton, d->menuButtonAction);
     place(d->settingsButton, d->settingsButtonAction);
     place(d->findField, d->findFieldAction);
     if (d->frame && d->frame->isEnabled() && !d->windowButtonsAction) {
@@ -1134,7 +1078,7 @@ void KisStudioLayout::peek(const QPoint &global)
                 d->topPill->place();
             } else if (widget == d->windowPill) {
                 // canvas-only mode hides its buttons and its bar
-                for (QAction *action : {d->menuButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
+                for (QAction *action : {d->documentButtonAction.data(), d->settingsButtonAction.data(), d->findFieldAction.data()}) {
                     if (action) action->setVisible(true);
                 }
                 if (d->windowButtonsAction) d->windowButtonsAction->setVisible(d->frame && d->frame->isEnabled());
