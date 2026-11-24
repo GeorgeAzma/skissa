@@ -656,7 +656,12 @@ protected:
 private:
     QRectF foregroundRect() const { return QRectF(3, 3, 26, 26); }
     QRectF backgroundRect() const { return QRectF(17, 17, 20, 20); }
-    bool onBackground(const QPoint &pos) const { return !foregroundRect().contains(pos) && backgroundRect().contains(pos); }
+    /// The circle a point is nearer, measured in each one's radii: the back one's crescent is all its own
+    bool onBackground(const QPoint &pos) const
+    {
+        auto reach = [pos](const QRectF &circle) { return QLineF(circle.center(), pos).length() / (circle.width() / 2); };
+        return reach(backgroundRect()) < reach(foregroundRect());
+    }
 
     bool m_pressed {false};
     QPoint m_pressAt;
