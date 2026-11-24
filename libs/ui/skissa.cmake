@@ -94,6 +94,7 @@ set(skissa_ui_SRCS
     widgets/KisStudioHistoryScrubber.cpp
     widgets/KisStudioGradientStrip.cpp
     KisStudioGradientDrag.cpp
+    KisStudioItemDrop.cpp
     KisPatternTint.cpp
     KisSelectionGestures.cpp
     KisStudioLayerStyles.cpp

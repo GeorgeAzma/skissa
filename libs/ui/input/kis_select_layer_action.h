@@ -8,6 +8,9 @@
 #define KIS_SELECT_LAYER_ACTION_H
 
 #include "kis_abstract_input_action.h"
+#include "kis_types.h"
+
+class KisCanvas2;
 
 /**
  * \brief Select Layer implementation of KisAbstractInputAction.
@@ -29,6 +32,9 @@ public:
         SelectionOverrideMode_Replace,
         SelectionOverrideMode_Add
     };
+
+    /// The layers that show near \p widgetPos on \p canvas, the one that shows most first: what a click there picks
+    static KisNodeList layersAt(KisCanvas2 *canvas, const QPointF &widgetPos);
 
     explicit KisSelectLayerAction();
     ~KisSelectLayerAction() override;

@@ -9,6 +9,7 @@
 #include "KisStudioLayout.h"
 #include "KisColorDrop.h"
 #include "KisStudioGradientDrag.h"
+#include "KisStudioItemDrop.h"
 #include "KisStudioSymbols.h"
 #include <KisProfile.h>
 
@@ -487,6 +488,13 @@ void KisView::dropEvent(QDropEvent *event)
     // a symbol from the shape tool's picker, where it is dropped
     if (KisStudioSymbols::carriesSymbol(event->mimeData())) {
         KisStudioSymbols::drop(this, event->mimeData(), event->pos());
+        event->acceptProposedAction();
+        return;
+    }
+
+    // an effect onto the layer it lands on, a brush to paint with
+    if (KisStudioItemDrop::carries(event->mimeData())) {
+        KisStudioItemDrop::dropOnCanvas(this, event->mimeData(), canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
         event->acceptProposedAction();
         return;
     }
@@ -1517,6 +1525,7 @@ bool KisView::shouldAcceptDrag(const QDropEvent *event) const
             || data->hasFormat("krita/x-colorsetentry")
             || data->hasColor()
             || KisStudioSymbols::carriesSymbol(data)
-            || KisStudioGradientDrag::carries(data);
+            || KisStudioGradientDrag::carries(data)
+            || KisStudioItemDrop::carries(data);
     }
 }

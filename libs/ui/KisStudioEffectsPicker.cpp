@@ -255,6 +255,8 @@ KisStudioPicker::Source effectsSource(KisMainWindow *mainWindow, std::shared_ptr
 
     KisStudioPicker::Source source;
     source.pinnedKey = QStringLiteral("StudioEffects");
+    // dragged out onto the canvas or a layer, it opens there
+    source.dragKey = QStringLiteral("effect:");
     replaceRetiredFavorites(source.pinnedKey);
     source.initialPinned = defaultEffects;
     source.groupsKey = QStringLiteral("StudioEffectGroups");

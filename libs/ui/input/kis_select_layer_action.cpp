@@ -169,7 +169,11 @@ public:
     /// order they stack
     KisNodeList stackAt(const QPointF &widgetPos) const
     {
-        KisCanvas2 *canvas = q->inputManager()->canvas();
+        return stackAt(q->inputManager()->canvas(), widgetPos);
+    }
+
+    static KisNodeList stackAt(KisCanvas2 *canvas, const QPointF &widgetPos)
+    {
         if (!canvas || !canvas->image()) return KisNodeList();
         const KisCoordinatesConverter *converter = canvas->coordinatesConverter();
         const QPointF at = converter->widgetToImage(widgetPos);
@@ -303,6 +307,11 @@ public:
         selectNodes(nodesToSelect, selectionOverrideMode, true);
     }
 };
+
+KisNodeList KisSelectLayerAction::layersAt(KisCanvas2 *canvas, const QPointF &widgetPos)
+{
+    return Private::stackAt(canvas, widgetPos);
+}
 
 KisSelectLayerAction::KisSelectLayerAction()
     : KisAbstractInputAction("Select Layer")

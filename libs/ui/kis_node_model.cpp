@@ -6,6 +6,8 @@
  */
 #include "kis_node_model.h"
 #include "KisColorDrop.h"
+#include "KisStudioItemCard.h"
+#include "KisStudioItemDrop.h"
 #include <KoColor.h>
 
 #include <iostream>
@@ -803,6 +805,7 @@ QStringList KisNodeModel::mimeTypes() const
     types << QLatin1String("application/x-qt-image");
     types << QLatin1String("application/x-color");
     types << QLatin1String("krita/x-colorsetentry");
+    types << KisStudioShortcuts::itemMimeType();
     return types;
 }
 
@@ -839,6 +842,16 @@ bool KisNodeModel::dropMimeData(const QMimeData * data, Qt::DropAction action, i
             return true;
         }
     }
+
+    // an effect dropped onto a layer opens on it; anywhere else it has nothing to act on
+    const QString effect = KisStudioItemDrop::effectOf(data);
+    if (!effect.isEmpty()) {
+        KisNodeSP node = row == -1 && parent.isValid() ? nodeFromIndex(parent) : KisNodeSP();
+        if (!KisStudioItemDrop::takesEffect(node)) return false;
+        KisStudioItemDrop::applyEffect(node, effect);
+        return true;
+    }
+    if (data->hasFormat(KisStudioShortcuts::itemMimeType())) return false;
 
     bool copyNode = (action == Qt::CopyAction);
 
@@ -890,6 +903,19 @@ void KisNodeModel::setDropEnabled(const QMimeData *data) {
     m_d->dropEnabled.clear();
     updateDropEnabled(nodes);
     if (KisColorDrop::carriesColor(data)) updateColorDropEnabled();
+    if (!KisStudioItemDrop::effectOf(data).isEmpty()) updateEffectDropEnabled();
+}
+
+void KisNodeModel::updateEffectDropEnabled(QModelIndex parent)
+{
+    for (int r = 0; r < rowCount(parent); r++) {
+        const QModelIndex idx = index(r, 0, parent);
+        if (KisStudioItemDrop::takesEffect(nodeFromIndex(idx))) {
+            m_d->dropEnabled.insert(idx.internalId());
+            Q_EMIT dataChanged(idx, idx);
+        }
+        if (hasChildren(idx)) updateEffectDropEnabled(idx);
+    }
 }
 
 void KisNodeModel::updateColorDropEnabled(QModelIndex parent)
