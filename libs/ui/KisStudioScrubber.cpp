@@ -340,7 +340,7 @@ void KisStudioScrubber::mouseMoveEvent(QMouseEvent *event)
     const qreal dx = (eventX(event) - m_pressX) * (fine ? KisValueSteps::fine : 1.0);
     const qreal before = m_value;
     if (m_kind == Kind::Size) {
-        m_value = bounded(KisValueSteps::draggedBy(m_pressValue, dx, 0, true, qMax<qreal>(m_minimum, 1)));
+        m_value = bounded(KisValueSteps::sizeLanded(KisValueSteps::draggedBy(m_pressValue, dx, 0, true, qMax<qreal>(m_minimum, 1))));
     } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
         // whole pixels
         m_value = bounded(qRound(KisValueSteps::draggedBy(m_pressValue, dx, usualAmount, false)));
@@ -359,7 +359,10 @@ void KisStudioScrubber::mouseReleaseEvent(QMouseEvent *event)
         QWidget::mouseReleaseEvent(event);
         return;
     }
+    // a click types the value; the second click of a double click finds it already open
+    const bool clicked = !m_moved && rect().contains(event->pos());
     endDrag();
+    if (clicked && !(m_editor && m_editor->isVisible())) startTyping();
 }
 
 void KisStudioScrubber::endDrag()
@@ -373,10 +376,11 @@ void KisStudioScrubber::endDrag()
     }
 }
 
-void KisStudioScrubber::mouseDoubleClickEvent(QMouseEvent *)
+void KisStudioScrubber::startTyping()
 {
     // typed where the number is written
-    const QString shown = text().remove(QLatin1Char('%'));
+    const bool named = (m_kind == Kind::Grow || m_kind == Kind::Soft) && qRound(m_value) == 0;
+    const QString shown = named ? QStringLiteral("0") : text().remove(QLatin1Char('%')).replace(QChar(0x2212), QLatin1Char('-')).remove(QLatin1Char('+'));
     const QRect at(8 + iconSize + 6, 0, fontMetrics().horizontalAdvance(text()), height());
     m_editor = KisStudioInlineEdit::open(this, at, shown, Qt::AlignLeft, font(), [this](const QString &typed) {
         bool ok = false;
@@ -409,7 +413,7 @@ void KisStudioScrubber::wheelEvent(QWheelEvent *event)
         return;
     }
     if (m_kind == Kind::Size) {
-        commit(KisValueSteps::turnedBy(m_value, steps, 0, true, qMax<qreal>(m_minimum, 1)));
+        commit(KisValueSteps::sizeLanded(KisValueSteps::turnedBy(m_value, steps, 0, true, qMax<qreal>(m_minimum, 1))));
     } else if (m_kind == Kind::Grow || m_kind == Kind::Soft) {
         // whole pixels, at least one a notch, shown and previewed as a drag is until the wheel rests
         if (!m_turning) {

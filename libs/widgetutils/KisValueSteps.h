@@ -60,6 +60,14 @@ inline double turnedBy(double value, double notches, double range, bool size, do
     return value + notches / notchesPerRange * range;
 }
 
+/// A brush size as a drag or the wheel should leave it: whole from 5 up, halves from 2, tenths from 1. Each step is
+/// under a notch of the wheel, so turning never sticks.
+inline double sizeLanded(double size)
+{
+    const double step = size >= 5 ? 1.0 : size >= 2 ? 0.5 : size >= 1 ? 0.1 : 0.0;
+    return step > 0 ? std::round(size / step) * step : size;
+}
+
 /// \p text without the zeros ending its decimals: "192" for "192.00", "0.5" for "0.50"
 inline QString withoutTrailingZeros(QString text, QChar decimalPoint = QLatin1Char('.'))
 {

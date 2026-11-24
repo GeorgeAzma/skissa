@@ -66,7 +66,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
-    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void startTyping();
     void wheelEvent(QWheelEvent *event) override;
     bool event(QEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
