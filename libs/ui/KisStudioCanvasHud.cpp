@@ -426,6 +426,16 @@ KisStudioCanvasHud::KisStudioCanvasHud(KisMainWindow *mainWindow)
         KisStudioPeek::setSquint(view ? view->canvasBase() : nullptr, on);
     });
     KisStudioPeek::springBack(squint);
+    // the whole picture, upright, in one key
+    auto *fit = new QAction(i18nc("@action fit the image in the view and turn it upright", "Fit and straighten"), mainWindow);
+    fit->setObjectName(QStringLiteral("studio_fit_view"));
+    fit->setShortcutContext(Qt::WindowShortcut);
+    KisStudioShortcuts::restore(fit);
+    mainWindow->actionCollection()->addAction(fit->objectName(), fit);
+    connect(fit, &QAction::triggered, this, [this]() {
+        d->trigger("reset_canvas_rotation");
+        d->trigger("zoom_to_fit");
+    });
     d->valueView = valueView;
     d->value = hudButton(this);
     d->value->setDefaultAction(valueView);

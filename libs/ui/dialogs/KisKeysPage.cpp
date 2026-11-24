@@ -1624,7 +1624,22 @@ KisKeysPage::KisKeysPage(QWidget *parent)
         d->filter();
         int count = 0;
         if (d->keyFilter && d->usesOn(chord, &count).isEmpty()) {
-            d->showNote(i18nc("@info keys page", "%1 is free", KisModernStyle::keyCapText(QKeySequence(chord))));
+            const QString cap = KisModernStyle::keyCapText(QKeySequence(chord));
+            d->showNote(i18nc("@info keys page", "%1 is free", cap));
+            // a free key: choose what it does
+            KisStudioFind *find = d->mainWindow ? d->mainWindow->studioFind() : nullptr;
+            if (find && !isModifierKey(chord)) {
+                QPointer<KisKeysPage> page = this;
+                find->pick(i18nc("@info:placeholder choosing a command for a key", "%1 does…", cap), [page, find, chord](const QString &key) {
+                    KisStudioFind::Item item;
+                    if (!page || !find->item(key, &item) || !item.action) return;
+                    for (int row = 0; row < page->d->commands.size(); row++) {
+                        if (page->d->commands[row].action != item.action) continue;
+                        page->d->assignCommand(row, -1, QKeySequence(chord));
+                        break;
+                    }
+                }, QStringLiteral("action:"));
+            }
         }
     };
     d->map->dropped = [this](const QMimeData *mime, int chord) {

@@ -5,6 +5,8 @@
  */
 #include "KisStudioToolRail.h"
 
+#include <algorithm>
+#include <functional>
 #include <KisModernStyle.h>
 #include "KisStudioTools.h"
 #include "KisSuperellipse.h"
@@ -230,6 +232,8 @@ public:
     std::function<void(int steps)> onWheel;
     bool hasVariants {false};
     QPointer<QAction> shortcutAction;
+    /// The number key for its place on the rail, shown when it has no key of its own
+    std::function<QAction *()> placeAction;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
@@ -294,8 +298,9 @@ protected:
             const QPointF corner(width() - 5, 5);
             painter.drawPolygon(QPolygonF() << corner << corner - QPointF(5, 0) << corner + QPointF(0, 5));
         }
-        if (shortcutAction && !shortcutAction->shortcut().isEmpty()) {
-            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::cornerBadgeText(shortcutAction->shortcut()), palette());
+        QAction *keyed = shortcutAction && !shortcutAction->shortcut().isEmpty() ? shortcutAction.data() : (placeAction ? placeAction() : nullptr);
+        if (keyed && !keyed->shortcut().isEmpty()) {
+            KisStudioShortcuts::paintBadge(painter, rect(), KisStudioShortcuts::cornerBadgeText(keyed->shortcut()), palette());
         }
     }
 
@@ -697,10 +702,8 @@ struct KisStudioToolRail::Private
         if (mode == BrushMode::Paint) {
             return toolAction(currentTool.value(slotId));
         }
-        const QKeySequence key = slotId == QLatin1String("move") ? QKeySequence(Qt::Key_T)
-                               : slotId == QLatin1String("fill") ? QKeySequence(Qt::Key_F) : QKeySequence();
         return ownAction(slotPrefix + slotId, QStringLiteral("studio_slot_") + slotId, slots.value(slotId).title,
-                         [this, slotId]() { q->activateSlot(slotId); }, key);
+                         [this, slotId]() { q->activateSlot(slotId); }, QKeySequence());
     }
 
     /// The action whose shortcut a button shows and the card edits
@@ -1376,6 +1379,8 @@ void KisStudioToolRail::rebuild()
         button->setAccessibleName(title);
         button->hasVariants = variants;
         button->shortcutAction = d->shortcutActionFor(key);
+        const int place = int(std::count_if(d->widgets.begin(), d->widgets.end(), [](QWidget *w) { return dynamic_cast<RailButton *>(w); })) + 1;
+        button->placeAction = [this, place]() { return place <= d->railKeys.size() ? d->railKeys[place - 1].data() : nullptr; };
         button->onCard = [this, index](bool touch) { showCard(index, touch); };
         button->onDrag = [this, index, icon]() { startDrag(index, icon.pixmap(32, 32)); };
         connect(button, &QToolButton::clicked, this, [this, index]() { runItem(index); });

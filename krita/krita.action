@@ -232,6 +232,16 @@
       <isCheckable>true</isCheckable>
       <statusTip/>
     </Action>
+    <Action name="studio_fit_view">
+      <icon/>
+      <text>Fit and straighten</text>
+      <whatsThis/>
+      <toolTip>Fit and straighten</toolTip>
+      <iconText>Fit</iconText>
+      <shortcut>F</shortcut>
+      <isCheckable>false</isCheckable>
+      <statusTip/>
+    </Action>
     <Action name="studio_rail_1">
       <icon/>
       <text>Tool 1</text>

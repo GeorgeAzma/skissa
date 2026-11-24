@@ -169,7 +169,7 @@ Proposed and not built yet; build from the top when there is nothing else, remov
 - **Patterns the same way:** tiles dragged onto the canvas, a selection or a layer (a pattern fill layer); scale, turn and shift with on-canvas handles; a Tint switch that paints the pattern in the current color, its lightness as coverage.
 - **Text tool redesign:** Krita's tool with a QML options page; large. Wanted: minimal, direct, Skissa-like.
 - **Selections:** one Select tool chosen by gesture (freehand lasso, clicked polygon, rough box or circle snapping clean, a tap for similar color); a dimmed outside instead of marching ants; handles to edit it until it is used; dragging inside moves its pixels; its edge flashes when painting outside it does nothing. Magnetic selection replaced by a lasso that follows edges: a soft band around the pointer (pressure or wheel sets its width) where the line takes the strongest edge live, drawing back erases, letting go closes along edges, no edge means the line stays where drawn; plus "Snap to edges" on any selection.
-- **Shortcuts:** keys offered on a command's card once it is used often; about 15 left-hand defaults; no three-modifier chords.
+- **Shortcuts:** a free left-hand key offered on a command's card once it is used often.
 - **Layer styles redesign.**
 - **Perspective from two lines** drawn along edges in a photo.
 - **Time-lapse export:** lossless and frames.

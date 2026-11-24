@@ -435,7 +435,7 @@ void KisActionRegistry::Private::loadActionFiles()
 #else
                         QString shortcutText = getChildContentForOS(actionXml, "shortcut");
 #endif
-                        if (skissaDefaultShortcuts().contains(name)) {
+                        if (!skissaKeepsKritaKeys(QFileInfo(actionDefinition).fileName())) {
                             shortcutText = skissaDefaultShortcuts().value(name);
                         }
                         if (!shortcutText.isEmpty()) {
