@@ -17,6 +17,7 @@
 #include <klocalizedstring.h>
 
 #include <KisModernStyle.h>
+#include <KisStudioLayerStyles.h>
 #include <kis_clipboard.h>
 #include <kis_icon.h>
 #include <kis_layer.h>
@@ -180,6 +181,36 @@ private:
     bool m_current {false};
 };
 
+/// A layer style as its little drawing, full ink while the layer has it
+class StyleMark : public Flat
+{
+public:
+    StyleMark(int kind, bool on, QWidget *parent)
+        : Flat(parent)
+        , m_kind(kind)
+        , m_on(on)
+    {
+        setFixedHeight(26);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMinimumWidth(20);
+        setToolTip(KisStudioLayerStyles::nameOf(kind));
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        const qreal side = 20;
+        QRectF mark(0, 0, side, side);
+        mark.moveCenter(QRectF(rect()).center());
+        KisStudioLayerStyles::paintMark(&painter, mark, m_kind, inkAt(this, m_on ? 1.0 : underMouse() ? 0.6 : 0.35));
+    }
+
+private:
+    int m_kind;
+    bool m_on;
+};
+
 }
 
 struct LayerCard::Private
@@ -254,6 +285,26 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
             labels->addWidget(label);
         }
         layout->addLayout(labels);
+
+        // its styles, each opening beside the card, turned on
+        if (KisLayerSP layer = qobject_cast<KisLayer *>(node.data())) {
+            auto *styles = new QHBoxLayout();
+            styles->setSpacing(0);
+            const QVector<int> shown = KisStudioLayerStyles::shownOn(layer);
+            for (int kind = 0; kind < KisStudioLayerStyles::kindCount(); kind++) {
+                auto *mark = new StyleMark(kind, shown.contains(kind), this);
+                connect(mark, &QAbstractButton::clicked, this, [this, layer, kind]() {
+                    QPointer<LayerBox> box = d->box;
+                    const QPoint at = mapToGlobal(QPoint(shadowMargin(), shadowMargin()));
+                    close();
+                    QTimer::singleShot(0, [box, layer, kind, at]() {
+                        if (box && box->m_canvas) KisStudioLayerStyles::open(box->m_canvas->viewManager(), layer, kind, at);
+                    });
+                });
+                styles->addWidget(mark);
+            }
+            layout->addLayout(styles);
+        }
 
         auto *line = new QWidget(this);
         line->setFixedHeight(1);
@@ -336,9 +387,6 @@ LayerCard::LayerCard(LayerBox *box, KisNodeSP node)
         });
     } else {
         addRow(QStringLiteral("studio_select"), i18nc("@action:button a layer's command", "Select its pixels"), nullptr, trigger(QStringLiteral("selectopaque")));
-    }
-    if (qobject_cast<KisLayer *>(node.data())) {
-        addRow(QStringLiteral("studio_effects"), i18nc("@action:button a layer's command", "Style"), nullptr, trigger(QStringLiteral("layer_style")));
     }
     if (node) addRow(QStringLiteral("studio_more"), i18nc("@action:button a layer's menu", "More"), [this](QMenu *menu) {
         LayerBox *box = d->box;

@@ -9,7 +9,9 @@
 #include <QCursor>
 #include <QGridLayout>
 #include <QPainter>
+#include <QLinearGradient>
 #include <QPainterPath>
+#include <QRadialGradient>
 #include <QPointer>
 #include <QTimer>
 #include <QToolButton>
@@ -25,6 +27,7 @@
 #include <commands_new/kis_set_layer_style_command.h>
 #include <kis_action.h>
 #include <kis_action_manager.h>
+#include <kis_icon_utils.h>
 #include <kis_post_execution_undo_adapter.h>
 #include <kis_canvas_resource_provider.h>
 #include <kis_image.h>
@@ -184,7 +187,8 @@ public:
         bottom->addStretch(1);
         auto *more = new QToolButton(this);
         more->setAutoRaise(true);
-        more->setText(i18nc("@action:button every layer style setting, in Krita's dialog", "More…"));
+        more->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_more")));
+        more->setToolTip(i18nc("@info:tooltip every layer style setting, in Krita's dialog", "Every setting"));
         connect(more, &QToolButton::clicked, this, [this]() {
             QPointer<KisViewManager> view = m_view;
             close();
@@ -219,6 +223,18 @@ public:
         if (!image) return;
         KisPSDLayerStyleSP after = m_style->cloneWithResourcesSnapshot(KisGlobalResourcesInterface::instance(), m_resources);
         image->postExecutionUndoAdapter()->addCommand(toQShared(new KisSetLayerStyleCommand(m_layer, m_before, after)));
+    }
+
+    /// Chooses \p kind, turning it on
+    void choose(int kind)
+    {
+        if (kind < 0 || kind >= kinds().size()) return;
+        if (kinds()[kind].of(m_style.data())->effectEnabled() && m_style->isEnabled()) {
+            m_kind = kind;
+            showValues();
+        } else {
+            pressTile(kind);
+        }
     }
 
 private:
@@ -322,11 +338,98 @@ private:
 };
 } // namespace
 
-bool KisStudioLayerStyles::open(KisViewManager *viewManager, KisLayerSP layer)
+bool KisStudioLayerStyles::open(KisViewManager *viewManager, KisLayerSP layer, int kind, const QPoint &at)
 {
     if (classic || !viewManager || !layer || !KisStudioLayout::isEnabledInConfig() || !viewManager->canvasBase()) return false;
     auto *popup = new StylesPopup(viewManager, layer, viewManager->mainWindowAsQWidget());
+    popup->choose(kind);
     popup->adjustSize();
-    popup->popupAt(QCursor::pos());
+    popup->popupAt(at.isNull() ? QCursor::pos() : at);
     return true;
+}
+
+QVector<int> KisStudioLayerStyles::shownOn(KisLayerSP layer)
+{
+    QVector<int> shown;
+    KisPSDLayerStyleSP style = layer ? layer->layerStyle() : KisPSDLayerStyleSP();
+    if (!style || !style->isEnabled()) return shown;
+    const QVector<Kind> all = kinds();
+    for (int i = 0; i < all.size(); i++) {
+        if (all[i].of(style.data())->effectEnabled()) shown << i;
+    }
+    return shown;
+}
+
+int KisStudioLayerStyles::kindCount()
+{
+    return kinds().size();
+}
+
+QString KisStudioLayerStyles::nameOf(int kind)
+{
+    const QVector<Kind> all = kinds();
+    return kind >= 0 && kind < all.size() ? all[kind].name : QString();
+}
+
+void KisStudioLayerStyles::paintMark(QPainter *painter, const QRectF &rect, int kind, const QColor &ink)
+{
+    // a small square of paint with the style on it
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+    const qreal side = qMin(rect.width(), rect.height());
+    const QRectF box = QRectF(rect.center() - QPointF(side, side) * 0.32, QSizeF(side, side) * 0.64);
+    const qreal radius = side * 0.16;
+    QColor faint = ink;
+    faint.setAlphaF(ink.alphaF() * 0.35);
+    QColor solid = ink;
+    solid.setAlphaF(ink.alphaF() * 0.85);
+    const QPainterPath shape = KisModernStyle::squircle(box, radius);
+    switch (kind) {
+    case 0: // shadow: cast down and right
+        painter->fillPath(KisModernStyle::squircle(box.translated(side * 0.14, side * 0.14), radius), faint);
+        painter->fillPath(shape, solid);
+        break;
+    case 1: { // glow: a halo around
+        QRadialGradient halo(box.center(), side * 0.5);
+        halo.setColorAt(0.55, faint);
+        QColor none = ink;
+        none.setAlpha(0);
+        halo.setColorAt(1.0, none);
+        painter->fillRect(rect, halo);
+        painter->fillPath(KisModernStyle::squircle(box.adjusted(side * 0.06, side * 0.06, -side * 0.06, -side * 0.06), radius), solid);
+        break;
+    }
+    case 2: // outline: a ring
+        painter->setPen(QPen(solid, qMax(1.2, side * 0.1)));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(shape);
+        break;
+    case 3: { // inner shadow: darker inside the top left edges
+        painter->fillPath(shape, faint);
+        painter->setClipPath(shape);
+        painter->fillPath(KisModernStyle::squircle(box.translated(side * 0.12, side * 0.12), radius), solid);
+        break;
+    }
+    case 4: { // inner glow: light along the edges inside
+        QRadialGradient inside(box.center(), side * 0.42);
+        QColor none = ink;
+        none.setAlpha(0);
+        inside.setColorAt(0.3, none);
+        inside.setColorAt(1.0, solid);
+        painter->fillPath(shape, inside);
+        painter->setPen(QPen(faint, 1));
+        painter->drawPath(shape);
+        break;
+    }
+    default: { // bevel: lit from the top left
+        QLinearGradient lit(box.topLeft(), box.bottomRight());
+        lit.setColorAt(0.0, faint);
+        lit.setColorAt(0.49, faint);
+        lit.setColorAt(0.51, solid);
+        lit.setColorAt(1.0, solid);
+        painter->fillPath(shape, lit);
+        break;
+    }
+    }
+    painter->restore();
 }

@@ -49,6 +49,9 @@ typedef KisBaseNode::Property* OptionalProperty;
 
 #include <kis_base_node.h>
 #include <KisModernStyle.h>
+#include <KisStudioLayerStyles.h>
+#include <KisViewManager.h>
+#include <kis_layer.h>
 
 class NodeDelegate::Private
 {
@@ -553,6 +556,34 @@ QRect NodeDelegate::textRect(const QStyleOptionViewItem &option, const QModelInd
     return rc;
 }
 
+QVector<QPair<int, QRect>> NodeDelegate::styleMarks(const QStyleOptionViewItem &option, const QModelIndex &index, const QFontMetrics &metrics) const
+{
+    QVector<QPair<int, QRect>> marks;
+    KisLayerSP layer = qobject_cast<KisLayer *>(nodeOf(index).data());
+    const QVector<int> kinds = KisStudioLayerStyles::shownOn(layer);
+    if (kinds.isEmpty()) return marks;
+    KisNodeViewColorScheme scm;
+    QRect rc = textRect(option, index).adjusted(scm.textMargin(), 0, -scm.textMargin(), 0);
+    if (!isTall() && holdsControls(d->view, index)) {
+        // the current row's controls take the line's end: the marks stay clear of them
+        const QRect controls = inlineControlsRect(index, option.rect, option.direction);
+        if (option.direction == Qt::RightToLeft) rc.setLeft(qMax(rc.left(), controls.right() + 1 + KisModernStyle::space1));
+        else rc.setRight(qMin(rc.right(), controls.left() - 1 - KisModernStyle::space1));
+    }
+    const int side = qMin(16, metrics.height());
+    const int step = side + KisModernStyle::hairline;
+    const int width = kinds.size() * step;
+    // right after the name, which gives up room for them
+    const int nameWidth = metrics.horizontalAdvance(index.data(Qt::DisplayRole).toString());
+    const int offset = qMax(0, qMin(nameWidth + KisModernStyle::space1, rc.width() - width));
+    const int top = isTall() ? lineOf(option.rect, d->rowHeight, metrics.height(), 0).center().y() - side / 2 : rc.center().y() - side / 2;
+    for (int i = 0; i < kinds.size(); i++) {
+        const int x = option.direction == Qt::RightToLeft ? rc.right() + 1 - offset - (i + 1) * step : rc.left() + offset + i * step;
+        marks.append({kinds[i], QRect(x, top, side, side)});
+    }
+    return marks;
+}
+
 void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     KisNodeViewColorScheme scm;
@@ -573,8 +604,13 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
     if (d->edit && d->edit->isVisible() && d->view->indexWidget(index) == d->edit) text.clear();
     const Qt::Alignment start = option.direction == Qt::RightToLeft ? Qt::AlignRight : Qt::AlignLeft;
     const bool controls = holdsControls(d->view, index);
+    const QVector<QPair<int, QRect>> marks = styleMarks(option, index, p->fontMetrics());
+    const int marksWidth = marks.isEmpty() ? 0 : marks.size() * (marks.first().second.width() + KisModernStyle::hairline) + KisModernStyle::space1;
+    for (const auto &mark : marks) {
+        KisStudioLayerStyles::paintMark(p, mark.second, mark.first, KisModernStyle::secondaryInk(option.palette.color(QPalette::Text)));
+    }
     if (isTall()) {
-        p->drawText(rc, start | Qt::AlignVCenter, p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width()));
+        p->drawText(rc, start | Qt::AlignVCenter, p->fontMetrics().elidedText(text, Qt::ElideRight, rc.width() - marksWidth));
         // the blend mode and opacity on the second line, where the current layer has its controls instead
         QString mode;
         const int opacity = opacityPercentOf(index);
@@ -625,7 +661,7 @@ void NodeDelegate::drawText(QPainter *p, const QStyleOptionViewItem &option, con
         const int nameWidth = p->fontMetrics().horizontalAdvance(text);
         const int fullInfo = info.isEmpty() ? 0 : p->fontMetrics().horizontalAdvance(info) + scm.textMargin() * 2;
         const int infoWidth = qMax(0, qMin(fullInfo, qMax(rc.width() - nameWidth, rc.width() / 2)));
-        const QString name = p->fontMetrics().elidedText(text, Qt::ElideRight, qMax(0, rc.width() - infoWidth));
+        const QString name = p->fontMetrics().elidedText(text, Qt::ElideRight, qMax(0, rc.width() - infoWidth - marksWidth));
         const Qt::Alignment end = option.direction == Qt::RightToLeft ? Qt::AlignLeft : Qt::AlignRight;
         p->drawText(rc, start | Qt::AlignVCenter, name);
         if (!info.isEmpty()) {
@@ -1374,6 +1410,18 @@ bool NodeDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, const Q
             (index.data(KisNodeModel::FilterMaskColorRole).isNull() == false) &&
             filterRect.isValid() &&
             filterRect.contains(mouseEvent->pos());
+
+        // a style's mark opens the styles beside the row, that style chosen
+        if (leftButton && event->type() == QEvent::MouseButtonPress && mouseEvent->modifiers() == Qt::NoModifier) {
+            for (const auto &mark : styleMarks(option, index, option.fontMetrics)) {
+                if (!mark.second.adjusted(-1, -2, 1, 2).contains(mouseEvent->pos())) continue;
+                KisLayerSP layer = qobject_cast<KisLayer *>(nodeOf(index).data());
+                KisMainWindow *window = KisPart::instance()->currentMainwindow();
+                const QPoint at = d->view->viewport()->mapToGlobal(QPoint(option.rect.right() + KisModernStyle::space2, option.rect.top()));
+                if (layer && window) KisStudioLayerStyles::open(window->viewManager(), layer, mark.first, at);
+                return true;
+            }
+        }
 
         // an effect's row opens its settings, double-clicked anywhere but on its switches
         KisNodeSP clicked = event->type() == QEvent::MouseButtonDblClick ? nodeOf(index) : KisNodeSP();

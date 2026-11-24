@@ -84,6 +84,8 @@ private:
     QRect iconsRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
     QRect textRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void drawText(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
+    /// The layer's styles as little marks after its name: each style's kind and place
+    QVector<QPair<int, QRect>> styleMarks(const QStyleOptionViewItem &option, const QModelIndex &index, const QFontMetrics &metrics) const;
     void drawIcons(QPainter *p, const QStyleOptionViewItem &option, const QModelIndex &index) const;
 
     QRect visibilityClickRect(const QStyleOptionViewItem &option, const QModelIndex &index) const;
