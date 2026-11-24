@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioLayout.h"
+#include "KisStudioCommandPreview.h"
 #include "KisStudioLayout_p.h"
 
 #include <kis_selection.h>
@@ -288,6 +289,7 @@ void KisStudioLayout::enter()
 {
     // what is arranged on the way in (a first start's places) is where undo stops
     QTimer::singleShot(0, this, []() { committedStore() = arrangementNow(); });
+    KisStudioCommandPreview::install();
     KisMainWindow *mainWindow = d->mainWindow;
     // the pills and panels live in the main window's canvas area
     mainWindow->setCanvasDetached(false);
