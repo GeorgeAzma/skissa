@@ -149,6 +149,8 @@ struct KisFreeTransformStrategy::Private
     QPolygonF clickQuad;
     QPolygonF clickSource;
     KisTransformPerspective::Catcher catcher;
+    /// The lines a moved picture lined up with, shown while it is dragged
+    QVector<QLineF> caughtLines;
     bool showVanishing {false};
 
     // corners being placed on something seen at an angle, over the image as it was
@@ -520,6 +522,15 @@ void KisFreeTransformStrategy::paint(QPainter &gc, const KoColorDisplayRendererI
         gc.restore();
     };
 
+    if (!m_d->caughtLines.isEmpty()) {
+        gc.save();
+        for (int i = 1; i >= 0; --i) {
+            gc.setPen(pen[i]);
+            for (const QLineF &line : qAsConst(m_d->caughtLines)) gc.drawLine(m_d->imageToFlake.map(line));
+        }
+        gc.restore();
+    }
+
     if (m_d->flattenIsCurrent()) {
         const QPolygonF &quad = m_d->flatten.quad;
         QPainterPath path;
@@ -654,6 +665,7 @@ bool KisFreeTransformStrategy::beginPrimaryAction(const QPointF &pt)
     case TOPRIGHTSCALE:
     case BOTTOMLEFTSCALE:
     case BOTTOMRIGHTSCALE:
+    case MOVE:
         m_d->catcher.collect(m_d->snapGuide, m_d->transaction, m_d->converter);
         break;
     case FLATTENCORNER:
@@ -742,6 +754,15 @@ void KisFreeTransformStrategy::continuePrimaryAction(const QPointF &mousePos,
             diff = t.map(originalDiff);
 
         }
+        // its sides and middle line up with the canvas's and other layers'; Alt moves freely
+        const bool hadLines = !m_d->caughtLines.isEmpty();
+        if (!altModifierActive) {
+            const qreal radius = KisTransformUtils::effectiveHandleGrabRadius(m_d->converter);
+            diff = m_d->catcher.move(m_d->clickQuad.boundingRect(), diff, radius, &m_d->caughtLines);
+        } else {
+            m_d->caughtLines.clear();
+        }
+        if (hadLines || !m_d->caughtLines.isEmpty()) Q_EMIT requestCanvasUpdate();
 
         m_d->currentArgs.setTransformedCenter(m_d->clickArgs.transformedCenter() + diff);
 
@@ -1135,6 +1156,10 @@ void KisFreeTransformStrategy::continuePrimaryAction(const QPointF &mousePos,
 bool KisFreeTransformStrategy::endPrimaryAction()
 {
     m_d->catcher.clear();
+    if (!m_d->caughtLines.isEmpty()) {
+        m_d->caughtLines.clear();
+        Q_EMIT requestCanvasUpdate();
+    }
 
     // once all four corners are placed, the image is shown straight on
     if (m_d->function == FLATTENCORNER && m_d->flattenIsCurrent()) {

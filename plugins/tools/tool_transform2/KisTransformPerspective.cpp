@@ -294,6 +294,36 @@ void Catcher::clear()
     m_points.clear();
     m_lines.clear();
     m_vanishing.clear();
+    m_xs.clear();
+    m_ys.clear();
+    m_canvas = QRectF();
+}
+
+QPointF Catcher::move(const QRectF &box, const QPointF &offset, qreal radius, QVector<QLineF> *shown) const
+{
+    shown->clear();
+    const QRectF moved = box.translated(offset);
+    // the nearest of the box's own lines to any target: how far to shift, and whether one was near
+    auto nearest = [radius](const QVector<qreal> &targets, std::initializer_list<qreal> own, qreal *line, qreal *shift) {
+        qreal best = radius;
+        for (qreal at : own) {
+            for (qreal target : targets) {
+                if (qAbs(target - at) < best) {
+                    best = qAbs(target - at);
+                    *shift = target - at;
+                    *line = target;
+                }
+            }
+        }
+        return best < radius;
+    };
+    qreal x = 0, y = 0, dx = 0, dy = 0;
+    const bool caughtX = nearest(m_xs, {moved.left(), moved.center().x(), moved.right()}, &x, &dx);
+    const bool caughtY = nearest(m_ys, {moved.top(), moved.center().y(), moved.bottom()}, &y, &dy);
+    const QRectF span = m_canvas.united(moved.translated(dx, dy));
+    if (caughtX) shown->append(QLineF(x, span.top(), x, span.bottom()));
+    if (caughtY) shown->append(QLineF(span.left(), y, span.right(), y));
+    return offset + QPointF(dx, dy);
 }
 
 void Catcher::collect(KoSnapGuide *snapGuide, const TransformTransactionProperties &transaction, const KisCoordinatesConverter *converter)
@@ -310,7 +340,10 @@ void Catcher::collect(KoSnapGuide *snapGuide, const TransformTransactionProperti
             m_points << corners[i];
             if (edges) m_lines << QLineF(corners[i], corners[(i + 1) % 4]);
         }
+        m_xs << rect.left() << rect.center().x() << rect.left() + rect.width();
+        m_ys << rect.top() << rect.center().y() << rect.top() + rect.height();
     };
+    m_canvas = image->bounds();
     addRect(image->bounds(), true);
 
     const KisNodeList moving = transaction.rootNodes();

@@ -66,7 +66,17 @@ public:
      */
     QPointF corner(const QPointF &pos, qreal radius, const QVector<QPointF> &neighbours) const;
 
+    /**
+     * \p box moved by \p offset, its sides or middle caught within \p radius on
+     * the canvas's and the other layers' sides and middles: the offset to use;
+     * \p shown gets the lines it was caught on, across the canvas.
+     */
+    QPointF move(const QRectF &box, const QPointF &offset, qreal radius, QVector<QLineF> *shown) const;
+
 private:
+    QRectF m_canvas;
+    QVector<qreal> m_xs;
+    QVector<qreal> m_ys;
     QVector<QPointF> m_points;
     QVector<QLineF> m_lines;
     QVector<QPointF> m_vanishing;
