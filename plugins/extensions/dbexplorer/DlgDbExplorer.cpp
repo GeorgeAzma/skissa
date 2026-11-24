@@ -6,6 +6,7 @@
  */
 
 #include "DlgDbExplorer.h"
+#include <KisLanczos.h>
 
 #include <klocalizedstring.h>
 #include <kis_debug.h>
@@ -238,7 +239,7 @@ void DlgDbExplorer::slotTbResourceItemSelected()
     }
 
     if (!thumb.isNull()) {
-        m_page->lblThumbnail->setPixmap(QPixmap::fromImage(thumb.scaled(100, 100, Qt::KeepAspectRatio, mode)));
+        m_page->lblThumbnail->setPixmap(QPixmap::fromImage(mode == Qt::SmoothTransformation ? KisLanczos::scaled(thumb, 100, 100, Qt::KeepAspectRatio) : thumb.scaled(100, 100, Qt::KeepAspectRatio, mode)));
     } else {
         m_page->lblThumbnail->setPixmap(QPixmap());
     }

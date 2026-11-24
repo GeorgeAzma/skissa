@@ -5,6 +5,7 @@
  */
 
 #include "kis_raw_import.h"
+#include <KisLanczos.h>
 
 #include <cmath>
 #include <cstddef>
@@ -325,7 +326,7 @@ void KisRawImport::slotUpdatePreview()
             }
         }
         const QSize previewSize = m_rawWidget->preview->size() * m_rawWidget->preview->devicePixelRatioF();
-        QPixmap img = QPixmap::fromImage(image).scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QPixmap img = QPixmap::fromImage(KisLanczos::scaled(image, previewSize, Qt::KeepAspectRatio));
         img.setDevicePixelRatio(m_rawWidget->preview->devicePixelRatioF());
         m_rawWidget->preview->setPixmap(img);
     }

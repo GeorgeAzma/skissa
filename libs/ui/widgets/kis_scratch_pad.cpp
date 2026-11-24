@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "kis_scratch_pad.h"
+#include <KisLanczos.h>
 
 #include <QApplication>
 #include <QScreen>
@@ -873,9 +874,7 @@ QImage KisScratchPad::cutoutOverlay() const
     QRect rc = widgetToDocument().mapRect(m_cutoutOverlay);
     QImage rawImage = paintDevice->convertToQImage(0, rc.x(), rc.y(), rc.width(), rc.height(), KoColorConversionTransformation::internalRenderingIntent(), KoColorConversionTransformation::internalConversionFlags());
 
-    QImage scaledImage = rawImage.scaled(m_cutoutOverlay.size(),
-                                         Qt::IgnoreAspectRatio,
-                                         Qt::SmoothTransformation);
+    QImage scaledImage = KisLanczos::scaled(rawImage, m_cutoutOverlay.size());
 
     return scaledImage;
 }
@@ -897,9 +896,7 @@ void KisScratchPad::paintCustomImage(const QImage& loadedImage)
     QRect overlayRect = widgetToDocument().mapRect(m_cutoutOverlay);
     QRect imageRect(QPoint(), overlayRect.size());
 
-    QImage scaledImage = loadedImage.scaled(overlayRect.size(),
-                                              Qt::IgnoreAspectRatio,
-                                              Qt::SmoothTransformation);
+    QImage scaledImage = KisLanczos::scaled(loadedImage, overlayRect.size());
     KisPaintDeviceSP device = new KisPaintDevice(paintDevice->colorSpace());
     device->convertFromQImage(scaledImage, 0);
 
@@ -960,9 +957,7 @@ void KisScratchPad::paintPresetImage()
     QRect overlayRect = widgetToDocument().mapRect(m_cutoutOverlay);
     QRect imageRect(QPoint(), overlayRect.size());
 
-    QImage scaledImage = m_presetImage.scaled(overlayRect.size(),
-                                              Qt::IgnoreAspectRatio,
-                                              Qt::SmoothTransformation);
+    QImage scaledImage = KisLanczos::scaled(m_presetImage, overlayRect.size());
     KisPaintDeviceSP device = new KisPaintDevice(paintDevice->colorSpace());
     device->convertFromQImage(scaledImage, 0);
 

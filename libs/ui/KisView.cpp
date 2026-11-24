@@ -738,7 +738,7 @@ void KisView::dropEvent(QDropEvent *event)
                                              "",
                                              url.toLocalFile(),
                                              KisFileLayer::None,
-                                             "Bicubic",
+                                             "Lanczos3",
                                              fileInfo.fileName(),
                                              OPACITY_OPAQUE_U8);
 

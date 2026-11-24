@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioHistoryScrubber.h"
+#include <KisLanczos.h>
 
 #include <QAbstractItemView>
 #include <QHelpEvent>
@@ -241,7 +242,7 @@ void KisStudioHistoryScrubber::showStep(int step, const QPoint &globalPos)
         painter.setBrush(palette().color(QPalette::ToolTipBase));
         painter.drawPath(KisModernStyle::squircle(QRectF(0, 0, width, height), KisModernStyle::tileRadius));
         if (!shown.isEmpty()) {
-            painter.drawImage(QRectF(QPointF((width - shown.width()) / 2.0, pad), shown), picture);
+            KisLanczos::draw(painter, QRectF(QPointF((width - shown.width()) / 2.0, pad), shown), picture);
         }
         painter.setPen(palette().color(QPalette::ToolTipText));
         painter.drawText(QRectF(pad, height - pad - metrics.height(), width - 2 * pad, metrics.height()), Qt::AlignCenter, name);

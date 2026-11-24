@@ -5,6 +5,7 @@
  */
 
 #include "StoryboardModel.h"
+#include <KisLanczos.h>
 #include "StoryboardView.h"
 #include "StoryboardUtils.h"
 #include <kis_image_animation_interface.h>
@@ -275,8 +276,7 @@ bool StoryboardModel::setThumbnailPixmapData(const QModelIndex & parentIndex, co
     float scale = qMin(thumbnailRect.height() / (float)m_image->height(), (float)thumbnailRect.width() / m_image->width());
 
     QImage image = dev->convertToQImage(KoColorSpaceRegistry::instance()->rgb8()->profile(), m_image->bounds());
-    QPixmap pxmap = QPixmap::fromImage(image);
-    pxmap = pxmap.scaled((1.5)*scale*m_image->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPixmap pxmap = QPixmap::fromImage(KisLanczos::scaled(image, (1.5)*scale*m_image->size(), Qt::KeepAspectRatio));
 
     if (isValidBoard(index))
         return false;

@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisEffectPanels.h"
+#include <KisLanczos.h>
 
 #include <KisValueSteps.h>
 
@@ -1241,7 +1242,9 @@ std::function<void(QPainter &, const QRectF &)> tilePicture(const QImage &pictur
         painter.setClipPath(KisModernStyle::squircle(rect, KisModernStyle::cornerRadius));
         const QSizeF size = QSizeF(picture.size()).scaled(rect.size(), whole ? Qt::KeepAspectRatio : Qt::KeepAspectRatioByExpanding);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, !crisp);
-        painter.drawImage(QRectF(rect.center() - QPointF(size.width(), size.height()) / 2, size), picture);
+        const QRectF target(rect.center() - QPointF(size.width(), size.height()) / 2, size);
+        if (crisp) painter.drawImage(target, picture);
+        else KisLanczos::draw(painter, target, picture);
         painter.restore();
     };
 }

@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "dlg_bundle_manager.h"
+#include <KisLanczos.h>
 
 #include <KisModernStyle.h>
 #include <KisProfile.h>
@@ -95,7 +96,7 @@ void DlgBundleManager::ItemDelegate::paint(QPainter *painter, const QStyleOption
     QRect iconRect = paintRect;
     iconRect.setWidth(height);
     painter->setOpacity(active ? 1.0 : 0.4);
-    painter->drawImage(iconRect, thumbnail);
+    KisLanczos::draw(*painter, iconRect, thumbnail);
 
     QRect nameRect = paintRect;
     nameRect.setX(paintRect.x() + height + textMargin);

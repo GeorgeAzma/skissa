@@ -6,6 +6,7 @@
 
 #include "KisLanczos.h"
 
+#include <QPainter>
 #include <QThread>
 
 #include <algorithm>
@@ -134,10 +135,6 @@ QImage KisLanczos::scaled(const QImage &image, const QSize &size, Qt::AspectRati
     const QSize target = image.size().scaled(size, mode);
     if (target.isEmpty()) return QImage();
     if (target == image.size()) return image;
-    if (target.width() >= image.width() && target.height() >= image.height()) {
-        return image.scaled(target, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    }
-
     QImage source = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     // far smaller: blocks averaged first, leaving Lanczos twice the size asked or more
     const int fx = std::max(1, source.width() / (2 * target.width()));
@@ -214,4 +211,18 @@ QImage KisLanczos::scaledToWidth(const QImage &image, int width)
 {
     if (image.isNull() || image.width() <= 0) return image;
     return scaled(image, QSize(width, std::max(1, int(std::lround(double(image.height()) * width / image.width())))));
+}
+
+void KisLanczos::draw(QPainter &painter, const QRectF &target, const QImage &image)
+{
+    if (image.isNull() || target.isEmpty()) return;
+    const QTransform &t = painter.worldTransform();
+    const qreal ratio = painter.device() ? painter.device()->devicePixelRatioF() : 1.0;
+    const QSize pixels(std::max(1, int(std::lround(target.width() * std::hypot(t.m11(), t.m12()) * ratio))),
+                       std::max(1, int(std::lround(target.height() * std::hypot(t.m21(), t.m22()) * ratio))));
+    if (pixels == image.size() || t.isRotating()) {
+        painter.drawImage(target, image);
+        return;
+    }
+    painter.drawImage(target, scaled(image, pixels));
 }

@@ -5,6 +5,7 @@
  */
 
 #include "KisColorDrop.h"
+#include <KisLanczos.h>
 #include "KisColorAreas.h"
 #include "widgets/KisStudioValueRow.h"
 #include <kis_default_bounds_base.h>
@@ -584,7 +585,7 @@ QImage tintedOverlay(KisPixelSelectionSP region, const QRect &rect, const QColor
     region->readBytes(bytes.data(), rect);
     for (int y = 0; y < rect.height(); y++) memcpy(mask.scanLine(y), bytes.constData() + y * rect.width(), rect.width());
     const qreal scale = qMin<qreal>(1.0, 1600.0 / qMax(rect.width(), rect.height()));
-    if (scale < 1) mask = mask.scaled((QSizeF(rect.size()) * scale).toSize().expandedTo(QSize(1, 1)), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    if (scale < 1) mask = KisLanczos::scaled(mask, (QSizeF(rect.size()) * scale).toSize().expandedTo(QSize(1, 1)));
     QImage overlay(mask.size(), QImage::Format_ARGB32_Premultiplied);
     // as the fill will look
     overlay.fill(color);

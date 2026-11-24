@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: LGPL-2.0-or-later
  */
 #include "KisClickableLabel.h"
+#include <KisLanczos.h>
 
 #include <QResizeEvent>
 #include <QtMath>
@@ -59,8 +60,7 @@ void KisClickableLabel::setUnscaledPixmap(QPixmap pixmap)
 void KisClickableLabel::updatePixmap()
 {
     if (!m_pixmap.isNull()) {
-        // setPixmap(m_pixmap.scaled(width(), height(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        setPixmap(m_pixmap.scaledToWidth(width(), Qt::SmoothTransformation));
+        setPixmap(QPixmap::fromImage(KisLanczos::scaledToWidth(m_pixmap.toImage(), width())));
     }
 }
 

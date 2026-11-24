@@ -7,6 +7,7 @@
  */
 
 #include "recorderdocker_dock.h"
+#include <KisLanczos.h>
 
 #include <KisValueSteps.h>
 #include "recorder_config.h"
@@ -188,7 +189,7 @@ protected:
             painter.save();
             painter.setClipPath(shape);
             painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(target, frame);
+            KisLanczos::draw(painter, target, frame);
             painter.restore();
         }
 

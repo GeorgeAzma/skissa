@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioPeek.h"
+#include <KisLanczos.h>
 
 #include <QAction>
 #include <QApplication>
@@ -152,7 +153,7 @@ protected:
         const QColor a = config.checkersColor1();
         const QColor b = config.checkersColor2();
         painter.fillRect(QRectF(m_rect), QColor((a.red() + b.red()) / 2, (a.green() + b.green()) / 2, (a.blue() + b.blue()) / 2));
-        painter.drawImage(QRectF(m_rect), m_picture);
+        KisLanczos::draw(painter, QRectF(m_rect), m_picture);
     }
 
 private:

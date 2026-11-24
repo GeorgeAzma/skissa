@@ -2407,8 +2407,8 @@ struct SkissaShapeWidget::Private {
                 if (found) {
                     const QPoint at = bounds.topLeft() + (QPointF(edge) / small).toPoint();
                     const QSize read = whole / shapeTileScale;
-                    base = original->convertToQImage(nullptr, QRect(at - QPoint(read.width() / 2, read.height() / 2), read))
-                               .scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                    base = original->convertToQImage(nullptr, QRect(at - QPoint(read.width() / 2, read.height() / 2), read));
+                    base = KisLanczos::scaled(base, whole);
                 }
             }
         }
@@ -3159,8 +3159,8 @@ struct SkissaPaintWidget::Private {
             if (!bounds.isEmpty()) {
                 const QPoint busiest = KisEffectPanels::busiestPoint(original, bounds);
                 const QSize read = whole / paintTileScale;
-                base = original->convertToQImage(nullptr, QRect(busiest - QPoint(read.width() / 2, read.height() / 2), read))
-                           .scaled(whole, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                base = original->convertToQImage(nullptr, QRect(busiest - QPoint(read.width() / 2, read.height() / 2), read));
+                base = KisLanczos::scaled(base, whole);
             }
         }
         if (base.isNull() || KisEffectPanels::showsLittle(base.copy(QRect(QPoint(margin, margin), paintTileSize)))) {

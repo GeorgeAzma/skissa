@@ -47,7 +47,7 @@ KisDlgFileLayer::KisDlgFileLayer(const QString &basePath, const QString & name, 
             SLOT(slotNameChanged(QString)));
 
     dlgWidget.cmbFilter->setIDList(KisFilterStrategyRegistry::instance()->listKeys());
-    dlgWidget.cmbFilter->setCurrent("Bicubic");
+    dlgWidget.cmbFilter->setCurrent("Lanczos3");
     dlgWidget.cmbFilter->setToolTip(i18nc("@info:tooltip how the image is resampled",
                                 "Nearest is best for pixel art, Lanczos3 the sharpest"));
     connect(dlgWidget.radioDontScale, SIGNAL(toggled(bool)),

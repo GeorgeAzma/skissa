@@ -442,7 +442,7 @@ protected:
             const QRectF at = shapeRect();
             painter.save();
             painter.setClipPath(KisModernStyle::squircle(at, 3));
-            painter.drawImage(at, m_picture);
+            KisLanczos::draw(painter, at, m_picture);
             painter.restore();
         } else if (!m_glyph.isNull()) {
             const int side = 32;

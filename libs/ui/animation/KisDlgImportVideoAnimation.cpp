@@ -8,6 +8,7 @@
  */
 
 #include "KisDlgImportVideoAnimation.h"
+#include <KisLanczos.h>
 #include <KisProfile.h>
 
 #include <QStandardPaths>
@@ -455,7 +456,7 @@ void KisDlgImportVideoAnimation::updateVideoPreview()
         m_ui.thumbnailImageHolder->clear();
         const QSize previewSize =
             m_ui.thumbnailImageHolder->contentsRect().size() * m_ui.thumbnailImageHolder->devicePixelRatioF();
-        QPixmap img = thumbnailPixmap.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        QPixmap img = QPixmap::fromImage(KisLanczos::scaled(thumbnailPixmap.toImage(), previewSize, Qt::KeepAspectRatio));
         img.setDevicePixelRatio(m_ui.thumbnailImageHolder->devicePixelRatioF());
         m_ui.thumbnailImageHolder->setPixmap(img);
     }

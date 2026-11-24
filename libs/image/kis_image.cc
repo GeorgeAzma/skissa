@@ -1216,7 +1216,7 @@ void KisImage::rotateImpl(const KUndo2MagicString &actionName,
                                        KisProcessingApplicator::RECURSIVE | signalFlags,
                                        emitSignals, actionName);
 
-    KisFilterStrategy *filter = KisFilterStrategyRegistry::instance()->value("Bicubic");
+    KisFilterStrategy *filter = KisFilterStrategyRegistry::instance()->value("Lanczos3");
 
     KisTransformProcessingVisitor *visitor =
             new KisTransformProcessingVisitor(1.0, 1.0, 0.0, 0.0,
@@ -1323,7 +1323,7 @@ void KisImage::shearImpl(const KUndo2MagicString &actionName,
                                        signalFlags,
                                        emitSignals, actionName);
 
-    KisFilterStrategy *filter = KisFilterStrategyRegistry::instance()->value("Bilinear");
+    KisFilterStrategy *filter = KisFilterStrategyRegistry::instance()->value("Lanczos3");
 
     KisTransformProcessingVisitor *visitor =
             new KisTransformProcessingVisitor(1.0, 1.0,
@@ -1812,7 +1812,7 @@ QImage KisImage::convertToQImage(const QSize& scaledImageSize, const KoColorProf
     KoDummyUpdaterHolder updaterHolder;
     QPointer<KoUpdater> updater = updaterHolder.updater();
 
-    KisTransformWorker worker(dev, scaleX, scaleY, 0.0, 0.0, 0.0, 0.0, 0.0, updater, KisFilterStrategyRegistry::instance()->value("Bicubic"));
+    KisTransformWorker worker(dev, scaleX, scaleY, 0.0, 0.0, 0.0, 0.0, 0.0, updater, KisFilterStrategyRegistry::instance()->value("Lanczos3"));
     worker.run();
 
     return dev->convertToQImage(profile);

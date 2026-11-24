@@ -49,8 +49,7 @@ void KoResourceItemDelegate::paint( QPainter * painter, const QStyleOptionViewIt
     }
     else if (palette) {
         QImage thumbnail = index.data( Qt::DecorationRole ).value<QImage>();
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, thumbnail.width() > innerRect.width() || thumbnail.height() > innerRect.height());
-        painter->drawImage(innerRect, thumbnail);
+        KisLanczos::draw(*painter, innerRect, thumbnail);
     }
     else {
         QImage thumbnail = index.data( Qt::DecorationRole ).value<QImage>();

@@ -5,6 +5,7 @@
  */
 
 #include "kis_custom_pattern.h"
+#include <KisLanczos.h>
 #include <KisProfile.h>
 
 #include <KoResourceServerProvider.h>
@@ -80,8 +81,7 @@ void KisCustomPattern::slotUpdateCurrentPattern()
                 if (scaledWidth == 0) scaledWidth++;
                 if (scaledHeight == 0) scaledHeight++;
 
-                QPixmap scaledPixmap = QPixmap::fromImage(m_pattern->pattern());
-                preview->setPixmap(scaledPixmap.scaled(scaledWidth, scaledHeight, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                preview->setPixmap(QPixmap::fromImage(KisLanczos::scaled(m_pattern->pattern(), scaledWidth, scaledHeight, Qt::KeepAspectRatio)));
             } else {
                 preview->setPixmap(QPixmap::fromImage(m_pattern->pattern()));
             }

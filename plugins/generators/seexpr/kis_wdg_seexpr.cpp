@@ -7,6 +7,7 @@
  */
 
 #include <QCheckBox>
+#include <KisLanczos.h>
 
 #include <KSeExprUI/ErrorMessages.h>
 #include <KisDialogStateSaver.h>
@@ -164,7 +165,7 @@ void KisWdgSeExpr::slotResourceSelected(KoResourceSP resource)
         m_widget->renameBrushNameTextField->setText(formattedBrushName);
         // get the preset image and pop it into the thumbnail area on the top of the brush editor
         QSize thumbSize = QSize(55, 55)*devicePixelRatioF();
-        QPixmap thumbnail = QPixmap::fromImage(m_currentPreset->image().scaled(thumbSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        QPixmap thumbnail = QPixmap::fromImage(KisLanczos::scaled(m_currentPreset->image(), thumbSize, Qt::KeepAspectRatio));
         thumbnail.setDevicePixelRatio(devicePixelRatioF());
         m_widget->presetThumbnailicon->setPixmap(thumbnail);
 

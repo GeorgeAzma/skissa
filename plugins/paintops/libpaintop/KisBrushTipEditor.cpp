@@ -1742,7 +1742,7 @@ KisBrushTipQuickPage::KisBrushTipQuickPage(KisAutoBrushModel *autoModel,
                 QRect target(QPoint(0, 0), fitted);
                 target.moveCenter(rect.center());
                 painter.fillRect(rect, Qt::white);
-                painter.drawImage(target, image);
+                KisLanczos::draw(painter, target, image);
             };
             source.recent = []() { return KisConfig(true).readEntry<QStringList>(recentTipsKey, QStringList()); };
             source.tiles = true;
@@ -1913,8 +1913,7 @@ void KisBrushTipQuickPage::updateShapes()
             const QSizeF fitted = QSizeF(image.size()).scaled(box.size(), Qt::KeepAspectRatio);
             QRectF target(QPointF(0, 0), fitted);
             target.moveCenter(box.center());
-            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(target, image);
+            KisLanczos::draw(painter, target, image);
         };
         chips << tip;
     }

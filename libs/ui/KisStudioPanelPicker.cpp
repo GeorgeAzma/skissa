@@ -184,7 +184,7 @@ KisStudioPicker::Source panelsSource(KisMainWindow *mainWindow, const KisStudioP
             QRect target(QPoint(0, 0), fitted);
             target.moveCenter(rect.center());
             painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-            painter.drawImage(target, onGlass);
+            KisLanczos::draw(painter, target, onGlass);
         } else {
             // not shown yet; laying the panel out off screen would disturb it
             painter.fillRect(rect, QColor(128, 128, 128, 40));

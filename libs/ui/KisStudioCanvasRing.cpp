@@ -4,6 +4,7 @@
  *  SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "KisStudioCanvasRing.h"
+#include <KisLanczos.h>
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -57,7 +58,7 @@ void paintBrush(QPainter &painter, const QPointF &center, qreal radius, const QI
     if (!picture.isNull()) {
         const qreal scale = (2 * radius) / qMin(picture.width(), picture.height()) * 1.1;
         const QSizeF drawn = QSizeF(picture.size()) * scale;
-        painter.drawImage(QRectF(center - QPointF(drawn.width(), drawn.height()) / 2, drawn), picture);
+        KisLanczos::draw(painter, QRectF(center - QPointF(drawn.width(), drawn.height()) / 2, drawn), picture);
     }
     painter.restore();
 }

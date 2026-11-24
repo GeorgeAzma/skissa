@@ -646,7 +646,7 @@ void KisLayerManager::convertLayerToFileLayer(KisNodeSP source)
     } else {
         QString basePath = QFileInfo(m_view->document()->path()).absolutePath();
         QString relativePath = QDir(basePath).relativeFilePath(path);
-        KisFileLayer *fileLayer = new KisFileLayer(image, basePath, relativePath, KisFileLayer::None, "Bicubic", source->name(), OPACITY_OPAQUE_U8);
+        KisFileLayer *fileLayer = new KisFileLayer(image, basePath, relativePath, KisFileLayer::None, "Lanczos3", source->name(), OPACITY_OPAQUE_U8);
         fileLayer->setX(bounds.x());
         fileLayer->setY(bounds.y());
         KisNodeSP dstParent = source->parent();
