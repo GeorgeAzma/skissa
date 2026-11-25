@@ -27,6 +27,7 @@
 #include <KisDocument.h>
 #include <kis_config.h>
 #include <KisModernStyle.h>
+#include <KisSentenceCase.h>
 #include <KisViewManager.h>
 #include <KoDocumentInfo.h>
 #include <kactioncollection.h>
@@ -539,6 +540,9 @@ private:
     qreal m_progress {0};
 };
 
+/// The format that saves frames, which has no profile
+constexpr int framesProfile = -1;
+
 /// Where the profiles of RecorderExportConfig keep each format.
 struct VideoFormat {
     QString name;
@@ -552,8 +556,16 @@ const QVector<VideoFormat> &videoFormats()
     static const QVector<VideoFormat> formats = {
         {QStringLiteral("MP4"), 0, i18nc("@info:tooltip video format", "Plays anywhere")},
         {QStringLiteral("GIF"), 1, i18nc("@info:tooltip video format", "Loops in chats. Big files")},
-        {QStringLiteral("WebM"), 3, i18nc("@info:tooltip video format", "Small, for the web")}};
+        {QStringLiteral("WebM"), 3, i18nc("@info:tooltip video format", "Small, for the web")},
+        {i18nc("video format keeping every pixel", "Lossless"), 2, i18nc("@info:tooltip video format", "Every pixel kept, for editing")},
+        {i18nc("time-lapse saved as pictures", "Frames"), framesProfile, i18nc("@info:tooltip time-lapse format", "Each frame a picture, in a folder")}};
     return formats;
+}
+
+/// The time-lapse saved as its frames, not as a video: kept apart from Krita's profile index, which picks a video
+bool savesFrames()
+{
+    return KisConfig(true).readEntry<bool>(QStringLiteral("StudioTimelapseFrames"), false);
 }
 
 #ifndef Q_OS_ANDROID
@@ -787,7 +799,7 @@ public:
     /// The format the video is saved in, as the menu and Save name it
     int formatIndex() const
     {
-        const int profile = RecorderExportConfig(true).profileIndex();
+        const int profile = savesFrames() ? framesProfile : RecorderExportConfig(true).profileIndex();
         for (int i = 0; i < videoFormats().size(); i++) {
             if (videoFormats()[i].profile == profile) return i;
         }
@@ -796,7 +808,7 @@ public:
 
     QString saveText() const
     {
-        return i18nc("Save the time-lapse video as MP4, GIF or WebM", "Save %1", videoFormats()[formatIndex()].name);
+        return KisSentenceCase::of(i18nc("Save the time-lapse video as MP4, GIF or WebM", "Save %1", videoFormats()[formatIndex()].name));
     }
 
     void updateExportEnabled()
@@ -998,7 +1010,8 @@ public:
             action->setCheckable(true);
             formatActions->addAction(action);
             QObject::connect(action, &QAction::triggered, q, [this, videoFormat]() {
-                RecorderExportConfig(false).setProfileIndex(videoFormat.profile);
+                KisConfig(false).writeEntry(QStringLiteral("StudioTimelapseFrames"), videoFormat.profile == framesProfile);
+                if (videoFormat.profile != framesProfile) RecorderExportConfig(false).setProfileIndex(videoFormat.profile);
                 if (exportButton->isEnabled()) exportButton->setText(saveText());
             });
         }
@@ -1085,6 +1098,10 @@ public:
         showFrames(all);
         settings->framesCount = all.size();
         if (all.isEmpty()) return;
+        if (savesFrames()) {
+            saveFrames(all);
+            return;
+        }
         settings->imageSize = QImageReader(all.last()).size();
         settings->imageSize.rwidth() &= ~1;
         settings->imageSize.rheight() &= ~1;
@@ -1108,13 +1125,54 @@ public:
         connect(exporter.data(), SIGNAL(sigProgressUpdated(int)), q, SLOT(onExporterProgressUpdated(int)));
         KisFFMpegWrapperSettings run;
         run.processPath = settings->ffmpegPath;
-        run.args = splitCommand(applyVariables(profile.arguments));
+        QString arguments = profile.arguments;
+        if (settings->profileIndex == 2) {
+            // Lossless: the frames' own size, every pixel as it was
+            settings->resize = false;
+            settings->size = settings->imageSize;
+            arguments.replace(QStringLiteral("-pix_fmt yuv420p"), QStringLiteral("-c:v libx264rgb\n-crf 0\n-preset veryfast"));
+        }
+        run.args = splitCommand(applyVariables(arguments));
         run.outputFile = settings->videoFilePath;
         run.batchMode = true;
         exportButton->setText(i18nc("the time-lapse video is being made", "Saving…"));
         exportButton->setProgress(0.01);
         updateExportEnabled();
         exporter->startNonBlocking(run);
+    }
+
+    /// Copies the frames, numbered from 1, into a new folder beside the image, off the window's thread
+    void saveFrames(const QStringList &all)
+    {
+        QString folder = videoPath(QStringLiteral("frames"));
+        folder.chop(int(qstrlen(".frames")));
+        for (int n = 2; QFileInfo::exists(folder); n++) folder = QStringLiteral("%1 %2").arg(folder).arg(n);
+        exportButton->setText(i18nc("the time-lapse video is being made", "Saving…"));
+        exportButton->setProgress(0.01);
+        auto *watcher = new QFutureWatcher<QString>(q);
+        QObject::connect(watcher, &QFutureWatcher<QString>::finished, q, [this, watcher]() {
+            const QString first = watcher->result();
+            watcher->deleteLater();
+            exportButton->setProgress(0);
+            if (first.isEmpty()) {
+                exportButton->setText(saveText());
+                return;
+            }
+            q->exportSettings->videoFilePath = first;
+            q->onExporterFinished();
+        });
+        watcher->setFuture(QtConcurrent::run([all, folder]() -> QString {
+            if (!QDir().mkpath(folder)) return QString();
+            const int digits = QString::number(all.size()).size();
+            QString first;
+            for (int i = 0; i < all.size(); i++) {
+                const QFileInfo frame(all[i]);
+                const QString target = QDir(folder).filePath(QStringLiteral("%1.%2").arg(i + 1, digits, 10, QLatin1Char('0')).arg(frame.suffix()));
+                if (!QFile::copy(all[i], target)) return QString();
+                if (first.isEmpty()) first = target;
+            }
+            return first;
+        }));
     }
 
     void finishExport()
