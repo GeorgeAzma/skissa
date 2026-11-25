@@ -5,6 +5,7 @@
  */
 
 #include "KisColorDrop.h"
+#include "KisStudioCanvasHandles.h"
 #include <KisLanczos.h>
 #include "KisColorAreas.h"
 #include "widgets/KisStudioValueRow.h"
@@ -979,6 +980,58 @@ struct KisColorDrop::Private {
     KoColor lastColor;
     KoPatternSP pattern;
     KoPatternSP lastPattern;
+    /// Where the pattern's tile starts, how far it is turned (degrees) and scaled: moved by its handles
+    QPointF patternOrigin;
+    qreal patternAngle {0};
+    qreal patternScale {1};
+    QPointer<KisStudioCanvasHandles> patternHandles;
+
+    QTransform patternTransform() const
+    {
+        return QTransform().translate(patternOrigin.x(), patternOrigin.y()).rotate(patternAngle).scale(patternScale, patternScale);
+    }
+
+    /// The tile's corner, and the end of its top edge, which turns and scales it
+    QVector<KisStudioCanvasHandles::Handle> patternHandlePoints() const
+    {
+        const QTransform t = patternTransform();
+        const qreal width = lastPattern ? lastPattern->width() : 1;
+        return {{patternOrigin, QColor()}, {t.map(QPointF(width, 0)), QColor(Qt::white)}};
+    }
+
+    void showPatternHandles()
+    {
+        if (!lastPattern || !view) return;
+        KisStudioCanvasHandles *handles = KisStudioCanvasHandles::start(view->canvasBase());
+        if (!handles) return;
+        patternHandles = handles;
+        handles->moved = [this](int index, const QPointF &at, Qt::KeyboardModifiers modifiers) {
+            if (index == 0) {
+                patternOrigin = at;
+            } else {
+                const QPointF arm = at - patternOrigin;
+                qreal angle = qRadiansToDegrees(std::atan2(arm.y(), arm.x()));
+                // Shift: in steps of 15°
+                if (modifiers & Qt::ShiftModifier) angle = qRound(angle / 15) * 15.0;
+                patternAngle = angle;
+                patternScale = qBound(0.05, std::hypot(arm.x(), arm.y()) / qMax(1, lastPattern->width()), 20.0);
+            }
+            if (patternHandles) patternHandles->setHandles(patternHandlePoints());
+            redo.settingChanged();
+        };
+        handles->drawUnder = [this](QPainter &painter, const QTransform &toWidget) {
+            if (!lastPattern) return;
+            // one tile, as it lies now
+            const QPolygonF tile = toWidget.map(patternTransform().map(QPolygonF(QRectF(0, 0, lastPattern->width(), lastPattern->height()))));
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(0, 0, 0, 110), 3));
+            painter.drawPolygon(tile);
+            painter.setPen(QPen(QColor(255, 255, 255, 220), 1.25));
+            painter.drawPolygon(tile);
+        };
+        handles->alive = [this]() { return redo.isLive(); };
+        handles->setHandles(patternHandlePoints());
+    }
     KisRedoLast redo;
     /// Making the last fill again: its layer is the one active at the drop, not what is active now
     bool refilling {false};
@@ -1308,6 +1361,7 @@ struct KisColorDrop::Private {
         keepFilling = false;
         everywhere = false;
         redo.forget();
+        if (patternHandles) patternHandles->end();
         qApp->removeEventFilter(q);
         if (panel) panel->deleteLater();
         panel = nullptr;
@@ -1489,7 +1543,19 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
     if (!filled) return false;
     d->color = color;
     d->showPanel(canvasPos);
+    if (d->lastPattern && !d->lastWay) d->showPatternHandles();
     return true;
+}
+
+KisPixelSelectionSP KisColorDrop::areaShown(const QPoint &canvasPos) const
+{
+    const QPoint point = d->imagePoint(canvasPos);
+    return d->region && d->region->pixel(point).opacityU8() > 0 ? d->region : nullptr;
+}
+
+QPoint KisColorDrop::imagePointOf(const QPoint &canvasPos) const
+{
+    return d->imagePoint(canvasPos);
 }
 
 void KisColorDrop::setPattern(KoPatternSP pattern)
@@ -1532,6 +1598,13 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
     const KoPatternSP pattern = d->refilling ? d->lastPattern : d->pattern;
     d->lastPattern = pattern;
+    if (pattern && !d->refilling) {
+        // a tile's corner near the drop, as the untouched pattern lies: it starts where it would anyway
+        d->patternOrigin = QPointF(std::floor(qreal(point.x()) / pattern->width()) * pattern->width(),
+                                   std::floor(qreal(point.y()) / pattern->height()) * pattern->height());
+        d->patternAngle = 0;
+        d->patternScale = 1;
+    }
     // a painting, a flat, or a clear layer over a painting: filled by color, its soft edges taking the new color by their share
     const ByColor way = inSelection || pattern ? ByColor() : byColorAt(image, active, point);
     d->lastWay = way;
@@ -1560,7 +1633,10 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
     resources->setFGColorOverride(color.convertedTo(image->colorSpace()));
     // a new layer is empty: with Preserve Alpha the fill would show nowhere
     if (target.newLayer) resources->setGlobalAlphaLock(false);
-    if (pattern) resources->setPatternOverride(pattern);
+    if (pattern) {
+        resources->setPatternOverride(pattern);
+        resources->setFillTransform(d->patternTransform());
+    }
 
     // the picture's lines only, made in the stroke (not on the window's thread) from the picture as it is then
     KisPaintDeviceSP lines = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());

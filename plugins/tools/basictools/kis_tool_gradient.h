@@ -28,12 +28,17 @@
 #include <kconfiggroup.h>
 
 
+#include <QPointer>
+#include <KoAbstractGradient.h>
+
 class QLabel;
 class QPoint;
 class QWidget;
 class QCheckBox;
 class KComboBox;
 class KisDoubleSliderSpinBox;
+class KisRedoLast;
+class KisStudioCanvasHandles;
 
 class KisToolGradient : public KisToolPaint
 {
@@ -52,8 +57,11 @@ public:
 
     QWidget* createOptionWidget() override;
 
+    void canvasResourceChanged(int key, const QVariant &value) override;
+
 public Q_SLOTS:
     void activate(const QSet<KoShape*> &shapes) override;
+    void deactivate() override;
 private Q_SLOTS:
     void slotSetShape(int);
     void slotSetRepeat(int);
@@ -77,6 +85,18 @@ private:
     void updateGuideline();
 
     QPointF straightLine(QPointF point);
+    QPointF straightLine(QPointF point, QPointF from);
+    /// Paints the gradient from m_startPos to m_endPos with the settings as they are, as one step
+    void paintGradientStep();
+    /// The drawn gradient's ends as handles on the picture, until something else is done
+    void showHandles();
+    void updateHandles();
+    /// Draws the step again while its handles show
+    void changedWhileShown();
+
+    KisRedoLast *m_redo {nullptr};
+    QPointer<KisStudioCanvasHandles> m_handles;
+    KoAbstractGradientSP m_shownGradient;
 
     QPointF m_startPos;
     QPointF m_endPos;

@@ -48,6 +48,9 @@
 #include "kis_command_utils.h"
 #include "kis_processing_applicator.h"
 #include "kis_processing_visitor.h"
+#include "KisRedoLast.h"
+#include "KisStudioCanvasHandles.h"
+#include <KoCanvasResourcesIds.h>
 
 
 KisToolGradient::KisToolGradient(KoCanvasBase * canvas)
@@ -68,6 +71,7 @@ KisToolGradient::KisToolGradient(KoCanvasBase * canvas)
     KisCanvas2 *kritaCanvas = dynamic_cast<KisCanvas2*>(canvas);
 
     connect(kritaCanvas->viewManager()->canvasResourceProvider(), SIGNAL(sigEffectiveCompositeOpChanged()), SLOT(resetCursorStyle()));
+    m_redo = new KisRedoLast(this);
 }
 
 KisToolGradient::~KisToolGradient()
@@ -89,6 +93,23 @@ void KisToolGradient::activate(const QSet<KoShape*> &shapes)
 {
     KisToolPaint::activate(shapes);
     m_configGroup =  KSharedConfig::openConfig()->group(toolId());
+}
+
+void KisToolGradient::deactivate()
+{
+    // another tool: the gradient is done
+    if (m_handles) m_handles->end();
+    m_redo->forget();
+    KisToolPaint::deactivate();
+}
+
+void KisToolGradient::canvasResourceChanged(int key, const QVariant &value)
+{
+    KisToolPaint::canvasResourceChanged(key, value);
+    // another gradient or other colors picked while the drawn one shows its handles: it takes them
+    if (key == KoCanvasResource::CurrentGradient || key == KoCanvasResource::ForegroundColor || key == KoCanvasResource::BackgroundColor) {
+        changedWhileShown();
+    }
 }
 
 void KisToolGradient::paint(QPainter &painter, const KoViewConverter &converter)
@@ -149,13 +170,24 @@ void KisToolGradient::endPrimaryAction(KoPointerEvent *event)
         return;
     }
 
+    paintGradientStep();
+    showHandles();
+
+    updateGuideline();
+}
+
+void KisToolGradient::paintGradientStep()
+{
     KisImageSP image = this->image();
+    if (!image || !currentNode()) return;
 
     KisResourcesSnapshotSP resources =
         new KisResourcesSnapshot(image, currentNode(), this->canvas()->resourceManager());
+    m_shownGradient = resources->currentGradient();
 
-    if (image && resources->currentNode()->paintDevice()) {
+    if (resources->currentNode()->paintDevice()) {
         KUndo2MagicString actionName = kundo2_i18n("Gradient");
+        m_redo->made(dynamic_cast<KisCanvas2 *>(canvas()), actionName, [this]() { paintGradientStep(); });
         KisProcessingApplicator applicator(image, resources->currentNode(),
                                            KisProcessingApplicator::NONE,
                                            KisImageSignalVector(),
@@ -190,8 +222,70 @@ void KisToolGradient::endPrimaryAction(KoPointerEvent *event)
                 }));
         applicator.end();
     }
+}
 
-    updateGuideline();
+void KisToolGradient::showHandles()
+{
+    KisStudioCanvasHandles *handles = KisStudioCanvasHandles::start(dynamic_cast<KisCanvas2 *>(canvas()));
+    if (!handles) return;
+    m_handles = handles;
+    // the ends, each in its color, and the middle that moves both
+    handles->moved = [this](int index, const QPointF &at, Qt::KeyboardModifiers modifiers) {
+        const bool straight = modifiers & Qt::ShiftModifier;
+        if (index == 0) {
+            m_startPos = straight ? straightLine(at, m_endPos) : at;
+        } else if (index == 1) {
+            m_endPos = straight ? straightLine(at, m_startPos) : at;
+        } else {
+            const QPointF shift = at - (m_startPos + m_endPos) / 2;
+            m_startPos += shift;
+            m_endPos += shift;
+        }
+        updateHandles();
+        m_redo->settingChanged();
+    };
+    handles->drawUnder = [this](QPainter &painter, const QTransform &toWidget) {
+        const QLineF line(toWidget.map(m_startPos), toWidget.map(m_endPos));
+        painter.setPen(QPen(QColor(0, 0, 0, 110), 3));
+        painter.drawLine(line);
+        painter.setPen(QPen(QColor(255, 255, 255, 220), 1.25));
+        painter.drawLine(line);
+    };
+    KisRedoLast *redo = m_redo;
+    handles->alive = [redo]() { return redo->isLive(); };
+    updateHandles();
+}
+
+void KisToolGradient::updateHandles()
+{
+    if (!m_handles) return;
+    QColor first(Qt::black), last(Qt::white);
+    if (m_shownGradient) {
+        KoColor color;
+        m_shownGradient->colorAt(color, m_reverse ? 1.0 : 0.0);
+        first = color.toQColor();
+        m_shownGradient->colorAt(color, m_reverse ? 0.0 : 1.0);
+        last = color.toQColor();
+    }
+    first.setAlpha(255);
+    last.setAlpha(255);
+    m_handles->setHandles({{m_startPos, first}, {m_endPos, last}, {(m_startPos + m_endPos) / 2, QColor()}});
+}
+
+void KisToolGradient::changedWhileShown()
+{
+    if (!m_handles) return;
+    m_redo->settingChanged();
+    // the colors the step is drawn again with
+    KisResourcesSnapshotSP resources = image() && currentNode() ? new KisResourcesSnapshot(image(), currentNode(), canvas()->resourceManager()) : nullptr;
+    if (resources) m_shownGradient = resources->currentGradient();
+    updateHandles();
+}
+
+QPointF KisToolGradient::straightLine(QPointF point, QPointF from)
+{
+    const QPointF comparison = point - from;
+    return fabs(comparison.x()) > fabs(comparison.y()) ? QPointF(point.x(), from.y()) : QPointF(from.x(), point.y());
 }
 
 QPointF KisToolGradient::straightLine(QPointF point)
@@ -311,18 +405,21 @@ void KisToolGradient::slotSetShape(int shape)
 {
     m_shape = static_cast<KisGradientPainter::enumGradientShape>(shape);
     m_configGroup.writeEntry("shape", shape);
+    changedWhileShown();
 }
 
 void KisToolGradient::slotSetRepeat(int repeat)
 {
     m_repeat = static_cast<KisGradientPainter::enumGradientRepeat>(repeat);
     m_configGroup.writeEntry("repeat", repeat);
+    changedWhileShown();
 }
 
 void KisToolGradient::slotSetReverse(bool state)
 {
     m_reverse = state;
     m_configGroup.writeEntry("reverse", state);
+    changedWhileShown();
 }
 
 void KisToolGradient::slotSetDither(int dither)
@@ -341,12 +438,14 @@ void KisToolGradient::slotSetDitherSteps(int value)
 {
     m_ditherSteps = value;
     m_configGroup.writeEntry("ditherSteps", value);
+    changedWhileShown();
 }
 
 void KisToolGradient::slotSetAntiAliasThreshold(qreal value)
 {
     m_antiAliasThreshold = value;
     m_configGroup.writeEntry("antialiasThreshold", value);
+    changedWhileShown();
 }
 
 

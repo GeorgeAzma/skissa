@@ -98,6 +98,8 @@ set(skissa_ui_SRCS
     KisStudioCommandPreview.cpp
     KisStudioImageSize.cpp
     KisStudioColorSpace.cpp
+    KisStudioCanvasHandles.cpp
+    KisStudioSelectionHandles.cpp
     KisStudioPatternDrag.cpp
     KisPatternTint.cpp
     KisSelectionGestures.cpp

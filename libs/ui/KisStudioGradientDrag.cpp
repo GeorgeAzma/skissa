@@ -30,6 +30,13 @@
 #include <kis_processing_applicator.h>
 #include <kis_selection.h>
 #include <kis_transaction.h>
+#include <kis_pixel_selection.h>
+#include <QPointer>
+
+#include "KisColorDrop.h"
+#include "KisRedoLast.h"
+#include "KisStudioCanvasHandles.h"
+#include "canvas/kis_canvas2.h"
 #include <klocalizedstring.h>
 
 namespace
@@ -115,41 +122,138 @@ void KisStudioGradientDrag::start(QWidget *source, KoAbstractGradientSP gradient
     drag->exec(Qt::CopyAction);
 }
 
-void KisStudioGradientDrag::paintOnCanvas(KisViewManager *viewManager, KoAbstractGradientSP gradient)
+namespace
+{
+/// A gradient dropped on the picture, drawn again while its handles move, until something else is done
+class DroppedGradient : public QObject
+{
+public:
+    QPointer<KisViewManager> viewManager;
+    KisNodeSP active;
+    KisSelectionSP area;
+    QRect bounds;
+    QPoint seed;
+    KoAbstractGradientSP gradient;
+    QPointF from;
+    QPointF to;
+    KisRedoLast redo;
+    QPointer<KisStudioCanvasHandles> handles;
+
+    void paint()
+    {
+        KisImageSP image = viewManager ? viewManager->image() : nullptr;
+        if (!image) return;
+        const KUndo2MagicString name = kundo2_i18n("Gradient");
+        redo.made(viewManager->canvasBase(), name, [this]() { paint(); });
+        KisProcessingApplicator applicator(image, nullptr, KisProcessingApplicator::NONE, KisImageSignalVector(), name);
+        // the layer a fill there would go on: a Colors layer under line art, else the current one, or a layer of its own
+        KisColorDrop::FillTarget target = KisColorDrop::fillTarget(image, active, seed, area);
+        if (!target.filled() || !target.filled()->paintDevice() || !target.filled()->isEditable()) {
+            target = KisColorDrop::FillTarget();
+            target.newLayer = new KisPaintLayer(image, i18nc("a layer's name", "Gradient"), OPACITY_OPAQUE_U8);
+            target.parent = active && active->parent() ? active->parent() : image->root();
+            target.above = active && active->parent() ? active : target.parent->lastChild();
+        }
+        if (target.newLayer) {
+            applicator.applyCommand(new KisImageLayerAddCommand(image, target.newLayer, target.parent, target.above), KisStrokeJobData::SEQUENTIAL,
+                                    KisStrokeJobData::EXCLUSIVE);
+        }
+        KisNodeSP node = target.filled();
+        KoAbstractGradientSP copy = gradient->clone().dynamicCast<KoAbstractGradient>();
+        applicator.applyCommand(new KisCommandUtils::LambdaCommand([node, selection = area, copy, rect = bounds, a = from, b = to]() -> KUndo2Command * {
+                                    KisPaintDeviceSP device = node->paintDevice();
+                                    KisTransaction transaction(device);
+                                    KisGradientPainter painter(device, selection);
+                                    painter.setGradient(copy);
+                                    painter.setGradientShape(KisGradientPainter::GradientShapeLinear);
+                                    painter.paintGradient(a, b, KisGradientPainter::GradientRepeatNone, 0.0, false, rect.x(), rect.y(), rect.width(),
+                                                          rect.height());
+                                    device->setDirty(rect);
+                                    return transaction.endAndTake();
+                                }),
+                                KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE);
+        applicator.end();
+    }
+
+    void showHandles()
+    {
+        handles = KisStudioCanvasHandles::start(viewManager->canvasBase());
+        if (!handles) return;
+        handles->moved = [this](int index, const QPointF &at, Qt::KeyboardModifiers modifiers) {
+            auto straight = [](const QPointF &point, const QPointF &other) {
+                const QPointF d = point - other;
+                return qAbs(d.x()) > qAbs(d.y()) ? QPointF(point.x(), other.y()) : QPointF(other.x(), point.y());
+            };
+            const bool shift = modifiers & Qt::ShiftModifier;
+            if (index == 0) from = shift ? straight(at, to) : at;
+            else if (index == 1) to = shift ? straight(at, from) : at;
+            else {
+                const QPointF move = at - (from + to) / 2;
+                from += move;
+                to += move;
+            }
+            updateHandles();
+            redo.settingChanged();
+        };
+        handles->drawUnder = [this](QPainter &painter, const QTransform &toWidget) {
+            const QLineF line(toWidget.map(from), toWidget.map(to));
+            painter.setPen(QPen(QColor(0, 0, 0, 110), 3));
+            painter.drawLine(line);
+            painter.setPen(QPen(QColor(255, 255, 255, 220), 1.25));
+            painter.drawLine(line);
+        };
+        handles->alive = [this]() { return redo.isLive(); };
+        handles->ended = [this]() { deleteLater(); };
+        updateHandles();
+    }
+
+    void updateHandles()
+    {
+        if (!handles) return;
+        KoColor color;
+        gradient->colorAt(color, 0.0);
+        QColor first = color.toQColor();
+        gradient->colorAt(color, 1.0);
+        QColor last = color.toQColor();
+        first.setAlpha(255);
+        last.setAlpha(255);
+        handles->setHandles({{from, first}, {to, last}, {(from + to) / 2, QColor()}});
+    }
+};
+}
+
+void KisStudioGradientDrag::dropOnCanvas(KisViewManager *viewManager, KoAbstractGradientSP gradient, const QPoint &seed, KisPixelSelectionSP shown)
 {
     KisImageSP image = viewManager ? viewManager->image() : nullptr;
     if (!image || !gradient) return;
-    KisSelectionSP selection = viewManager->selection();
-    KisNodeSP active = viewManager->activeNode();
-    const QRect area = selection ? selection->selectedExactRect() : image->bounds();
-    if (area.isEmpty()) return;
-
-    KisProcessingApplicator applicator(image, nullptr, KisProcessingApplicator::NONE, KisImageSignalVector(), kundo2_i18n("Gradient"));
-    // in a selection on the layer it is on; else on a layer of its own above the current one, for the whole image
-    KisNodeSP target = selection && active && qobject_cast<KisPaintLayer *>(active.data()) && active->isEditable() ? active : nullptr;
-    if (!target) {
-        KisPaintLayerSP layer = new KisPaintLayer(image, i18nc("a layer's name", "Gradient"), OPACITY_OPAQUE_U8);
-        KisNodeSP parent = active && active->parent() ? active->parent() : image->root();
-        KisNodeSP above = active && active->parent() ? active : parent->lastChild();
-        applicator.applyCommand(new KisImageLayerAddCommand(image, layer, parent, above), KisStrokeJobData::SEQUENTIAL,
-                                KisStrokeJobData::EXCLUSIVE);
-        target = layer;
+    // the area a color would fill there; else the selection, else the whole picture
+    KisSelectionSP area;
+    QRect bounds;
+    if (shown && !shown->selectedExactRect().isEmpty()) {
+        area = new KisSelection();
+        area->pixelSelection()->applySelection(shown, SELECTION_REPLACE);
+        bounds = shown->selectedExactRect();
+    } else if (KisSelectionSP selection = viewManager->selection()) {
+        area = selection;
+        bounds = selection->selectedExactRect();
+    } else {
+        bounds = image->bounds();
     }
-    KoAbstractGradientSP copy = gradient->clone().dynamicCast<KoAbstractGradient>();
-    applicator.applyCommand(new KisCommandUtils::LambdaCommand([target, selection, copy, area]() -> KUndo2Command * {
-                                KisPaintDeviceSP device = target->paintDevice();
-                                KisTransaction transaction(device);
-                                KisGradientPainter painter(device, selection);
-                                painter.setGradient(copy);
-                                painter.setGradientShape(KisGradientPainter::GradientShapeLinear);
-                                painter.paintGradient(QPointF(area.left(), area.center().y()), QPointF(area.right() + 1, area.center().y()),
-                                                      KisGradientPainter::GradientRepeatNone, 0.0, false, area.x(), area.y(), area.width(),
-                                                      area.height());
-                                device->setDirty(area);
-                                return transaction.endAndTake();
-                            }),
-                            KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE);
-    applicator.end();
+    if (bounds.isEmpty()) return;
+
+    auto *dropped = new DroppedGradient;
+    dropped->viewManager = viewManager;
+    dropped->active = viewManager->activeNode();
+    dropped->area = area;
+    dropped->bounds = bounds;
+    dropped->seed = seed;
+    dropped->gradient = gradient->clone().dynamicCast<KoAbstractGradient>();
+    // light falls from above: the first color at the top
+    dropped->from = QPointF(bounds.center().x(), bounds.top());
+    dropped->to = QPointF(bounds.center().x(), bounds.bottom() + 1);
+    dropped->paint();
+    dropped->showHandles();
+    if (!dropped->handles) dropped->deleteLater();
 }
 
 void KisStudioGradientDrag::mapLayer(KisImageSP image, KisNodeSP node, KoAbstractGradientSP gradient)

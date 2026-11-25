@@ -83,6 +83,9 @@ public:
     bool drop(const KoColor &color, const QPoint &canvasPos);
     /// The next drops fill with \p pattern (tinted as patterns are) instead of their color; none: their color
     void setPattern(KoPatternSP pattern);
+    /// The area previewed under \p canvasPos, if it was worked out there
+    KisPixelSelectionSP areaShown(const QPoint &canvasPos) const;
+    QPoint imagePointOf(const QPoint &canvasPos) const;
 
     /// Drags \p color out of \p source, shown as a round swatch under the pointer. Returns when it is dropped.
     static void startDrag(QWidget *source, const QColor &color);

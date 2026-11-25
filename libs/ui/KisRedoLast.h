@@ -42,6 +42,8 @@ public:
     bool takeBack();
     /// Forgets the click (the tool is put away)
     void forget();
+    /// Whether the click's step can still be done again: on its way, or the last one done
+    bool isLive() const { return m_again && (m_waiting || isNewest()); }
 
 private:
     void indexChanged();

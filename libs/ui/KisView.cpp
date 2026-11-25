@@ -9,6 +9,7 @@
 #include "KisStudioLayout.h"
 #include "KisColorDrop.h"
 #include "KisStudioGradientDrag.h"
+#include "kis_pixel_selection.h"
 #include "KisStudioItemDrop.h"
 #include "KisStudioPatternDrag.h"
 #include "KisStudioSymbols.h"
@@ -511,9 +512,13 @@ void KisView::dropEvent(QDropEvent *event)
         return;
     }
 
-    // a gradient: across the selection, or a layer of its own
+    // a gradient
     if (KisStudioGradientDrag::carries(event->mimeData())) {
-        KisStudioGradientDrag::paintOnCanvas(viewManager(), KisStudioGradientDrag::gradientOf(event->mimeData()));
+        // the area under it, as a color fills it, its ends left to drag
+        const QPoint at = canvasBase()->canvasWidget()->mapFrom(this, event->pos());
+        KisStudioGradientDrag::dropOnCanvas(viewManager(), KisStudioGradientDrag::gradientOf(event->mimeData()), d->colorDrop->imagePointOf(at),
+                                            d->colorDrop->areaShown(at));
+        d->colorDrop->leave();
         event->acceptProposedAction();
         return;
     }
@@ -1140,7 +1145,7 @@ void KisView::dragMoveEvent(QDragMoveEvent *event)
             } else {
                 d->colorDrop->leave();
             }
-        } else if (image() && KisStudioPatternDrag::carries(event->mimeData())) {
+        } else if (image() && (KisStudioPatternDrag::carries(event->mimeData()) || KisStudioGradientDrag::carries(event->mimeData()))) {
             d->colorDrop->hover(viewManager()->canvasResourceProvider()->fgColor(), canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
         }
         event->accept();
