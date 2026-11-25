@@ -623,6 +623,7 @@ QString keyCapShown(const QString &text, KisModernStyle::KeyCap state)
 {
     if (state == KisModernStyle::KeyCap::Recording) return QStringLiteral("…");
     if (state == KisModernStyle::KeyCap::Add || text.isEmpty()) return QStringLiteral("+");
+    if (state == KisModernStyle::KeyCap::Offered) return text;
     return text;
 }
 } // namespace
@@ -652,12 +653,13 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
     const QRectF face = rect.adjusted(0, 0, 0, -1.5);
     const qreal r = qMin<qreal>(cornerRadius, face.height() / 2);
     painter->setPen(Qt::NoPen);
-    if (state != KeyCap::Add) {
+    const bool flat = state == KeyCap::Add || state == KeyCap::Offered;
+    if (!flat) {
         // A darker edge below the face makes it read as a key rather than a button.
         painter->setBrush(KisModernStyle::mix(window, Qt::black, 0.3));
         painter->drawPath(squircle(face.translated(0, 1.5), r));
     }
-    const qreal lift = state == KeyCap::Pointed || state == KeyCap::Recording ? 0.24 : state == KeyCap::Add ? 0.1 : 0.15;
+    const qreal lift = state == KeyCap::Pointed || state == KeyCap::Recording ? 0.24 : flat ? 0.1 : 0.15;
     painter->setBrush(KisModernStyle::mix(window, ink, lift));
     painter->drawPath(squircle(face, r));
     if (state == KeyCap::Recording) {
@@ -666,7 +668,7 @@ void KisModernStyle::drawKeyCap(QPainter *painter, const QRectF &rect, const QFo
         painter->drawPath(squircle(face.adjusted(0.6, 0.6, -0.6, -0.6), r - 0.6));
     }
     QColor textColor = ink;
-    textColor.setAlphaF(state == KeyCap::Add ? 0.55 : state == KeyCap::Shown ? 0.85 : 1.0);
+    textColor.setAlphaF(flat ? 0.55 : state == KeyCap::Shown ? 0.85 : 1.0);
     painter->setPen(textColor);
     painter->setFont(font);
     painter->drawText(face, Qt::AlignCenter, keyCapShown(text, state));
@@ -849,6 +851,12 @@ public:
 
     void attach(QWidget *widget)
     {
+        // a plain slider: right click puts back the value it opened with, as a number box does
+        if (widget && widget->metaObject() == &QSlider::staticMetaObject && !widget->property(attachedProperty).toBool()) {
+            widget->setProperty(attachedProperty, true);
+            widget->installEventFilter(this);
+            return;
+        }
         auto *spin = qobject_cast<QAbstractSpinBox *>(widget);
         if (!spin || !(qobject_cast<QSpinBox *>(spin) || qobject_cast<QDoubleSpinBox *>(spin))
             || spin->inherits("KisSliderSpinBox") || spin->inherits("KisDoubleSliderSpinBox") || spin->isReadOnly()) {
@@ -864,6 +872,18 @@ public:
 
     bool eventFilter(QObject *watched, QEvent *event) override
     {
+        if (auto *slider = qobject_cast<QSlider *>(watched)) {
+            if (event->type() == QEvent::Show && !slider->property(openedProperty).isValid()) {
+                slider->setProperty(openedProperty, slider->value());
+            } else if ((event->type() == QEvent::MouseButtonPress && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)
+                       || event->type() == QEvent::ContextMenu) {
+                const QVariant opened = slider->property(openedProperty);
+                if (!opened.isValid() || !slider->isEnabled()) return false;
+                slider->setValue(opened.toInt());
+                return true;
+            }
+            return false;
+        }
         auto *edit = qobject_cast<QLineEdit *>(watched);
         auto *spin = qobject_cast<QAbstractSpinBox *>(edit ? edit->parentWidget() : watched);
         if (!spin) return false;
