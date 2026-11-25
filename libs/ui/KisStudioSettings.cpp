@@ -33,6 +33,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMimeData>
 #include <QPainter>
 #include <QPointer>
@@ -63,7 +64,9 @@
 #include <KoResourcePaths.h>
 
 #include "KisMainWindow.h"
+#include <kactioncollection.h>
 #include "KisPart.h"
+#include "KisStudioFind.h"
 #include "KisModernStyle.h"
 #include "KisSettingsRegistry.h"
 #include "KisSettingsTransfer.h"
@@ -941,6 +944,7 @@ QVector<SectionDef> builtinSections()
         {QStringLiteral("tools"), i18nc("settings section", "Tools"), QStringLiteral("studio_tool_options")},
         {QStringLiteral("files"), i18nc("settings section", "Files"), QStringLiteral("document-save")},
         {QStringLiteral("system"), i18nc("settings section", "System"), QStringLiteral("config-performance")},
+        {QStringLiteral("help"), i18nc("settings section", "Help"), QStringLiteral("studio_help")},
     };
 }
 
@@ -1818,6 +1822,40 @@ QVector<CardDef> makeCards()
         addToggle(QStringLiteral("system"), QStringLiteral("updates"), i18nc("settings card", "Update automatically"), QStringLiteral("StudioUpdates"),
                   QStringLiteral("updates new version download upgrade release"));
     }
+
+    // ---- Help: finding commands, the gestures, and Krita's help menu
+    add(QStringLiteral("help"), QStringLiteral("help"), i18nc("settings card", "Help"), {},
+        QStringLiteral("help commands gestures handbook manual bug report log about crash system information"), [](Builder &b) {
+            QPointer<KisMainWindow> window = KisPart::instance()->currentMainwindow();
+            if (!window) return;
+            auto run = [window](const QString &name) {
+                return [window, name]() {
+                    QAction *action = window ? window->actionCollection()->action(name) : nullptr;
+                    if (action && action->isEnabled()) action->trigger();
+                };
+            };
+            QVector<QPair<QString, std::function<void()>>> list;
+            list << qMakePair(i18nc("@action:button every command, in Find", "All commands"), std::function<void()>([window]() {
+                if (KisStudioFind *find = window ? window->studioFind() : nullptr) find->open(QStringLiteral(">"));
+            }));
+            if (window->actionCollection()->action(QStringLiteral("studio_gestures"))) {
+                list << qMakePair(i18nc("@action:button", "Gestures"), std::function<void()>(run(QStringLiteral("studio_gestures"))));
+            }
+            b.buttons(list);
+            Q_FOREACH (QAction *top, window->menuBar()->actions()) {
+                if (!top->menu() || top->menu()->objectName() != QLatin1String("help")) continue;
+                QVector<QPair<QString, std::function<void()>>> more;
+                Q_FOREACH (QAction *action, top->menu()->actions()) {
+                    if (action->isSeparator() || !action->isVisible() || action->menu()) continue;
+                    QPointer<QAction> target = action;
+                    more << qMakePair(action->text().remove(QLatin1Char('&')), std::function<void()>([target]() {
+                        if (target && target->isEnabled()) target->trigger();
+                    }));
+                }
+                // a few to a row, so the card stays as narrow as the others
+                for (int i = 0; i < more.size(); i += 2) b.buttons(more.mid(i, 2));
+            }
+        });
 
     // Drop settings this build doesn't have (e.g. another platform's)
     for (CardDef &card : cards) {

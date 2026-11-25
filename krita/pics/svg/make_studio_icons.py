@@ -326,6 +326,11 @@ ICONS = {
     # keeping and dropping what is being decided (an effect, a fill)
     'done': p('M4.5 12.5 9.5 17.5 19.5 6.5'),
     'cancel': p('M6 6 18 18M18 6 6 18'),
+    # keeping the image: into its tray; a copy under another name; out as a picture for elsewhere
+    'save': p('M4.5 14.5v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3') + p('M12 4.5v10M7.5 10l4.5 4.5 4.5-4.5'),
+    'save_as': p('M4.5 14.5v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3') + p('M10 6.5v8M6 10.5l4 4 4-4') + p('M18 3.5v5M15.5 6h5'),
+    'export': p('M10.5 4.5h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4') + p('M14 4.5h5.5V10M19.5 4.5 11 13'),
+    'help': c(12, 12, 8.5) + p('M9.6 9.6a2.4 2.4 0 1 1 3.4 2.2c-.6.3-1 .8-1 1.4v.6') + dot(12, 16.6),
     # every area of a color: drops of it here and there
     'everywhere': c(7.5, 8, 3.2) + c(17, 6.5, 2.3) + c(15.5, 16.5, 3.6) + c(6.2, 18, 2),
     'everywhere_on': solid(hole_circle(7.5, 8, 3.2)) + solid(hole_circle(17, 6.5, 2.3)) + solid(hole_circle(15.5, 16.5, 3.6)) + solid(hole_circle(6.2, 18, 2)),

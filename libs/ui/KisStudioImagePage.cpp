@@ -7,12 +7,11 @@
 
 #include <QAction>
 #include <QFileInfo>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMdiArea>
 #include <QMdiSubWindow>
-#include <QMenu>
-#include <QMenuBar>
 #include <QPainter>
 #include <QPointer>
 #include <QSet>
@@ -33,7 +32,6 @@
 #include <kis_selection.h>
 #include <klocalizedstring.h>
 
-#include "KisStudioFind.h"
 #include "utils/KisRecentFileIconCache.h"
 #include "widgets/KisStudioPopup.h"
 
@@ -73,6 +71,34 @@ QToolButton *tile(QWidget *parent, const QIcon &icon, const QString &text, const
     button->setToolTip(tip.isEmpty() && shown != text ? text : tip);
     button->setFixedWidth(width);
     return button;
+}
+
+/// A small ✕ in \p tile's corner while the pointer is over it
+QToolButton *closer(QToolButton *tile)
+{
+    auto *x = new QToolButton(tile);
+    x->setAutoRaise(true);
+    x->setFocusPolicy(Qt::NoFocus);
+    x->setIcon(KisIconUtils::loadIcon(QStringLiteral("studio_cancel")));
+    x->setIconSize(QSize(12, 12));
+    x->setFixedSize(20, 20);
+    x->setToolTip(i18nc("@action:button close the image", "Close"));
+    x->move(tile->width() - x->width() - KisModernStyle::hairline, KisModernStyle::hairline);
+    x->hide();
+    struct Hover : QObject {
+        QToolButton *x;
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            if (event->type() == QEvent::Enter || event->type() == QEvent::HoverEnter) x->show();
+            if (event->type() == QEvent::Leave || event->type() == QEvent::HoverLeave) x->hide();
+            return false;
+        }
+    };
+    auto *hover = new Hover;
+    hover->setParent(tile);
+    hover->x = x;
+    tile->installEventFilter(hover);
+    return x;
 }
 
 QToolButton *word(QWidget *parent, const QString &text)
@@ -161,6 +187,15 @@ void KisStudioImagePage::open(KisMainWindow *window, QMdiArea *area, QWidget *an
                 if (area && target) area->setActiveSubWindow(target);
             });
         });
+        QToolButton *x = closer(button);
+        QObject::connect(x, &QAbstractButton::clicked, popup, [later, owner, area, target]() {
+            later([owner, area, target]() {
+                if (!owner || !area || !target) return;
+                area->setActiveSubWindow(target);
+                QAction *close = owner->actionCollection()->action(QStringLiteral("file_close"));
+                if (close && close->isEnabled()) close->trigger();
+            });
+        });
         images->addWidget(button);
         pictures++;
     }
@@ -193,12 +228,13 @@ void KisStudioImagePage::open(KisMainWindow *window, QMdiArea *area, QWidget *an
         size->setToolTip(i18nc("@info:tooltip", "Image size"));
         command(keep, "imagesize", size);
         keep->addStretch(1);
-        command(keep, "file_save", word(popup, i18nc("@action:button", "Save")));
-        command(keep, "file_save_as", word(popup, i18nc("@action:button", "Save as")));
-        command(keep, "file_export_file", word(popup, i18nc("@action:button", "Export")));
-        command(keep, "file_close", word(popup, i18nc("@action:button close the image", "Close")));
 
+        // keeping it, then changing all of it, shown on the picture
         QHBoxLayout *change = row(column, KisModernStyle::space1);
+        command(change, "file_save", tile(popup, KisIconUtils::loadIcon(QStringLiteral("studio_save")), i18nc("@action:button", "Save")));
+        command(change, "file_save_as", tile(popup, KisIconUtils::loadIcon(QStringLiteral("studio_save_as")), i18nc("@action:button", "Save as")));
+        command(change, "file_export_file", tile(popup, KisIconUtils::loadIcon(QStringLiteral("studio_export")), i18nc("@action:button", "Export")));
+        change->addSpacing(KisModernStyle::space4);
         const QImage shown = image->projection()->createThumbnail(qRound(picture * dpr), qRound(picture * dpr), Qt::KeepAspectRatio);
         command(change, "mirrorImageHorizontal", tile(popup, pictureIcon(shown.mirrored(true, false), dpr), i18nc("@action:button flip the image", "Flip")));
         command(change, "rotateImageCW90", tile(popup, pictureIcon(shown.transformed(QTransform().rotate(90)), dpr), i18nc("@action:button turn the image a quarter", "Turn")));
@@ -212,26 +248,6 @@ void KisStudioImagePage::open(KisMainWindow *window, QMdiArea *area, QWidget *an
         }
         change->addStretch(1);
     }
-
-    // the rest of the app
-    QHBoxLayout *app = row(column, KisModernStyle::space1);
-    QToolButton *all = word(popup, i18nc("@action:button every command, in Find", "All commands"));
-    QObject::connect(all, &QAbstractButton::clicked, popup, [later, owner]() {
-        later([owner]() {
-            if (KisStudioFind *find = owner ? owner->studioFind() : nullptr) find->open(QStringLiteral(">"));
-        });
-    });
-    app->addWidget(all);
-    command(app, "studio_gestures", word(popup, i18nc("@action:button", "Gestures")));
-    Q_FOREACH (QAction *top, window->menuBar()->actions()) {
-        if (top->menu() && top->menu()->objectName() == QLatin1String("help")) {
-            QToolButton *help = word(popup, i18nc("@action:button", "Help"));
-            help->setPopupMode(QToolButton::InstantPopup);
-            help->setMenu(top->menu());
-            app->addWidget(help);
-        }
-    }
-    app->addStretch(1);
 
     popup->popupBeside(anchor, Qt::BottomEdge);
 }

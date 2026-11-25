@@ -510,6 +510,14 @@
         <file>light_hamburger_menu_dots.svg</file>
         <file>dark_hamburger_menu.svg</file>
         <file>light_hamburger_menu.svg</file>
+        <file>dark_studio_save.svg</file>
+        <file>light_studio_save.svg</file>
+        <file>dark_studio_save_as.svg</file>
+        <file>light_studio_save_as.svg</file>
+        <file>dark_studio_export.svg</file>
+        <file>light_studio_export.svg</file>
+        <file>dark_studio_help.svg</file>
+        <file>light_studio_help.svg</file>
         <file>dark_studio_align_start.svg</file>
         <file>light_studio_align_start.svg</file>
         <file>dark_studio_align_center.svg</file>
