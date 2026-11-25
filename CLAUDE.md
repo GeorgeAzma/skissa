@@ -157,11 +157,9 @@ Proposed and not built yet; build from the top when there is nothing else, remov
 
 - **Approved by the owner (November 2026), in this order** (and later all the items below but Fewer settings, Vector and the small ones; the selection outline is wanted visible but easy to hide, now a zoom pill switch):
   1. Drag onto what it should change: colors, gradients, patterns and effects drop on the canvas, a selection and layer rows (`KisStudioItemDrop`, `KisStudioPatternDrag`; patterns fill the area under the pointer as colors do); left: layer styles, and gradients onto the area under the pointer.
-  6. Handles on the canvas: canvas size, crop, image resize, guides, gradients, pattern placement (scale, turn, shift), text boxes, selection grow and soften, symmetry axis. The owner is unsure about these (November 2026): ask before building.
   7. Retire Krita dialogs: Image size, Color space, Layer properties and Export are done; left: Preferences pages Settings doesn't cover.
   9. Cut text nobody needs: "… options" group titles are cut (`groupTitle`); left: a sweep of a fresh UI tour for headers in small popups and labels repeated in tooltips.
-- **Gradients as paint:** the strip edited in place, gradients dragged and the colors that follow the current ones are done; left: on-canvas handles (see 6) and one strip control everywhere gradients appear.
-- **Selections:** the one lasso, rough shapes snapping clean, following edges and the edge flash are done; left: a dimmed outside instead of marching ants, handles to edit it until it is used (see 6), dragging inside moves its pixels, "Snap to edges" on any selection. A tap can't pick similar color: a click starts the lasso's corners.
+- **Selections:** the one lasso, rough shapes snapping clean, following edges and the edge flash are done; left: a dimmed outside instead of marching ants, handles to reshape it (Grow and Soft grips are done), dragging inside moves its pixels, "Snap to edges" on any selection. A tap can't pick similar color: a click starts the lasso's corners.
 - **Fewer settings:** only cuts that lose no function (the owner's rule). Done: the eraser's cursor rows show only with its own switch on, the tooltip delay under Tooltips. Left: an Advanced fold for proofing, EXR profile, frames at once, threads, memory, renderer and bit depth.
 - **Vector layers (low):** the owner never uses them. Quick wins only: vector choices out of new-layer menus and Find until a file has a vector layer; Convert to paint layer on a vector layer's card.
 
