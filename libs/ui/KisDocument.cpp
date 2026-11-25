@@ -2025,6 +2025,12 @@ QString KisDocument::generateAutoSaveFileName(const QString & path) const
 
     QString filename = fi.fileName();
 
+    // an image never saved, opened again from its autosave: it goes on in that file, or each start would add a copy
+    if (!path.isEmpty() && (autosavePattern1.match(filename).hasMatch() || autosavePattern2.match(filename).hasMatch())
+        && QDir(dir) == QDir(KisAutoSaveRecoveryDialog::autoSaveLocation()) && fi.isWritable()) {
+        return fi.absoluteFilePath();
+    }
+
     if (path.isEmpty() || autosavePattern1.match(filename).hasMatch() || autosavePattern2.match(filename).hasMatch() || !fi.isWritable()) {
         // Never saved?
         retval = QString("%1%2%3%4-%5-%6-autosave%7")
