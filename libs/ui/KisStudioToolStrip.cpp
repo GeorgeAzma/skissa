@@ -39,6 +39,8 @@
 #include "widgets/kis_selection_options.h"
 #include "KisStudioScrubber.h"
 #include "KisStudioSelectionAdjust.h"
+#include "KisStudioSelectionHandles.h"
+#include "widgets/KisStudioGradientStrip.h"
 
 #include <klocalizedstring.h>
 
@@ -64,6 +66,8 @@
 #include <functional>
 
 #include <KoCanvasResourceProvider.h>
+#include <KoStopGradient.h>
+#include <memory>
 #include <KoSvgTextProperties.h>
 #include <KoSvgTextPropertyData.h>
 #include <kis_canvas_resource_provider.h>
@@ -1010,6 +1014,8 @@ void KisStudioToolStrip::addSelectionAdjust(bool gap)
         });
         m_layout->addWidget(scrubber);
     }
+    KisMainWindow *window = KisPart::instance()->currentMainwindow();
+    if (window) KisStudioSelectionHandles::attach(grow, window->viewManager(), m_adjust);
 }
 
 void KisStudioToolStrip::addSelectionCommands()
@@ -1388,6 +1394,8 @@ void KisStudioToolStrip::setOptionWidgets(const QList<QPointer<QWidget>> &widget
                 mirror(reverse, reverseIcon(ink));
                 tuckRow(reverse);
             }
+            addGap();
+            addGradientStrip();
         }
 
         if (withId<QWidget>(widget, QStringLiteral("sectionEnclosingMethod"))) addEncloseAndFill(widget);
@@ -1537,6 +1545,35 @@ void KisStudioToolStrip::addFontChip()
         source->setTextPropertyData(data);
     });
     m_layout->addWidget(align);
+}
+
+void KisStudioToolStrip::addGradientStrip()
+{
+    KisMainWindow *window = windowOf(this);
+    KisViewManager *view = window ? window->viewManager() : nullptr;
+    KisCanvasResourceProvider *provider = view ? view->canvasResourceProvider() : nullptr;
+    if (!provider) return;
+    QPointer<KisCanvasResourceProvider> resources = provider;
+
+    // the gradient it paints, edited in place, as on the color panel
+    auto *strip = new KisStudioGradientStrip(this);
+    strip->setFixedWidth(160);
+    strip->setToolTip(i18nc("@info:tooltip the gradient strip", "Gradient\nClick: add a color\nDrag a stop off: remove it\nDouble-click a stop: current color"));
+    auto applying = std::make_shared<bool>(false);
+    strip->currentColor = [resources]() { return resources ? resources->fgColor() : KoColor(); };
+    strip->changed = [resources, applying](KoStopGradientSP gradient) {
+        if (!resources) return;
+        *applying = true;
+        resources->slotGradientActivated(gradient);
+        *applying = false;
+    };
+    auto show = [strip, resources, applying](KoAbstractGradientSP gradient) {
+        if (*applying || !gradient || !resources || !resources->resourceManager()) return;
+        strip->setGradient(gradient->cloneAndBakeVariableColors(resources->resourceManager()->canvasResourcesInterface()));
+    };
+    show(provider->currentGradient());
+    connect(provider, &KisCanvasResourceProvider::sigGradientChanged, strip, show);
+    m_layout->addWidget(strip);
 }
 
 void KisStudioToolStrip::addPatternChip(QAbstractButton *fillsWithPattern)

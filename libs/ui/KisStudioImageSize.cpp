@@ -6,6 +6,7 @@
 #include "KisStudioImageSize.h"
 
 #include <QHBoxLayout>
+#include <QPainter>
 #include <QPointer>
 #include <QPushButton>
 #include <QToolButton>
@@ -15,7 +16,9 @@
 #include <klocalizedstring.h>
 
 #include "KisMainWindow.h"
+#include "KisStudioCanvasHandles.h"
 #include "KisViewManager.h"
+#include "canvas/kis_canvas2.h"
 #include "kis_icon_utils.h"
 #include "kis_filter_strategy.h"
 #include "kis_image.h"
@@ -111,6 +114,51 @@ void KisStudioImageSize::open(KisViewManager *viewManager)
     const qreal tall = qreal(original.height()) / original.width();
     QObject::connect(width, &KisStudioValueRow::valueChanged, popup, [=]() { follow(width, height, tall); });
     QObject::connect(height, &KisStudioValueRow::valueChanged, popup, [=]() { follow(height, width, 1 / tall); });
+
+    // the new size on the picture, its corner to drag: the frame grows from the top left as the image would
+    auto gone = std::make_shared<bool>(false);
+    QPointer<KisStudioCanvasHandles> handles = KisStudioCanvasHandles::start(viewManager->canvasBase());
+    if (handles) {
+        popup->setPinned(true);
+        auto place = [handles, sizeNow]() {
+            if (handles) handles->setHandles({{QPointF(sizeNow().width(), sizeNow().height()), QColor(Qt::white)}});
+        };
+        place();
+        handles->drawUnder = [sizeNow](QPainter &painter, const QTransform &toWidget) {
+            const QPolygonF frame = toWidget.map(QPolygonF(QRectF(QPointF(), QSizeF(sizeNow()))));
+            painter.setBrush(Qt::NoBrush);
+            painter.setPen(QPen(QColor(0, 0, 0, 120), 3));
+            painter.drawPolygon(frame);
+            painter.setPen(QPen(Qt::white, 1.5));
+            painter.drawPolygon(frame);
+        };
+        handles->moved = [=](int, const QPointF &at, Qt::KeyboardModifiers) {
+            if (chain->isChecked()) {
+                // the corner's place along the diagonal: the picture keeps its shape wherever the pointer is
+                const qreal along = (at.x() * original.width() + at.y() * original.height())
+                    / (qreal(original.width()) * original.width() + qreal(original.height()) * original.height());
+                width->setValue(qMax<qreal>(1, qRound(original.width() * along)));
+                height->setValue(qMax<qreal>(1, qRound(original.height() * along)));
+            } else {
+                width->setValue(qMax<qreal>(1, qRound(at.x())));
+                height->setValue(qMax<qreal>(1, qRound(at.y())));
+            }
+            // the rows show a value set from here without telling anyone
+            ways->setTargetSize(sizeNow());
+            place();
+        };
+        // a press elsewhere on the picture, Esc or Enter there: done with the size
+        QPointer<KisStudioPopup> shown = popup;
+        handles->ended = [shown, gone]() {
+            if (shown && !*gone) shown->close();
+        };
+        QObject::connect(width, &KisStudioValueRow::valueChanged, popup, place);
+        QObject::connect(height, &KisStudioValueRow::valueChanged, popup, place);
+        QObject::connect(popup, &QObject::destroyed, [handles, gone]() {
+            *gone = true;
+            if (handles) handles->end();
+        });
+    }
 
     QObject::connect(scale, &QPushButton::clicked, popup, [=]() {
         const QSize size = sizeNow();
