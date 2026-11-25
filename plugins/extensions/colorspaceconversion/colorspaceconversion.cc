@@ -33,6 +33,8 @@
 
 #include <dialogs/KisColorSpaceConversionDialog.h>
 #include "kis_action_manager.h"
+#include "KisMainWindow.h"
+#include "KisStudioColorSpace.h"
 
 K_PLUGIN_FACTORY_WITH_JSON(ColorSpaceConversionFactory, "kritacolorspaceconversion.json", registerPlugin<ColorSpaceConversion>();)
 
@@ -58,6 +60,10 @@ void ColorSpaceConversion::slotImageColorSpaceConversion()
 {
     KisImageSP image = viewManager()->image().toStrongRef();
     if (!image) return;
+    if (viewManager()->mainWindow()->property("studioLayoutActive").toBool()) {
+        KisStudioColorSpace::open(viewManager());
+        return;
+    }
 
     KisColorSpaceConversionDialog * dlgColorSpaceConversion = new KisColorSpaceConversionDialog(viewManager()->mainWindowAsQWidget(), "ColorSpaceConversion");
     bool allowLCMSOptimization = KisConfig(true).allowLCMSOptimization();
@@ -86,6 +92,10 @@ void ColorSpaceConversion::slotLayerColorSpaceConversion()
 
     KisLayerSP layer = viewManager()->activeLayer();
     if (!layer) return;
+    if (viewManager()->mainWindow()->property("studioLayoutActive").toBool()) {
+        KisStudioColorSpace::open(viewManager(), layer);
+        return;
+    }
 
     KisColorSpaceConversionDialog * dlgColorSpaceConversion = new KisColorSpaceConversionDialog(viewManager()->mainWindowAsQWidget(), "ColorSpaceConversion");
     Q_CHECK_PTR(dlgColorSpaceConversion);
