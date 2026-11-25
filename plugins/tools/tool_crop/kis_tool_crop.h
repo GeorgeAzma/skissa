@@ -108,6 +108,9 @@ Q_SIGNALS:
     void canGrowChanged(bool value);
     void isCenteredChanged(bool value);
 
+    /// Canvas size on the image is over, kept or not
+    void canvasResizeEnded();
+
 public Q_SLOTS:
 
     void activate(const QSet<KoShape*> &shapes) override;

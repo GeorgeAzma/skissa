@@ -227,6 +227,7 @@ void KisToolCrop::endCanvasResize(bool switchBack)
     m_finalRect.setCanGrow(m_grewBefore);
     m_finalRect.setCentered(m_centeredBefore);
     m_finalRect.setRatioLocked(m_ratioLockedBefore);
+    Q_EMIT canvasResizeEnded();
     if (switchBack && !m_returnTo.isEmpty() && m_returnTo != toolId()) {
         KisCanvas2 *kisCanvas = dynamic_cast<KisCanvas2 *>(canvas());
         QPointer<KoToolManager> tools = kisCanvas && kisCanvas->viewManager() ? KisStudioTools::manager(kisCanvas->viewManager()->mainWindow()) : nullptr;
