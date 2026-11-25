@@ -24,11 +24,11 @@
 
 class KisViewManager;
 class KisCanvasResourceProvider;
-class KisPaletteChooser;
 class KisPaletteModel;
 class KisPaletteEditor;
 class KisPopupButton;
 class PaletteGrid;
+class PaletteList;
 class RecentStrip;
 class QToolButton;
 
@@ -82,11 +82,12 @@ private:
     void moveSwatch(const QModelIndex &from, const QModelIndex &to);
     void removeSwatch(const QModelIndex &index);
     void showSwatchCard(const QModelIndex &index, QWidget *anchor);
-    void showPaletteCard();
+    /// What can be done with \p palette, beside \p anchor
+    void showPaletteCard(KoColorSetSP palette, QWidget *anchor);
 
 private /* member variables */:
     KisPaletteModel *m_model;
-    KisPaletteChooser *m_paletteChooser;
+    PaletteList *m_paletteList;
     PaletteGrid *m_grid {nullptr};
     RecentStrip *m_recentStrip {nullptr};
     /// The colors last painted with, newest first
