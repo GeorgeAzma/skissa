@@ -50,6 +50,9 @@
 #include <QTabBar>
 #include <QWheelEvent>
 #include <QWindow>
+#include "KisValueSteps.h"
+#include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QtMath>
 
 #include <cmath>
@@ -832,10 +835,157 @@ void KisModernStyle::setWheelValue(QWidget *widget)
     widget->setProperty(wheelValueProperty, true);
 }
 
+namespace {
+/// A plain number box works as a value row does: dragged sideways it changes (Shift finer), right click puts back
+/// the value it opened with, a click without a drag types. Krita's slider boxes do this themselves.
+class SpinScrub : public QObject
+{
+public:
+    static SpinScrub *instance()
+    {
+        static SpinScrub *scrub = new SpinScrub(qApp);
+        return scrub;
+    }
+
+    void attach(QWidget *widget)
+    {
+        auto *spin = qobject_cast<QAbstractSpinBox *>(widget);
+        if (!spin || !(qobject_cast<QSpinBox *>(spin) || qobject_cast<QDoubleSpinBox *>(spin))
+            || spin->inherits("KisSliderSpinBox") || spin->inherits("KisDoubleSliderSpinBox") || spin->isReadOnly()) {
+            return;
+        }
+        QLineEdit *edit = spin->findChild<QLineEdit *>();
+        if (!edit || edit->property(attachedProperty).toBool()) return;
+        edit->setProperty(attachedProperty, true);
+        spin->installEventFilter(this);
+        edit->installEventFilter(this);
+        edit->setCursor(Qt::SizeHorCursor);
+    }
+
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        auto *edit = qobject_cast<QLineEdit *>(watched);
+        auto *spin = qobject_cast<QAbstractSpinBox *>(edit ? edit->parentWidget() : watched);
+        if (!spin) return false;
+        switch (event->type()) {
+        case QEvent::Show:
+            if (!edit && !spin->property(openedProperty).isValid()) spin->setProperty(openedProperty, valueOf(spin));
+            return false;
+        case QEvent::MouseButtonPress:
+            if (static_cast<QMouseEvent *>(event)->button() != Qt::RightButton) break;
+            Q_FALLTHROUGH();
+        case QEvent::ContextMenu: {
+            const QVariant opened = spin->property(openedProperty);
+            if (!opened.isValid() || !spin->isEnabled()) return false;
+            setValueOf(spin, opened.toDouble());
+            return true;
+        }
+        default:
+            break;
+        }
+        if (!edit) return false;
+        switch (event->type()) {
+        case QEvent::FocusOut:
+            edit->setProperty(typingProperty, false);
+            edit->setCursor(Qt::SizeHorCursor);
+            return false;
+        case QEvent::KeyPress:
+            edit->setProperty(typingProperty, true);
+            return false;
+        case QEvent::MouseButtonPress: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            if (mouse->button() != Qt::LeftButton || !spin->isEnabled()) return false;
+            m_spin = spin;
+            m_pressedAt = mouse->pos();
+            m_from = mouse->globalPos();
+            m_start = valueOf(spin);
+            m_scrubbing = false;
+            return true;
+        }
+        case QEvent::MouseMove: {
+            auto *mouse = static_cast<QMouseEvent *>(event);
+            if (m_spin != spin || !(mouse->buttons() & Qt::LeftButton)) return false;
+            const int dx = mouse->globalPos().x() - m_from.x();
+            if (!m_scrubbing && qAbs(dx) < QApplication::startDragDistance()) return true;
+            m_scrubbing = true;
+            const double least = minimumOf(spin), range = maximumOf(spin) - least;
+            // a wide range from zero up is a size (pixels, counts): it moves by ratios, as sizes do everywhere
+            const bool size = least >= 0 && range > 1000;
+            const double pixels = dx * (mouse->modifiers() & Qt::ShiftModifier ? KisValueSteps::fine : 1.0);
+            const double value = KisValueSteps::draggedBy(m_start, pixels, qMin(range, 200.0), size, 1);
+            setValueOf(spin, KisValueSteps::dragged(value, qMin(range, 200.0)));
+            return true;
+        }
+        case QEvent::MouseButtonRelease: {
+            if (m_spin != spin) return false;
+            const bool scrubbed = m_scrubbing;
+            m_spin.clear();
+            m_scrubbing = false;
+            if (!scrubbed) {
+                // a click types: the caret where it was clicked, or all of it when the box wasn't being typed in
+                if (edit->hasFocus() && edit->property(typingProperty).toBool()) {
+                    edit->setCursorPosition(edit->cursorPositionAt(m_pressedAt));
+                } else {
+                    edit->setFocus(Qt::MouseFocusReason);
+                    edit->selectAll();
+                }
+                edit->setProperty(typingProperty, true);
+                edit->setCursor(Qt::IBeamCursor);
+            }
+            return true;
+        }
+        case QEvent::MouseButtonDblClick:
+            return !edit->property(typingProperty).toBool();
+        default:
+            return false;
+        }
+    }
+
+private:
+    using QObject::QObject;
+
+    static double valueOf(QAbstractSpinBox *spin)
+    {
+        if (auto *box = qobject_cast<QSpinBox *>(spin)) return box->value();
+        return static_cast<QDoubleSpinBox *>(spin)->value();
+    }
+
+    static double minimumOf(QAbstractSpinBox *spin)
+    {
+        if (auto *box = qobject_cast<QSpinBox *>(spin)) return box->minimum();
+        return static_cast<QDoubleSpinBox *>(spin)->minimum();
+    }
+
+    static double maximumOf(QAbstractSpinBox *spin)
+    {
+        if (auto *box = qobject_cast<QSpinBox *>(spin)) return box->maximum();
+        return static_cast<QDoubleSpinBox *>(spin)->maximum();
+    }
+
+    static void setValueOf(QAbstractSpinBox *spin, double value)
+    {
+        if (auto *box = qobject_cast<QSpinBox *>(spin)) box->setValue(qRound(value));
+        else static_cast<QDoubleSpinBox *>(spin)->setValue(value);
+    }
+
+    static constexpr const char *attachedProperty = "skissaScrubs";
+    static constexpr const char *openedProperty = "skissaOpenedWith";
+    /// Clicked or typed in since it last had the focus: a click then places the caret
+    static constexpr const char *typingProperty = "skissaTyping";
+
+    QPointer<QAbstractSpinBox> m_spin;
+    QPoint m_from;
+    QPoint m_pressedAt;
+    double m_start {0};
+    bool m_scrubbing {false};
+};
+} // namespace
+
 void KisModernStyle::polish(QWidget *widget)
 {
     QProxyStyle::polish(widget);
     WheelLatch::instance();
+    SpinScrub::instance()->attach(widget);
 
     if (systemRoundsWindows()) {
         const Qt::WindowType type = widget->windowType();
@@ -869,7 +1019,7 @@ void KisModernStyle::polish(QWidget *widget)
         const QString shown = caption(button->text());
         if (!button->text().isEmpty() && shown != button->text()) button->setText(shown);
     } else if (auto *group = qobject_cast<QGroupBox *>(widget)) {
-        const QString shown = caption(group->title());
+        const QString shown = KisSentenceCase::groupTitle(caption(group->title()));
         if (shown != group->title()) group->setTitle(shown);
     } else if (auto *tabs = qobject_cast<QTabWidget *>(widget)) {
         for (int i = 0; i < tabs->count(); i++) tabs->setTabText(i, KisSentenceCase::of(tabs->tabText(i)));
