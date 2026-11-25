@@ -19,6 +19,8 @@ namespace KisSentenceCase
 {
 /// \p text in sentence case when the interface is in English: names and acronyms keep their capitals
 KRITAWIDGETUTILS_EXPORT QString of(const QString &text);
+/// A group's title as it is shown: "Geometry options" says no more than "Geometry", and "Options" nothing
+KRITAWIDGETUTILS_EXPORT QString groupTitle(const QString &text);
 }
 
 #endif // KISSENTENCECASE_H

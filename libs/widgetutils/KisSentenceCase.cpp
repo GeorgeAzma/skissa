@@ -78,6 +78,19 @@ bool namesKey(const QString &text, const QVector<Word> &words, int i)
 
 } // namespace
 
+QString KisSentenceCase::groupTitle(const QString &text)
+{
+    static const bool inEnglish = english();
+    const QString shown = of(text);
+    if (!inEnglish) return shown;
+    static const QRegularExpression options(QStringLiteral("^(?!no\\b)(.*?)\\s*\\boptions$"), QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = options.match(shown);
+    if (!match.hasMatch()) return shown;
+    QString rest = match.captured(1);
+    if (!rest.isEmpty()) rest[0] = rest[0].toUpper();
+    return rest;
+}
+
 QString KisSentenceCase::of(const QString &text)
 {
     static const bool inEnglish = english();
