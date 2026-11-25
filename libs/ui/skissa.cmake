@@ -21,7 +21,6 @@ set(skissa_ui_SRCS
     KisStudioBrushEditor.cpp
     KisStudioBrushMemory.cpp
     KisStudioBrushPicker.cpp
-    KisStudioBrushSheet.cpp
     KisStudioBrushTweaks.cpp
     KisStudioCanvasHud.cpp
     KisStudioCanvasRing.cpp

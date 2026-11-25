@@ -21,10 +21,10 @@ class KisStudioPenPopup;
 class KisStudioValueRow;
 
 /**
- * The quick brush editor: a test stroke, the brush's parts as tabs (Tip, Mask, Texture, Color with the blend mode
- * and the mixing, Stroke), each with its pictures and the settings in use as rows. Dragging a row changes it, clicking
- * it shows how the pen drives it. The brush sheet (KisStudioBrushSheet) is the same parts side by side, every setting
- * shown; both build their parts' rows with optionRow() and blendRow().
+ * The brush editor: a test stroke, the brush's parts as tabs (Tip, Mask, Texture, Color with the blend mode
+ * and the mixing, Pen, Stroke), each with its pictures and the settings in use as rows, the rest of a part as Krita's
+ * own pages. Dragging a row changes it, clicking it shows how the pen drives it; the Pen tab shows every input against
+ * every setting it drives.
  */
 class KRITAUI_EXPORT KisStudioBrushEditor : public KisStudioPopup
 {
@@ -41,10 +41,12 @@ public:
     static KisPaintOpOption *brushOption(KisMainWindow *mainWindow, const QString &id);
     /// The key that pins \p option to the top bar
     static QString pinKey(KisPaintOpOption *option);
-    /// A part of a brush as its tab and column are named (Tip, Mask, Texture, Color, Filter, Stroke)
+    /// A part of a brush as its tab is named (Tip, Mask, Texture, Color, Filter, Pen, Stroke)
     static QString partName(int part);
     /// The part that is how the line is laid down (smoothing, shapes): not one of the brush's own categories
     static constexpr int strokePart = 1000;
+    /// The part that is which pen input drives which setting, across the other parts
+    static constexpr int penPart = 1001;
     /// Whether the brush in use, with \p options, has a blend mode, which the Color part shows with its mixing
     static bool blends(KisMainWindow *mainWindow, const QList<KisPaintOpOption *> &options);
     /// What a brush setting does, as a short tooltip; empty when its name says it
@@ -78,6 +80,8 @@ private:
     /// The brush or its smoothing changed: the last stroke is painted again with it
     void followLastStroke();
     void updateHeader();
+    /// The editor as shown, to the clipboard
+    void copyPicture();
 
     struct Private;
     const std::unique_ptr<Private> d;
