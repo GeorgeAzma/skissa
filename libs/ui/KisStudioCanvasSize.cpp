@@ -22,6 +22,7 @@
 #include "kis_action.h"
 #include "kis_action_manager.h"
 #include "kis_canvas2.h"
+#include "kis_coordinates_converter.h"
 #include "kis_icon_utils.h"
 #include "widgets/KisStudioPopup.h"
 #include "widgets/KisStudioValueRow.h"
@@ -34,7 +35,7 @@ class SizePanel : public QObject
 {
     Q_OBJECT
 public:
-    SizePanel(KoToolBase *tool, KisMainWindow *window)
+    SizePanel(KoToolBase *tool, KisMainWindow *window, KisCanvas2 *canvas)
         : QObject(window)
         , m_tool(tool)
     {
@@ -113,10 +114,17 @@ public:
             deleteLater();
         });
 
-        // above the canvas's middle, under the top bar, where it covers the least of the edges being pulled
+        // at the bottom, where effects keep their panels, under the picture's left quarter: clear of the handles at
+        // its bottom corner and middle, and of the panels at the window's right
         m_popup->adjustSize();
-        const QRect frame = window->geometry();
-        m_popup->popupAt(QPoint(frame.center().x() - m_popup->width() / 2, frame.top() + 56));
+        QWidget *widget = canvas ? canvas->canvasWidget() : nullptr;
+        const QRect area = widget ? QRect(widget->mapToGlobal(QPoint()), widget->size()) : window->geometry();
+        int middle = area.center().x();
+        if (widget) {
+            const QRectF picture = canvas->coordinatesConverter()->imageRectInWidgetPixels();
+            middle = widget->mapToGlobal(QPoint(qRound(picture.left() + picture.width() / 4), 0)).x();
+        }
+        m_popup->popupAt(QPoint(middle - m_popup->width() / 2, area.bottom() - m_popup->height() - KisModernStyle::space3));
     }
 
 public Q_SLOTS:
@@ -187,7 +195,7 @@ void start(KisViewManager *view)
         if (KoToolBase *tool = manager->toolById(alive, QStringLiteral("KisToolCrop"))) {
             QMetaObject::invokeMethod(tool, "beginCanvasResize", Q_ARG(QString, returnTo));
             if (KisViewManager *view = alive->viewManager()) {
-                if (view->mainWindow()) new SizePanel(tool, view->mainWindow());
+                if (view->mainWindow()) new SizePanel(tool, view->mainWindow(), alive);
             }
         }
     });
