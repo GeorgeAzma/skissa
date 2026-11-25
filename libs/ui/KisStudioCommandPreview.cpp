@@ -21,13 +21,16 @@
 #include "canvas/kis_coordinates_converter.h"
 #include "kis_canvas_resource_provider.h"
 #include "kis_image.h"
+#include "kis_paint_device.h"
 #include "kis_selection.h"
+
+#include <cmath>
 
 namespace
 {
 const QString decorationId = QStringLiteral("studioCommandPreview");
 
-enum class Kind { None, Crop, Fill };
+enum class Kind { None, Crop, Fill, Clear };
 
 class PreviewDecoration : public KisCanvasDecoration
 {
@@ -39,11 +42,13 @@ public:
         setVisible(true);
     }
 
-    void set(Kind kind, const QPainterPath &area, const QColor &color)
+    void set(Kind kind, const QPainterPath &area, const QColor &color, const QImage &gone = QImage(), const QRectF &goneRect = QRectF())
     {
         m_kind = kind;
         m_area = area;
         m_color = color;
+        m_gone = gone;
+        m_goneRect = goneRect;
     }
 
     Kind kind() const { return m_kind; }
@@ -62,6 +67,12 @@ protected:
             gc.fillPath(everything - area, QColor(0, 0, 0, 150));
             gc.setPen(QPen(QColor(255, 255, 255, 200), 1));
             gc.drawPath(area);
+        } else if (m_kind == Kind::Clear) {
+            // where the layer's paint would go, the see-through checkers show instead
+            gc.setClipPath(area);
+            gc.setTransform(converter->imageToWidgetTransform(), true);
+            gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            gc.drawImage(m_goneRect, m_gone);
         } else {
             gc.fillPath(area, m_color);
         }
@@ -72,11 +83,36 @@ private:
     Kind m_kind {Kind::None};
     QPainterPath m_area;
     QColor m_color;
+    QImage m_gone;
+    QRectF m_goneRect;
 };
+
+/// The layer's paint in \p rect as checkers: squares about 8 screen px at \p zoom, as see-through is drawn
+QImage checkersOf(KisPaintDeviceSP device, const QRect &rect, qreal zoom)
+{
+    const qreal shrink = qMin<qreal>(1, std::sqrt(4e6 / qMax<qreal>(1, qreal(rect.width()) * rect.height())));
+    const QSize size(qMax(1, qRound(rect.width() * shrink)), qMax(1, qRound(rect.height() * shrink)));
+    QImage paint = shrink < 1 ? device->createThumbnailUncached(size.width(), size.height(), rect)
+                              : device->convertToQImage(nullptr, rect.x(), rect.y(), rect.width(), rect.height());
+    if (paint.isNull()) return QImage();
+    paint = paint.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QImage checkers(paint.size(), QImage::Format_ARGB32_Premultiplied);
+    const int square = qMax(1, qRound(8 / qMax<qreal>(1e-3, zoom) * shrink));
+    QPainter painter(&checkers);
+    for (int y = 0; y < checkers.height(); y += square) {
+        for (int x = 0; x < checkers.width(); x += square) {
+            painter.fillRect(x, y, square, square, ((x / square + y / square) % 2) ? QColor(204, 204, 204) : QColor(255, 255, 255));
+        }
+    }
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    painter.drawImage(0, 0, paint);
+    return checkers;
+}
 
 Kind kindOf(const QString &id)
 {
     if (id == QLatin1String("resizeimagetoselection")) return Kind::Crop;
+    if (id == QLatin1String("clear")) return Kind::Clear;
     if (id.startsWith(QLatin1String("fill_selection_foreground_color")) || id.startsWith(QLatin1String("fill_selection_background_color"))) {
         return Kind::Fill;
     }
@@ -102,7 +138,22 @@ void show(const QString &id)
     KisSelectionSP selection = view->viewManager()->selection();
     QPainterPath area;
     QColor color;
-    if (kind == Kind::Crop) {
+    QImage gone;
+    QRectF goneRect;
+    if (kind == Kind::Clear) {
+        KisPaintDeviceSP device = view->viewManager()->activeDevice();
+        QRect rect = device ? device->exactBounds() : QRect();
+        if (selection) rect &= selection->selectedExactRect();
+        if (rect.isEmpty()) {
+            kind = Kind::None;
+        } else {
+            if (selection && selection->outlineCacheValid()) area = selection->outlineCache();
+            else area.addRect(rect);
+            gone = checkersOf(device, rect, canvas->coordinatesConverter()->effectiveZoom());
+            goneRect = rect;
+            if (gone.isNull()) kind = Kind::None;
+        }
+    } else if (kind == Kind::Crop) {
         const QRect rect = selection ? selection->selectedExactRect() : QRect();
         if (rect.isEmpty()) kind = Kind::None;
         else area.addRect(rect);
@@ -121,7 +172,7 @@ void show(const QString &id)
         canvas->addDecoration(decoration);
     }
     if (kind == Kind::None && decoration->kind() == Kind::None) return;
-    decoration->set(kind, area, color);
+    decoration->set(kind, area, color, gone, goneRect);
     canvas->updateCanvas();
 }
 
