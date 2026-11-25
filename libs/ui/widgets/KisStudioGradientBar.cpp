@@ -5,7 +5,9 @@
  */
 #include "KisStudioGradientBar.h"
 
+#include <QDragEnterEvent>
 #include <QImage>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -13,7 +15,17 @@
 #include <algorithm>
 #include <cmath>
 
+#include <KoColor.h>
+#include <KoSegmentGradient.h>
+#include <KoStopGradient.h>
+
+#include "KisColorDrop.h"
+#include "KisMainWindow.h"
+#include "KisPart.h"
+#include "KisViewManager.h"
+#include "kis_canvas_resource_provider.h"
 #include "KisModernStyle.h"
+#include "KisStudioGradientDrag.h"
 
 namespace
 {
@@ -28,6 +40,7 @@ KisStudioGradientBar::KisStudioGradientBar(QWidget *parent)
     setMinimumHeight(barHeight + handle + KisModernStyle::space1);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMouseTracking(true);
+    setAcceptDrops(true);
 }
 
 void KisStudioGradientBar::setStops(const Stops &stops)
@@ -162,6 +175,7 @@ void KisStudioGradientBar::paintEvent(QPaintEvent *)
     for (int i = 0; i < m_stops.size(); i++) {
         const QPointF at = handleAt(i);
         const qreal radius = handle / 2.0;
+        painter.setOpacity(m_removing && i == m_selected ? 0.3 : 1.0);
         // white with a dark ring, so a stop shows on any color
         painter.setPen(QPen(QColor(0, 0, 0, 160), 1.5));
         painter.setBrush(Qt::white);
@@ -175,19 +189,23 @@ void KisStudioGradientBar::paintEvent(QPaintEvent *)
             painter.drawEllipse(at, radius + 2.5, radius + 2.5);
         }
     }
+    painter.setOpacity(1.0);
+}
+
+void KisStudioGradientBar::removeStop(int index)
+{
+    m_stops.removeAt(index);
+    m_selected = qBound(0, m_selected - (index <= m_selected ? 1 : 0), int(m_stops.size()) - 1);
+    update();
+    Q_EMIT stopsChanged();
+    Q_EMIT selectedChanged();
 }
 
 void KisStudioGradientBar::mousePressEvent(QMouseEvent *event)
 {
     const int index = stopAt(event->pos());
     if (event->button() == Qt::RightButton) {
-        if (index >= 0 && m_stops.size() > 2) {
-            m_stops.removeAt(index);
-            m_selected = qBound(0, m_selected - (index <= m_selected ? 1 : 0), int(m_stops.size()) - 1);
-            update();
-            Q_EMIT stopsChanged();
-            Q_EMIT selectedChanged();
-        }
+        if (index >= 0 && m_stops.size() > 2) removeStop(index);
         return;
     }
     if (event->button() != Qt::LeftButton) return;
@@ -201,6 +219,7 @@ void KisStudioGradientBar::mousePressEvent(QMouseEvent *event)
     }
     m_dragging = true;
     m_moved = false;
+    m_removing = false;
     m_pressX = event->pos().x();
     update();
     Q_EMIT selectedChanged();
@@ -219,6 +238,13 @@ void KisStudioGradientBar::mouseMoveEvent(QMouseEvent *event)
         m_moved = true;
         m_grab = event->pos().x() - handleAt(m_selected).x();
     }
+    // pulled well away from the bar, the stop shows it will go (a gradient keeps two)
+    const bool off = m_stops.size() > 2 && !rect().adjusted(0, -handle, 0, handle).contains(event->pos());
+    if (off != m_removing) {
+        m_removing = off;
+        update();
+    }
+    if (off) return;
     m_stops[m_selected].first = positionOf(qRound(event->pos().x() - m_grab));
     sortKeeping(m_selected);
     update();
@@ -228,4 +254,79 @@ void KisStudioGradientBar::mouseMoveEvent(QMouseEvent *event)
 void KisStudioGradientBar::mouseReleaseEvent(QMouseEvent *)
 {
     m_dragging = false;
+    if (m_removing) {
+        m_removing = false;
+        removeStop(m_selected);
+    }
+}
+
+void KisStudioGradientBar::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    const int index = stopAt(event->pos());
+    if (index < 0) return;
+    QColor color;
+    if (currentColor) {
+        color = currentColor();
+    } else if (KisMainWindow *window = KisPart::instance()->currentMainwindow()) {
+        if (window->viewManager() && window->viewManager()->canvasResourceProvider()) {
+            color = window->viewManager()->canvasResourceProvider()->fgColor().toQColor();
+        }
+    }
+    if (!color.isValid()) return;
+    m_stops[index].second = color;
+    m_selected = index;
+    update();
+    Q_EMIT stopsChanged();
+    Q_EMIT selectedChanged();
+}
+
+void KisStudioGradientBar::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (KisColorDrop::carriesColor(event->mimeData()) || KisStudioGradientDrag::carries(event->mimeData())) event->acceptProposedAction();
+}
+
+void KisStudioGradientBar::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (KisColorDrop::carriesColor(event->mimeData()) || KisStudioGradientDrag::carries(event->mimeData())) event->acceptProposedAction();
+}
+
+void KisStudioGradientBar::dropEvent(QDropEvent *event)
+{
+    if (KoAbstractGradientSP gradient = KisStudioGradientDrag::gradientOf(event->mimeData())) {
+        // its own stops where it has them, else enough of it to follow its curve
+        Stops stops;
+        if (auto stopGradient = gradient.dynamicCast<KoStopGradient>()) {
+            for (const KoGradientStop &stop : stopGradient->stops()) stops << qMakePair(stop.position, stop.color.toQColor());
+        } else {
+            KoColor color;
+            for (int i = 0; i <= 8; i++) {
+                gradient->colorAt(color, i / 8.0);
+                stops << qMakePair(i / 8.0, color.toQColor());
+            }
+        }
+        if (stops.size() < 2) return;
+        event->acceptProposedAction();
+        m_stops = stops;
+        m_selected = 0;
+        update();
+        Q_EMIT stopsChanged();
+        Q_EMIT selectedChanged();
+        return;
+    }
+    KoColor color;
+    if (!KisColorDrop::colorOf(event->mimeData(), &color)) return;
+    event->acceptProposedAction();
+    const QPoint pos = event->pos();
+    const int index = stopAt(pos);
+    if (index >= 0) {
+        m_stops[index].second = color.toQColor();
+        m_selected = index;
+    } else {
+        const qreal at = positionOf(pos.x());
+        m_stops << qMakePair(at, color.toQColor());
+        sortKeeping(m_stops.size() - 1);
+    }
+    update();
+    Q_EMIT stopsChanged();
+    Q_EMIT selectedChanged();
 }

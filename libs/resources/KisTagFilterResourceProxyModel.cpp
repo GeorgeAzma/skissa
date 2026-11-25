@@ -14,6 +14,7 @@
 
 #include <KisResourceModelProvider.h>
 #include <KisResourceModel.h>
+#include <KisResourceTypes.h>
 #include <KisTagResourceModel.h>
 #include <KisTagModel.h>
 #include <KisResourceMetaDataModel.h>
@@ -45,6 +46,8 @@ struct KisTagFilterResourceProxyModel::Private
 
     /// Where each file name is in the user's order of the current tag
     QHash<QString, int> order;
+    /// Per gradient file: whether it follows the current colors
+    mutable QHash<QString, bool> followsColors;
     bool hidesPutAway {false};
     /// What All leaves out while hidesPutAway
     QSet<QString> away;
@@ -473,6 +476,22 @@ bool KisTagFilterResourceProxyModel::lessThan(const QModelIndex &source_left, co
         const int left = d->order.value(sourceModel()->data(source_left, Qt::UserRole + KisAbstractResourceModel::Filename).toString(), INT_MAX);
         const int right = d->order.value(sourceModel()->data(source_right, Qt::UserRole + KisAbstractResourceModel::Filename).toString(), INT_MAX);
         if (left != right) return left < right;
+    }
+    // gradients made of the current colors first: they suit whatever is being painted
+    if (d->resourceType == ResourceType::Gradients) {
+        auto follows = [this](const QModelIndex &index) {
+            const QString file = sourceModel()->data(index, Qt::UserRole + KisAbstractResourceModel::Filename).toString();
+            auto known = d->followsColors.constFind(file);
+            if (known != d->followsColors.constEnd()) return *known;
+            auto *resources = dynamic_cast<KisAbstractResourceModel *>(sourceModel());
+            KoResourceSP resource = resources ? resources->resourceForIndex(index) : KoResourceSP();
+            const bool yes = resource && !resource->requiredCanvasResources().isEmpty();
+            d->followsColors.insert(file, yes);
+            return yes;
+        };
+        const bool left = follows(source_left);
+        const bool right = follows(source_right);
+        if (left != right) return left;
     }
     QString nameLeft = sourceModel()->data(source_left, Qt::UserRole + KisAbstractResourceModel::Name).toString();
     QString nameRight = sourceModel()->data(source_right, Qt::UserRole + KisAbstractResourceModel::Name).toString();

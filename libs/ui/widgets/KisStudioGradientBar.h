@@ -16,8 +16,9 @@
 #include "kritaui_export.h"
 
 /**
- * A gradient as a bar with its stops under it: a stop is dragged along it, a click on the bar adds one with the
- * color there, a right click takes one away. The stop pressed last is the selected one, whose color a panel shows.
+ * A gradient as a bar with its stops under it, edited as the gradient strip is: a stop is dragged along it, dragged
+ * off (or right clicked) goes, a click on the bar adds one with the color there; a color dropped on a stop becomes
+ * it, elsewhere a new stop; a gradient dropped on it becomes its stops; a double click gives a stop the current color. The stop pressed last is the selected one, whose color a panel shows.
  * Above the bar, how much of the picture is at each place along it, if given.
  */
 class KRITAUI_EXPORT KisStudioGradientBar : public QWidget
@@ -39,6 +40,8 @@ public:
 
     /// The color between the stops at \p at; unset, they blend in sRGB
     std::function<QColor(const Stops &, qreal)> colorAt;
+    /// The color a double click gives a stop; unset, the foreground color
+    std::function<QColor()> currentColor;
     /// The stops blended in sRGB
     static QColor blended(const Stops &stops, qreal at);
 
@@ -53,6 +56,10 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private:
     QRectF barRect() const;
@@ -63,6 +70,7 @@ private:
     /// Keeps the stops in order, following stop \p index as the selected one
     void sortKeeping(int index);
     QColor shownAt(qreal at) const;
+    void removeStop(int index);
 
     Stops m_stops;
     QVector<float> m_histogram;
@@ -71,6 +79,8 @@ private:
     bool m_dragging {false};
     /// The stop follows the pointer only once the press has moved a drag's distance
     bool m_moved {false};
+    /// The dragged stop is off the bar: let go, it goes
+    bool m_removing {false};
     int m_pressX {0};
     /// How far the pointer was from the stop's middle when it began to move, kept while it moves
     qreal m_grab {0};
