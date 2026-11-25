@@ -114,6 +114,60 @@
 #include "NodeDelegate.h"
 #include <QStyleOption>
 #include <QTimer>
+#include <QScrollBar>
+
+namespace {
+/// Keeps \p bar over the right edge of \p list
+class FloatingBarPlacer : public QObject
+{
+public:
+    FloatingBarPlacer(QAbstractScrollArea *list, QScrollBar *bar)
+        : QObject(bar), m_list(list), m_bar(bar)
+    {
+        list->installEventFilter(this);
+    }
+
+    void place()
+    {
+        const int width = m_bar->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_bar);
+        const QRect area(m_list->viewport()->mapTo(m_list->parentWidget(), QPoint()), m_list->viewport()->size());
+        m_bar->setGeometry(area.right() + 1 - width, area.top(), width, area.height());
+        m_bar->raise();
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        if (event->type() == QEvent::Resize || event->type() == QEvent::Move || event->type() == QEvent::Show) place();
+        return false;
+    }
+
+private:
+    QAbstractScrollArea *m_list;
+    QScrollBar *m_bar;
+};
+
+/// The list's scrollbar floats over its edge instead of taking a column, so rows and the current one's
+/// highlight reach as far right as they reach left
+void floatScrollBar(QAbstractScrollArea *list)
+{
+    QScrollBar *real = list->verticalScrollBar();
+    list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *bar = new QScrollBar(Qt::Vertical, list->parentWidget());
+    auto *placer = new FloatingBarPlacer(list, bar);
+    auto sync = [bar, real]() {
+        bar->setRange(real->minimum(), real->maximum());
+        bar->setPageStep(real->pageStep());
+        bar->setSingleStep(real->singleStep());
+        bar->setValue(real->value());
+        bar->setVisible(real->maximum() > real->minimum());
+    };
+    QObject::connect(real, &QScrollBar::rangeChanged, bar, sync);
+    QObject::connect(real, &QScrollBar::valueChanged, bar, &QScrollBar::setValue);
+    QObject::connect(bar, &QScrollBar::valueChanged, real, &QScrollBar::setValue);
+    sync();
+    placer->place();
+}
+}
 
 class LayerBoxStyle : public QProxyStyle
 {
@@ -387,6 +441,7 @@ LayerBox::LayerBox()
         }
 
         ui->verticalLayout->setContentsMargins(6, 2, 6, 6);
+        floatScrollBar(ui->listLayers);
 
         // placed in the current layer's row by placeRowControls(); its opacity is written beside it by the
         // list and set by a sideways drag on the row, so Krita's slider is kept only for its value
