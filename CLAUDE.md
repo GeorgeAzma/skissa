@@ -156,21 +156,12 @@ The build environment is outside the repo, in `C:\code\krita-deps`: llvm-mingw, 
 Proposed and not built yet; build from the top when there is nothing else, remove what is done or declined.
 
 - **Approved by the owner (November 2026), in this order** (and later all the items below but Fewer settings, Vector and the small ones; the selection outline is wanted visible but easy to hide, now a zoom pill switch):
-  1. Drag onto what it should change: colors, gradients, patterns and effects drop on the canvas, a selection and layer rows (`KisStudioItemDrop`, `KisStudioPatternDrag`); left: layer styles, and patterns or gradients onto the area under the pointer as a color drop does.
-  2. Right-click card for what is under the pointer: layers, selections and guides have theirs; left: swatches.
-  3. Previews instead of names: menus preview Crop to selection and the fills on the canvas (`KisStudioCommandPreview`); left: Clear, layer styles redesigned like the Shape effect with previews, dithering choices as pictures.
-  4. One value control everywhere: every plain number box scrubs, resets and wheels (`SpinScrub`); left: any plain sliders the UI tour still finds.
-  6. Handles on the canvas: canvas size, crop, image resize, guides, gradients, pattern placement, text boxes, selection grow and soften, symmetry axis.
-  7. Retire Krita dialogs: Image size, Layer properties and Export are done; left: Color space conversion, Preferences pages Settings doesn't cover.
+  1. Drag onto what it should change: colors, gradients, patterns and effects drop on the canvas, a selection and layer rows (`KisStudioItemDrop`, `KisStudioPatternDrag`; patterns fill the area under the pointer as colors do); left: layer styles, and gradients onto the area under the pointer.
+  6. Handles on the canvas: canvas size, crop, image resize, guides, gradients, pattern placement (scale, turn, shift), text boxes, selection grow and soften, symmetry axis. The owner is unsure about these (November 2026): ask before building.
+  7. Retire Krita dialogs: Image size, Color space, Layer properties and Export are done; left: Preferences pages Settings doesn't cover.
   9. Cut text nobody needs: "… options" group titles are cut (`groupTitle`); left: a sweep of a fresh UI tour for headers in small popups and labels repeated in tooltips.
-- **Gradients as paint:** the strip edited in place (click adds a stop, drag moves, drag off removes, colors dropped on it); gradient tiles dragged like swatches (canvas: fill along a default direction; layer: gradient map; a gradient map effect: its gradient; a selection's outline: fill it); on-canvas handles that stay until something else is done; two gradients that follow the current colors (color to transparent, color to back color); one strip control everywhere gradients appear, and a gradient strip in the color panel so gradients are never hidden (the owner asked for all of it, November 2026).
-- **Patterns the same way:** dragging and Tint are done; left: scale, turn and shift with on-canvas handles.
-- **Text tool redesign:** Krita's tool with a QML options page; large. Wanted: minimal, direct, Skissa-like.
-- **Selections:** one Select tool chosen by gesture (freehand lasso, clicked polygon, rough box or circle snapping clean, a tap for similar color); a dimmed outside instead of marching ants; handles to edit it until it is used; dragging inside moves its pixels; its edge flashes when painting outside it does nothing. Magnetic selection replaced by a lasso that follows edges: a soft band around the pointer (pressure or wheel sets its width) where the line takes the strongest edge live, drawing back erases, letting go closes along edges, no edge means the line stays where drawn; plus "Snap to edges" on any selection.
-- **Shortcuts:** a free left-hand key offered on a command's card once it is used often.
-- **Layer styles redesign.**
-- **Perspective from two lines** drawn along edges in a photo.
-- **Time-lapse export:** lossless and frames.
+- **Gradients as paint:** the strip edited in place, gradients dragged and the colors that follow the current ones are done; left: on-canvas handles (see 6) and one strip control everywhere gradients appear.
+- **Selections:** the one lasso, rough shapes snapping clean, following edges and the edge flash are done; left: a dimmed outside instead of marching ants, handles to edit it until it is used (see 6), dragging inside moves its pixels, "Snap to edges" on any selection. A tap can't pick similar color: a click starts the lasso's corners.
 - **Fewer settings:** only cuts that lose no function (the owner's rule). Done: the eraser's cursor rows show only with its own switch on, the tooltip delay under Tooltips. Left: an Advanced fold for proofing, EXR profile, frames at once, threads, memory, renderer and bit depth.
 - **Vector layers (low):** the owner never uses them. Quick wins only: vector choices out of new-layer menus and Find until a file has a vector layer; Convert to paint layer on a vector layer's card.
 
