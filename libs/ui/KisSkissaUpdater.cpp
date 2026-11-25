@@ -317,11 +317,22 @@ public:
         if (!asked && !KisSettingsRegistry::instance()->value(QStringLiteral("StudioUpdates")).toBool()) return;
 
         QString feed = qEnvironmentVariable("KRITA_DEV_UPDATES");
-        if (feed.isEmpty()) {
-            feed = KisProfile::homepage().replace(QLatin1String("https://github.com/"), QLatin1String("https://api.github.com/repos/"))
-                + QStringLiteral("/releases/latest");
+        if (!feed.isEmpty()) {
+            lookAt(QUrl(feed), QUrl(), asked);
+            return;
         }
-        QNetworkRequest request{QUrl(feed)};
+        // the latest release's own description first: GitHub allows its API only 60 asks an hour from one address
+        lookAt(QUrl(KisProfile::homepage() + QStringLiteral("/releases/latest/download/skissa-latest.json")),
+               QUrl(KisProfile::homepage().replace(QLatin1String("https://github.com/"), QLatin1String("https://api.github.com/repos/"))
+                    + QStringLiteral("/releases/latest")),
+               asked);
+    }
+
+    /// Reads the release described at \p feed, or else at \p fallback
+    void lookAt(const QUrl &feed, const QUrl &fallback, bool asked)
+    {
+        QNetworkRequest request{feed};
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         // a stalled connection fails instead of keeping the updater busy for the rest of the session
         request.setTransferTimeout(60000);
         request.setRawHeader("Accept", "application/vnd.github+json");
@@ -329,15 +340,19 @@ public:
         const State before = state;
         state = Looking;
         QNetworkReply *reply = network.get(request);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, asked, before]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, asked, before, fallback]() {
             reply->deleteLater();
             state = before;
-            if (reply->error() != QNetworkReply::NoError) {
-                if (asked) tell(i18nc("@info", "Couldn't reach GitHub"));
+            const QJsonObject release = reply->error() == QNetworkReply::NoError ? QJsonDocument::fromJson(reply->readAll()).object() : QJsonObject();
+            QString latest = release.value(QStringLiteral("tag_name")).toString();
+            if (latest.isEmpty()) {
+                if (!fallback.isEmpty()) {
+                    lookAt(fallback, QUrl(), asked);
+                } else if (asked) {
+                    tell(i18nc("@info", "Couldn't reach GitHub"));
+                }
                 return;
             }
-            const QJsonObject release = QJsonDocument::fromJson(reply->readAll()).object();
-            QString latest = release.value(QStringLiteral("tag_name")).toString();
             if (latest.startsWith(QLatin1Char('v'))) latest.remove(0, 1);
             if (state == Ready && !isNewer(latest, found)) {
                 if (asked) tell(readyText());

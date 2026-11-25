@@ -17,6 +17,8 @@ fork's own commits since the last release. --no-publish stops after the zip (not
 """
 
 import argparse
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +29,8 @@ VERSION_FILE = os.path.join(HERE, 'skissa-version.txt')
 REMOTE = 'skissa'
 BRANCH = 'main'
 REPO = 'GeorgeAzma/skissa'
+# read by KisSkissaUpdater through releases/latest/download/, which GitHub doesn't limit as it does its API
+MANIFEST = 'skissa-latest.json'
 
 
 def git(*args):
@@ -52,6 +56,24 @@ def default_notes(since):
     subjects = git('log', '--first-parent', '--no-merges', '--format=%s', '%s..HEAD' % since).splitlines() if since else []
     subjects = [s for s in subjects if not s.startswith('Skissa ')]
     return ''.join('- %s\n' % s for s in reversed(subjects)) or 'Fixes.\n'
+
+
+def write_manifest(archive, tag, out):
+    """The release as GitHub's API describes it, only the parts the updater reads"""
+    digest = hashlib.sha256()
+    with open(archive, 'rb') as data:
+        for block in iter(lambda: data.read(1 << 20), b''):
+            digest.update(block)
+    name = os.path.basename(archive)
+    manifest = os.path.join(out, MANIFEST)
+    with open(manifest, 'w', encoding='utf-8', newline='\n') as text:
+        json.dump({'tag_name': tag, 'assets': [{
+            'name': name,
+            'browser_download_url': 'https://github.com/%s/releases/download/%s/%s' % (REPO, tag, name),
+            'size': os.path.getsize(archive),
+            'digest': 'sha256:' + digest.hexdigest(),
+        }]}, text, indent=1)
+    return manifest
 
 
 def main():
@@ -113,7 +135,8 @@ def main():
     git('tag', '-a', tag, '-m', 'Skissa %s' % version)
     run(['git', 'push', REMOTE, BRANCH], 'push')
     run(['git', 'push', REMOTE, tag], 'push tag')
-    run(['gh', 'release', 'create', tag, archive, '--repo', REPO, '--title', 'Skissa %s' % version, '--notes-file', notes], 'release')
+    manifest = write_manifest(archive, tag, args.out)
+    run(['gh', 'release', 'create', tag, archive, manifest, '--repo', REPO, '--title', 'Skissa %s' % version, '--notes-file', notes], 'release')
     print('released', tag)
     return 0
 
