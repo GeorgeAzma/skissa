@@ -160,34 +160,6 @@ void KisStudioPatternDrag::makeDraggable(QWidget *widget, std::function<KoPatter
     if (widget) new DragOut(widget, std::move(pattern));
 }
 
-void KisStudioPatternDrag::paintOnCanvas(KisViewManager *viewManager, KoPatternSP pattern)
-{
-    KisImageSP image = viewManager ? viewManager->image() : nullptr;
-    if (!image || !pattern) return;
-    KisSelectionSP selection = viewManager->selection();
-    KisNodeSP active = viewManager->activeNode();
-    const QRect area = selection ? selection->selectedExactRect() : image->bounds();
-    if (area.isEmpty()) return;
-    const KoPatternSP painted = asPainted(pattern);
-
-    KisProcessingApplicator applicator(image, nullptr, KisProcessingApplicator::NONE, KisImageSignalVector(), kundo2_i18n("Pattern"));
-    // in a selection on the layer it is on; else on a layer of its own above the current one, for the whole image
-    KisNodeSP target = selection && active && qobject_cast<KisPaintLayer *>(active.data()) && active->isEditable() ? active : nullptr;
-    if (!target) {
-        KisPaintLayerSP layer = new KisPaintLayer(image, i18nc("a layer's name", "Pattern"), OPACITY_OPAQUE_U8);
-        KisNodeSP parent = active && active->parent() ? active->parent() : image->root();
-        KisNodeSP above = active && active->parent() ? active : parent->lastChild();
-        applicator.applyCommand(new KisImageLayerAddCommand(image, layer, parent, above), KisStrokeJobData::SEQUENTIAL,
-                                KisStrokeJobData::EXCLUSIVE);
-        target = layer;
-    }
-    applicator.applyCommand(new KisCommandUtils::LambdaCommand([target, selection, painted, area]() {
-                                return paintPattern(target->paintDevice(), selection, painted, area, false);
-                            }),
-                            KisStrokeJobData::SEQUENTIAL, KisStrokeJobData::EXCLUSIVE);
-    applicator.end();
-}
-
 bool KisStudioPatternDrag::canFillLayer(KisNodeSP node)
 {
     return node && qobject_cast<KisPaintLayer *>(node.data()) && node->hasEditablePaintDevice();

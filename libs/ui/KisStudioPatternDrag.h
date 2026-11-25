@@ -27,8 +27,6 @@ KRITAUI_EXPORT KoPatternSP patternOf(const QMimeData *data);
 KRITAUI_EXPORT void start(QWidget *source, KoPatternSP pattern);
 /// Lets \p widget be dragged from, carrying what \p pattern gives when the drag starts
 KRITAUI_EXPORT void makeDraggable(QWidget *widget, std::function<KoPatternSP()> pattern);
-/// Inside the selection on the layer in use; without one, a layer of its own over the whole image
-KRITAUI_EXPORT void paintOnCanvas(KisViewManager *viewManager, KoPatternSP pattern);
 /// Paints \p node's paint with the pattern, keeping where it is see-through
 KRITAUI_EXPORT bool canFillLayer(KisNodeSP node);
 KRITAUI_EXPORT void fillLayer(KisImageSP image, KisNodeSP node, KoPatternSP pattern);

@@ -977,6 +977,8 @@ struct KisColorDrop::Private {
     // the last drop, made again as its panel changes it while it is still the newest step
     QPoint lastSeed {-1, -1};
     KoColor lastColor;
+    KoPatternSP pattern;
+    KoPatternSP lastPattern;
     KisRedoLast redo;
     /// Making the last fill again: its layer is the one active at the drop, not what is active now
     bool refilling {false};
@@ -1490,6 +1492,11 @@ bool KisColorDrop::drop(const KoColor &color, const QPoint &canvasPos)
     return true;
 }
 
+void KisColorDrop::setPattern(KoPatternSP pattern)
+{
+    d->pattern = pattern;
+}
+
 void KisColorDrop::refillLast()
 {
     KisImageSP image = d->view ? d->view->image() : nullptr;
@@ -1523,8 +1530,10 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
 
     KisSelectionSP selection = viewManager->selection();
     const bool inSelection = selection && selection->projection()->pixel(point).opacityU8() > 0;
+    const KoPatternSP pattern = d->refilling ? d->lastPattern : d->pattern;
+    d->lastPattern = pattern;
     // a painting, a flat, or a clear layer over a painting: filled by color, its soft edges taking the new color by their share
-    const ByColor way = inSelection ? ByColor() : byColorAt(image, active, point);
+    const ByColor way = inSelection || pattern ? ByColor() : byColorAt(image, active, point);
     d->lastWay = way;
     if (d->panel) d->fitPanel();
     if (way) {
@@ -1551,6 +1560,7 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
     resources->setFGColorOverride(color.convertedTo(image->colorSpace()));
     // a new layer is empty: with Preserve Alpha the fill would show nowhere
     if (target.newLayer) resources->setGlobalAlphaLock(false);
+    if (pattern) resources->setPatternOverride(pattern);
 
     // the picture's lines only, made in the stroke (not on the window's thread) from the picture as it is then
     KisPaintDeviceSP lines = new KisPaintDevice(KoColorSpaceRegistry::instance()->rgb8());
@@ -1566,6 +1576,7 @@ bool KisColorDrop::fillAt(const KoColor &color, const QPoint &dropped)
     FillProcessingVisitor *visitor = new FillProcessingVisitor(lines, resources->activeSelection(), resources);
     visitor->setSeedPoint(point);
     visitor->setSelectionOnly(inSelection);
+    visitor->setUsePattern(bool(pattern));
     visitor->setUseFastMode(false);
     visitor->setUseCustomBlendingOptions(true);
     visitor->setCustomOpacity(1.0);

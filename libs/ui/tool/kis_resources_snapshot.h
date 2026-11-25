@@ -72,6 +72,8 @@ public:
     QString compositeOpId() const;
 
     KoPatternSP currentPattern() const;
+    /// Fills with \p pattern, tinted by the paint color as the current pattern is
+    void setPatternOverride(KoPatternSP pattern);
     KoColor currentFgColor() const;
     KoColor currentBgColor() const;
     KisPaintOpPresetSP currentPaintOpPreset() const;

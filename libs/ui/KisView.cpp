@@ -500,9 +500,13 @@ void KisView::dropEvent(QDropEvent *event)
         return;
     }
 
-    // a pattern: inside the selection, or a layer of its own
+    // a pattern: the area under it, as a color fills it
     if (KisStudioPatternDrag::carries(event->mimeData())) {
-        KisStudioPatternDrag::paintOnCanvas(viewManager(), KisStudioPatternDrag::patternOf(event->mimeData()));
+        if (KoPatternSP pattern = KisStudioPatternDrag::patternOf(event->mimeData())) {
+            d->colorDrop->setPattern(pattern);
+            d->colorDrop->drop(viewManager()->canvasResourceProvider()->fgColor(), canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
+            d->colorDrop->setPattern(KoPatternSP());
+        }
         event->acceptProposedAction();
         return;
     }
@@ -1136,6 +1140,8 @@ void KisView::dragMoveEvent(QDragMoveEvent *event)
             } else {
                 d->colorDrop->leave();
             }
+        } else if (image() && KisStudioPatternDrag::carries(event->mimeData())) {
+            d->colorDrop->hover(viewManager()->canvasResourceProvider()->fgColor(), canvasBase()->canvasWidget()->mapFrom(this, event->pos()));
         }
         event->accept();
     } else {

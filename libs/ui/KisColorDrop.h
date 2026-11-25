@@ -15,6 +15,7 @@
 #include <kritaui_export.h>
 #include <kis_types.h>
 #include <kis_node.h>
+#include <KoPattern.h>
 
 class KoColor;
 class KisView;
@@ -80,6 +81,8 @@ public:
     void leave();
     /// Fills at \p canvasPos with \p color. Returns false if there was nothing to fill there.
     bool drop(const KoColor &color, const QPoint &canvasPos);
+    /// The next drops fill with \p pattern (tinted as patterns are) instead of their color; none: their color
+    void setPattern(KoPatternSP pattern);
 
     /// Drags \p color out of \p source, shown as a round swatch under the pointer. Returns when it is dropped.
     static void startDrag(QWidget *source, const QColor &color);

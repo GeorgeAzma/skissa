@@ -392,6 +392,11 @@ QString KisResourcesSnapshot::compositeOpId() const
     return m_d->compositeOpId;
 }
 
+void KisResourcesSnapshot::setPatternOverride(KoPatternSP pattern)
+{
+    m_d->currentPattern = KisPatternTint::applied(pattern, m_d->currentFgColor);
+}
+
 KoPatternSP KisResourcesSnapshot::currentPattern() const
 {
     return m_d->currentPattern;
