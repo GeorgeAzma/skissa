@@ -10,6 +10,7 @@
 
 #include "KisMainWindow.h"
 #include "KisStudioCanvasSize.h"
+#include "KisStudioImageSize.h"
 
 #include <klocalizedstring.h>
 #include <kis_debug.h>
@@ -60,6 +61,11 @@ ImageSize::~ImageSize()
 
 void ImageSize::slotImageSize()
 {
+    // the Studio scales the image in a popup of its own
+    if (viewManager()->mainWindow() && viewManager()->mainWindow()->property("studioLayoutActive").toBool()) {
+        KisStudioImageSize::open(viewManager());
+        return;
+    }
     KisImageSP image = viewManager()->image().toStrongRef();
     if (!image) return;
 
