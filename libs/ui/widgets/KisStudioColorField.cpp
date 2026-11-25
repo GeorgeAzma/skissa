@@ -337,6 +337,8 @@ KisStudioColorField::KisStudioColorField(QWidget *parent)
     , d(new Private)
 {
     setCursor(Qt::PointingHandCursor);
+    // repainted as the pointer comes and goes
+    setAttribute(Qt::WA_Hover);
     setFocusPolicy(Qt::NoFocus);
 }
 
@@ -417,6 +419,14 @@ void KisStudioColorField::paintEvent(QPaintEvent *)
         painter.setPen(QPen(ring, 2));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(1, 1, -1, -1), KisModernStyle::cornerRadius));
+    } else if (underMouse()) {
+        // pointed at: outlined, as the palette's swatches are
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        QColor outline = palette().color(QPalette::WindowText);
+        outline.setAlphaF(0.6);
+        painter.setPen(QPen(outline, 1));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(KisModernStyle::squircle(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius));
     }
 }
 

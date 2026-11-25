@@ -67,6 +67,9 @@ private:
     QPainterPath m_outlinePath;
     QImage m_thumbnailImage;
     QTransform m_thumbnailImageTransform;
+    /// Where the selection is soft, under the ants
+    QImage m_softBand;
+    QTransform m_softBandTransform;
     QTimer* m_antsTimer;
     int m_offset;
 

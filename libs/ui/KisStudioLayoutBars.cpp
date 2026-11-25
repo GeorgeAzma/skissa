@@ -1171,6 +1171,12 @@ void KisStudioLayout::tidyCommand(QAction *action)
                 KisViewManager *view = d->mainWindow ? d->mainWindow->viewManager() : nullptr;
                 KisImageSP image = view ? view->image() : nullptr;
                 if (!image) return;
+                // Push again after picking a layer goes ahead whatever is active by then: looking again could pick
+                // and Push once more, round and round while the layer change hasn't landed
+                if (action->property("skissaPushAgain").toBool()) {
+                    action->setProperty("skissaPushAgain", false);
+                    return;
+                }
                 auto painted = [](KisNodeSP node) {
                     return node && node->paintDevice() && qobject_cast<KisLayer *>(node.data()) && !node->paintDevice()->exactBounds().isEmpty();
                 };
@@ -1191,7 +1197,10 @@ void KisStudioLayout::tidyCommand(QAction *action)
                     // starts afresh on it in Push (a layer picked under it would restart it in its first mode)
                     KisStudioTools::switchTo(QStringLiteral("KritaShape/KisToolBrush"));
                     view->nodeManager()->slotNonUiActivatedNode(found);
-                    QTimer::singleShot(0, action, [action]() { action->trigger(); });
+                    QTimer::singleShot(0, action, [action]() {
+                        action->setProperty("skissaPushAgain", true);
+                        action->trigger();
+                    });
                 } else {
                     view->showFloatingMessage(i18nc("@info:status", "Nothing to push"), KisIconUtils::loadIcon(QStringLiteral("studio_push")), 2000);
                 }

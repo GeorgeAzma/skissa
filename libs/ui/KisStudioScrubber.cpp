@@ -256,13 +256,16 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         painter.setBrush(KisModernStyle::mix(window, text, 0.85));
         painter.drawEllipse(icon.center(), diameter / 2, diameter / 2);
     } else if (m_kind == Kind::Grow) {
-        // a shape and the outline it grows (or shrinks) to
+        // a shape and the outline it grows or shrinks to, as far as it is set (by ratios: small amounts show)
         const QColor ink = KisModernStyle::mix(window, text, 0.85);
+        const qreal reach = std::log1p(qAbs(m_value)) / std::log1p(qMax(qAbs(m_minimum), qAbs(m_maximum)));
+        const qreal shape = m_value < 0 ? 6.0 : 4.0;
+        const qreal outline = m_value < 0 ? shape - 4.0 * reach : shape + 1.5 + 3.5 * reach;
         painter.setBrush(ink);
-        painter.drawPath(KisModernStyle::squircle(QRectF(icon.center() - QPointF(4, 4), QSizeF(8, 8)), 2));
+        painter.drawPath(KisModernStyle::squircle(QRectF(icon.center() - QPointF(shape, shape), QSizeF(2 * shape, 2 * shape)), 2));
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(ink, 1.3, Qt::DashLine));
-        painter.drawPath(KisModernStyle::squircle(icon.adjusted(2.5, 2.5, -2.5, -2.5), 4));
+        painter.setPen(QPen(m_value < 0 ? window : ink, 1.3, Qt::DashLine));
+        painter.drawPath(KisModernStyle::squircle(QRectF(icon.center() - QPointF(outline, outline), QSizeF(2 * outline, 2 * outline)), 3));
     } else if (m_kind == Kind::Threshold) {
         // two shades that count as one, more alike the lower it is
         const qreal t = qBound(0.0, (m_value - m_minimum) / (m_maximum - m_minimum), 1.0);
@@ -271,10 +274,12 @@ void KisStudioScrubber::paintEvent(QPaintEvent *)
         painter.setBrush(KisModernStyle::mix(window, text, 0.85 - 0.6 * t));
         painter.drawPie(icon.adjusted(2, 2, -2, -2), 270 * 16, 180 * 16);
     } else if (m_kind == Kind::Soft) {
-        // a dot whose edge fades
+        // a dot whose edge fades as far as it is set
+        const qreal reach = std::log1p(qMax(0.0, m_value)) / std::log1p(qMax(1.0, m_maximum));
         QRadialGradient fade(icon.center(), iconSize / 2.0);
         QColor ink = KisModernStyle::mix(window, text, 0.85);
-        fade.setColorAt(0.3, ink);
+        fade.setColorAt(0.0, ink);
+        fade.setColorAt(qMin(0.9, 0.92 - 0.8 * reach), ink);
         ink.setAlphaF(0);
         fade.setColorAt(1, ink);
         painter.setBrush(fade);

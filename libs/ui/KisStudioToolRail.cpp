@@ -951,6 +951,15 @@ KisStudioToolRail::KisStudioToolRail(KisMainWindow *mainWindow, QWidget *parent)
             });
         });
     }
+    // the brush tool's key (B) while erasing: the brush tool is in use already, so it is back to painting
+    if (QAction *brush = d->toolAction(brushToolId)) {
+        connect(brush, &QAction::triggered, this, [this]() {
+            if (!d->erasing) return;
+            QAction *erase = d->eraseAction();
+            if (erase && erase->isChecked()) erase->setChecked(false);
+            setErasing(false);
+        });
+    }
     if (KisCanvasResourceProvider *resources = d->resources()) {
         connect(resources, &KisCanvasResourceProvider::sigPaintOpPresetChanged, this, &KisStudioToolRail::rememberPreset);
     }

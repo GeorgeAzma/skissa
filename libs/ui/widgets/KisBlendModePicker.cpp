@@ -241,7 +241,8 @@ QImage middleOf(KisPaintDeviceSP device, const QRect &bounds, const QSize &size)
 {
     QRect source(QPoint(), size.scaled(bounds.size(), Qt::KeepAspectRatio));
     source.moveCenter(bounds.center());
-    return cropTo(device->createThumbnailUncached(size.width(), size.height(), source), size, size);
+    // read at four times the size and brought down with Lanczos: read at its own size, every pixel was one sample and edges stepped
+    return cropTo(device->createThumbnailUncached(4 * size.width(), 4 * size.height(), source), size, size);
 }
 
 /// "Soft Light (Photoshop)" -> "Soft Light"; used in the user's list, where the variant rarely matters
@@ -336,7 +337,10 @@ KisStudioPicker::Source KisBlendModePicker::source(const Pictures &pictures, boo
                 made->insert(id, compositeWith(pictures.backdrop, pictures.source, pictures.sourceOpacity, id));
             }
             paintCheckerboard(painter, rect, 8, QColor(110, 110, 110));
+            painter.save();
+            painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
             painter.drawImage(rect, made->value(id));
+            painter.restore();
         };
     } else {
         source.paintPreview = [](QPainter &painter, const QRect &rect, const QString &id) {

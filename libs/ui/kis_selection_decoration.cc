@@ -40,6 +40,7 @@
 #include <KisScreenMigrationTracker.h>
 #include <kis_display_color_converter.h>
 #include <KisFrameRate.h>
+#include "KisSelectionSoftness.h"
 
 static const unsigned int ANT_LENGTH = 4;
 static const unsigned int ANT_SPACE = 4;
@@ -133,6 +134,13 @@ void KisSelectionDecoration::selectionChanged()
             if (m_mode == Ants) {
                 m_outlinePath = selection->outlineCache();
                 m_antsTimer->start();
+                KisSelectionSoftness::start(view()->image(), selection, qApp->palette().color(QPalette::Highlight), this,
+                                            [this](const QImage &band, const QTransform &at) {
+                    if (band.isNull() && m_softBand.isNull()) return;
+                    m_softBand = band;
+                    m_softBandTransform = at;
+                    if (view() && view()->canvasBase()) view()->canvasBase()->updateCanvas();
+                });
             } else {
                 m_thumbnailImage = selection->thumbnailImage();
                 m_thumbnailImageTransform = selection->thumbnailImageTransform();
@@ -153,6 +161,7 @@ void KisSelectionDecoration::selectionChanged()
         m_outlinePath = QPainterPath();
         m_thumbnailImage = QImage();
         m_thumbnailImageTransform = QTransform();
+        m_softBand = QImage();
         view()->canvasBase()->updateCanvas();
         m_antsTimer->stop();
     }
@@ -266,6 +275,14 @@ void KisSelectionDecoration::drawDecoration(QPainter& gc, const QRectF& updateRe
         m_outlinePen.setColor(canvas->displayColorConverter()->convertColorToDisplayColorSpace(c));
         c.fromQColor(Qt::black);
         m_antsPen.setColor(canvas->displayColorConverter()->convertColorToDisplayColorSpace(c));
+
+        if (!m_softBand.isNull()) {
+            gc.save();
+            gc.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            gc.setTransform(m_softBandTransform, true);
+            gc.drawImage(QPoint(), m_softBand);
+            gc.restore();
+        }
 
         gc.setRenderHints(QPainter::Antialiasing | QPainter::Antialiasing, m_antialiasSelectionOutline);
 

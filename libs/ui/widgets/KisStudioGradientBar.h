@@ -57,6 +57,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
@@ -76,6 +77,8 @@ private:
     QVector<float> m_histogram;
     qreal m_marker {-1};
     int m_selected {0};
+    /// The stop under the pointer, -1 for none
+    int m_hovered {-1};
     bool m_dragging {false};
     /// The stop follows the pointer only once the press has moved a drag's distance
     bool m_moved {false};

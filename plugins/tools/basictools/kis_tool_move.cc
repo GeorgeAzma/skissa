@@ -542,7 +542,7 @@ void KisToolMove::mouseMoveEvent(KoPointerEvent *event)
 
 void KisToolMove::startAction(KoPointerEvent *event, MoveToolMode mode)
 {
-    QPoint pos = convertToPixelCoordAndSnap(event).toPoint();
+    QPoint pos = convertToPixelCoord(event).toPoint();
     m_dragStart = pos;
     m_dragPos = pos;
 
@@ -569,7 +569,7 @@ void KisToolMove::continueAction(KoPointerEvent *event)
 
     if (!m_strokeId) return;
 
-    QPoint pos = convertToPixelCoordAndSnap(event).toPoint();
+    QPoint pos = convertToPixelCoord(event).toPoint();
     pos = applyModifiers(event->modifiers(), pos);
     m_dragPos = pos;
 
@@ -585,7 +585,7 @@ void KisToolMove::endAction(KoPointerEvent *event)
     setMode(KisTool::HOVER_MODE);
     if (!m_strokeId) return;
 
-    QPoint pos = convertToPixelCoordAndSnap(event).toPoint();
+    QPoint pos = convertToPixelCoord(event).toPoint();
     pos = applyModifiers(event->modifiers(), pos);
     drag(pos);
 

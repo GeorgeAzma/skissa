@@ -183,8 +183,10 @@ void KisStudioGradientBar::paintEvent(QPaintEvent *)
         painter.setPen(Qt::NoPen);
         painter.setBrush(m_stops[i].second);
         painter.drawEllipse(at, radius - 3, radius - 3);
-        if (i == m_selected) {
-            painter.setPen(QPen(ink, 1.5));
+        if (i == m_selected || i == m_hovered) {
+            QColor ring = ink;
+            if (i != m_selected) ring.setAlphaF(0.45);
+            painter.setPen(QPen(ring, 1.5));
             painter.setBrush(Qt::NoBrush);
             painter.drawEllipse(at, radius + 2.5, radius + 2.5);
         }
@@ -229,7 +231,12 @@ void KisStudioGradientBar::mouseMoveEvent(QMouseEvent *event)
 {
     if (!m_dragging || !(event->buttons() & Qt::LeftButton)) {
         m_dragging = false;
-        setCursor(stopAt(event->pos()) >= 0 ? Qt::SizeHorCursor : Qt::ArrowCursor);
+        const int hovered = stopAt(event->pos());
+        setCursor(hovered >= 0 ? Qt::SizeHorCursor : Qt::ArrowCursor);
+        if (hovered != m_hovered) {
+            m_hovered = hovered;
+            update();
+        }
         return;
     }
     if (!m_moved) {
@@ -258,6 +265,12 @@ void KisStudioGradientBar::mouseReleaseEvent(QMouseEvent *)
         m_removing = false;
         removeStop(m_selected);
     }
+}
+
+void KisStudioGradientBar::leaveEvent(QEvent *)
+{
+    m_hovered = -1;
+    update();
 }
 
 void KisStudioGradientBar::mouseDoubleClickEvent(QMouseEvent *event)

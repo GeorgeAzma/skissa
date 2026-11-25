@@ -99,11 +99,22 @@ QVector<QRectF> KisStudioChips::layoutFor(int width) const
         return rects;
     }
     if (m_tabs && !m_chips.isEmpty()) {
-        const qreal each = (width - gap * (m_chips.size() - 1)) / qreal(m_chips.size());
-        for (int i = 0; i < m_chips.size(); i++) {
-            rects << QRectF(i * (each + gap), 0, each, height);
+        // each its own text, the room left shared evenly; more text than room wraps below as chips do
+        QVector<qreal> needs;
+        qreal needed = gap * (m_chips.size() - 1);
+        Q_FOREACH (const Chip &chip, m_chips) {
+            needs << fontMetrics().horizontalAdvance(chip.text) + 2 * KisModernStyle::space2;
+            needed += needs.last();
         }
-        return rects;
+        if (needed <= width) {
+            const qreal extra = (width - needed) / qreal(m_chips.size());
+            qreal x = 0;
+            for (int i = 0; i < m_chips.size(); i++) {
+                rects << QRectF(x, 0, needs[i] + extra, height);
+                x += needs[i] + extra + gap;
+            }
+            return rects;
+        }
     }
     qreal x = 0;
     qreal y = 0;

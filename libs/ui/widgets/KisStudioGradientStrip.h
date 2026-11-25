@@ -43,6 +43,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
@@ -58,6 +59,8 @@ private:
 
     QList<KoGradientStop> m_stops;
     int m_dragged {-1};
+    /// The stop under the pointer, -1 for none
+    int m_hovered {-1};
     bool m_removing {false};
     bool m_moved {false};
 };

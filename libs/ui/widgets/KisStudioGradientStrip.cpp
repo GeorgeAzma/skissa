@@ -182,6 +182,13 @@ void KisStudioGradientStrip::paintEvent(QPaintEvent *)
         color.setAlpha(255);
         painter.setBrush(color);
         painter.drawEllipse(at, stopRadius - 1, stopRadius - 1);
+        if (i == m_hovered && m_dragged < 0) {
+            QColor ring = palette().color(QPalette::WindowText);
+            ring.setAlphaF(0.45);
+            painter.setPen(QPen(ring, 1.5));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawEllipse(at, stopRadius + 3.5, stopRadius + 3.5);
+        }
     }
 }
 
@@ -203,7 +210,14 @@ void KisStudioGradientStrip::mousePressEvent(QMouseEvent *event)
 
 void KisStudioGradientStrip::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_dragged < 0) return;
+    if (m_dragged < 0) {
+        const int hovered = stopAt(event->pos());
+        if (hovered != m_hovered) {
+            m_hovered = hovered;
+            update();
+        }
+        return;
+    }
     m_moved = true;
     const bool off = qAbs(event->pos().y() - stripRect().center().y()) > removeDistance && m_stops.size() > 2;
     m_removing = off;
@@ -219,6 +233,12 @@ void KisStudioGradientStrip::mouseReleaseEvent(QMouseEvent *)
     m_dragged = -1;
     m_removing = false;
     emitChanged();
+}
+
+void KisStudioGradientStrip::leaveEvent(QEvent *)
+{
+    m_hovered = -1;
+    update();
 }
 
 void KisStudioGradientStrip::mouseDoubleClickEvent(QMouseEvent *event)

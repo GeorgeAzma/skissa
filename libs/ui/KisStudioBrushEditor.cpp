@@ -190,7 +190,7 @@ public:
     void refresh()
     {
         m_labelWidth = -1;
-        const int tall = header + rowHeight * (rows().size() + 1);
+        const int tall = header() + rowHeight * (rows().size() + 1);
         const bool resized = tall != minimumHeight();
         setFixedHeight(tall);
         update();
@@ -199,7 +199,7 @@ public:
 
     QSize sizeHint() const override
     {
-        return QSize(contentWidth, header + rowHeight * (rows().size() + 1));
+        return QSize(contentWidth, header() + rowHeight * (rows().size() + 1));
     }
 
 protected:
@@ -219,16 +219,16 @@ protected:
         painter.setFont(KisModernStyle::textFont(font(), 0.85));
         for (int c = 0; c < heads.size(); c++) {
             painter.setPen(quiet);
-            const QRectF head(left + c * cell, 0, cell, header);
+            const QRectF head(left + c * cell, 0, cell, header());
             const QString name = KisStudioPenPopup::inputName(heads[c].id, heads[c].name);
-            painter.drawText(head.adjusted(2, 0, -2, 0), Qt::AlignCenter, painter.fontMetrics().elidedText(name, Qt::ElideRight, int(cell) - 4));
+            painter.drawText(head.adjusted(2, 0, -2, -KisModernStyle::hairline), Qt::AlignHCenter | Qt::AlignBottom | Qt::TextWordWrap, name);
         }
         // more inputs and more settings, each a "+"
         drawPlus(painter, plusColumnRect(heads.size()), plusColumnRect(heads.size()).contains(m_hover));
         painter.setFont(font());
         for (int r = 0; r < lines.size(); r++) {
             KisPaintOpOption *option = lines[r];
-            const qreal y = header + r * rowHeight;
+            const qreal y = header() + r * rowHeight;
             painter.setPen(followsPen(option) ? ink : quiet);
             painter.drawText(QRectF(0, y, left - KisModernStyle::space2, rowHeight), Qt::AlignVCenter | Qt::AlignLeft,
                              painter.fontMetrics().elidedText(rowName(option), Qt::ElideRight, int(left) - KisModernStyle::space2));
@@ -238,8 +238,16 @@ protected:
                 const QRectF box = cellRect(r, c, heads.size());
                 const bool hovered = box.contains(m_hover);
                 QColor ground = ink;
-                ground.setAlphaF(input.active ? (hovered ? 0.13 : 0.10) : hovered ? 0.07 : 0.03);
+                ground.setAlphaF(input.active ? (hovered ? 0.18 : 0.10) : hovered ? 0.10 : 0.03);
                 painter.fillPath(KisModernStyle::squircle(box, KisModernStyle::cornerRadius), ground);
+                if (hovered) {
+                    // pointed at: outlined, as a swatch is
+                    QColor outline = ink;
+                    outline.setAlphaF(0.35);
+                    painter.setPen(QPen(outline, 1));
+                    painter.setBrush(Qt::NoBrush);
+                    painter.drawPath(KisModernStyle::squircle(box.adjusted(0.5, 0.5, -0.5, -0.5), KisModernStyle::cornerRadius));
+                }
                 if (!input.active) {
                     if (hovered) drawPlus(painter, box, false);
                     continue;
@@ -273,12 +281,13 @@ protected:
     {
         m_hover = event->pos();
         // painted again only when the pointer goes over another cell or "+", not at every move
-        const QPointF at = m_hover - QPointF(labelWidth(), header);
+        const QPointF at = m_hover - QPointF(labelWidth(), header());
         const QPoint place(at.x() < 0 ? -1 : int(at.x() / qMax(1.0, m_cell)), at.y() < 0 ? -1 : int(at.y() / rowHeight));
         if (place != m_hoverPlace) {
             m_hoverPlace = place;
             update();
         }
+        setCursor(clickableAt(event->pos()) ? Qt::PointingHandCursor : Qt::ArrowCursor);
     }
 
     void leaveEvent(QEvent *) override
@@ -344,7 +353,18 @@ protected:
     }
 
 private:
-    static constexpr int header = 24;
+    /// The inputs' names, on two lines when one doesn't fit its column
+    int header() const
+    {
+        const QFontMetrics metrics(KisModernStyle::textFont(font(), 0.85));
+        const QVector<KisPaintOpOption::PenInput> heads = columns();
+        const qreal cell = cellWidth(heads.size());
+        int lines = 1;
+        Q_FOREACH (const KisPaintOpOption::PenInput &input, heads) {
+            if (metrics.horizontalAdvance(KisStudioPenPopup::inputName(input.id, input.name)) > cell - 4) lines = 2;
+        }
+        return lines * metrics.lineSpacing() + KisModernStyle::space2;
+    }
     static constexpr int rowHeight = 30;
 
     QList<KisPaintOpOption *> candidates() const
@@ -404,17 +424,32 @@ private:
     QRectF cellRect(int row, int column, int count) const
     {
         const qreal cell = cellWidth(count);
-        return QRectF(labelWidth() + column * cell, header + row * rowHeight, cell, rowHeight).adjusted(1.5, 1.5, -1.5, -1.5);
+        return QRectF(labelWidth() + column * cell, header() + row * rowHeight, cell, rowHeight).adjusted(1.5, 1.5, -1.5, -1.5);
     }
 
     QRectF plusColumnRect(int count) const
     {
-        return QRectF(labelWidth() + count * cellWidth(count), 0, rowHeight, header);
+        return QRectF(labelWidth() + count * cellWidth(count), 0, rowHeight, header());
     }
 
     QRectF plusRowRect(int count) const
     {
-        return QRectF(0, header + count * rowHeight, labelWidth(), rowHeight);
+        return QRectF(0, header() + count * rowHeight, labelWidth(), rowHeight);
+    }
+
+    /// A cell or a "+": what a click does something to
+    bool clickableAt(const QPoint &pos) const
+    {
+        const QVector<KisPaintOpOption::PenInput> heads = columns();
+        const int count = rows().size();
+        if (heads.isEmpty()) return false;
+        if (plusColumnRect(heads.size()).contains(pos) || plusRowRect(count).contains(pos)) return true;
+        for (int r = 0; r < count; r++) {
+            for (int c = 0; c < heads.size(); c++) {
+                if (cellRect(r, c, heads.size()).contains(pos)) return true;
+            }
+        }
+        return false;
     }
 
     void drawPlus(QPainter &painter, const QRectF &box, bool hovered) const
@@ -434,7 +469,7 @@ private:
         if (plusColumnRect(heads.size()).contains(pos)) return i18nc("@info:tooltip", "More pen inputs");
         if (plusRowRect(lines.size()).contains(pos)) return i18nc("@info:tooltip", "More settings");
         for (int c = 0; c < heads.size(); c++) {
-            if (QRectF(labelWidth() + c * cellWidth(heads.size()), 0, cellWidth(heads.size()), header).contains(pos)) {
+            if (QRectF(labelWidth() + c * cellWidth(heads.size()), 0, cellWidth(heads.size()), header()).contains(pos)) {
                 return KisStudioPenPopup::inputTip(heads[c].id);
             }
         }
