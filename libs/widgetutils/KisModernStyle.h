@@ -86,6 +86,7 @@ public:
         Shown,     ///< the shortcut
         Pointed,   ///< the shortcut under the pointer; a click records a new one
         Add,       ///< no shortcut yet, a faint "+"; a click records one
+        Offered,   ///< no shortcut yet, a free key shown faint as Add is; a click takes it
         Recording, ///< waiting for the new shortcut to be pressed
     };
     static QString keyCapText(const QKeySequence &sequence);

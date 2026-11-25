@@ -56,6 +56,8 @@ public:
     /// Looks up an item by key ("tool:…", "effect:…", "action:…", "brush:…", "panel:…").
     bool item(const QString &key, Item *item);
     bool run(const QString &key);
+    /// How often the item named \p key was used from Find, the uses fading with their age
+    static qreal usesOf(const QString &key);
 
     /// Gives each window button without an action of its own a hidden one, so it can be found and get a shortcut.
     void registerButtons();

@@ -36,6 +36,8 @@
 #include <kis_action_registry.h>
 #include <klocalizedstring.h>
 #include <kxmlguiclient.h>
+
+#include "KisStudioFind.h"
 #include <kxmlguifactory.h>
 
 #include "KisMainWindow.h"
@@ -69,11 +71,13 @@ public:
 
     QSize sizeHint() const override
     {
-        const QString shown = m_recording ? QStringLiteral("Ctrl ⇧ W") : (text().isEmpty() ? QStringLiteral("+") : text());
+        const QString shown = m_recording ? QStringLiteral("Ctrl ⇧ W") : !text().isEmpty() ? text() : !offer.isEmpty() ? offer : QStringLiteral("+");
         return QSize(qMax(36, fontMetrics().horizontalAdvance(shown) + 22), 30);
     }
 
     std::function<void()> cleared;
+    /// A free key shown while there is none, taken by a click
+    QString offer;
 
 protected:
     void mousePressEvent(QMouseEvent *event) override
@@ -97,8 +101,13 @@ protected:
     {
         QPainter painter(this);
         using KeyCap = KisModernStyle::KeyCap;
-        const KeyCap state = m_recording ? KeyCap::Recording : text().isEmpty() ? KeyCap::Add : underMouse() ? KeyCap::Pointed : KeyCap::Shown;
-        KisModernStyle::drawKeyCap(&painter, QRectF(rect()).adjusted(1, 1, -1, -2), font(), text(), palette(), state);
+        const bool offered = !m_recording && text().isEmpty() && !offer.isEmpty();
+        const KeyCap state = m_recording ? KeyCap::Recording
+            : offered                    ? KeyCap::Offered
+            : text().isEmpty()           ? KeyCap::Add
+            : underMouse()               ? KeyCap::Pointed
+                                         : KeyCap::Shown;
+        KisModernStyle::drawKeyCap(&painter, QRectF(rect()).adjusted(1, 1, -1, -2), font(), offered ? offer : text(), palette(), state);
     }
 
 private:
@@ -503,6 +512,7 @@ struct KisStudioItemCard::Private
     KisMainWindow *mainWindow {nullptr};
     QPointer<QAction> action;
     KeyCap *keyCap {nullptr};
+    QKeySequence offer;
     QLabel *note {nullptr};
     QHBoxLayout *choices {nullptr};
     QVBoxLayout *commands {nullptr};
@@ -541,8 +551,10 @@ KisStudioItemCard::KisStudioItemCard(KisMainWindow *mainWindow, const QIcon &ico
 
     d->keyCap = new KeyCap(this);
     d->keyCap->setVisible(shortcutAction);
-    d->keyCap->setToolTip(i18nc("@info:tooltip", "Shortcut\nClick: record a new one\nRight-click: remove"));
-    connect(d->keyCap, &QAbstractButton::clicked, this, &KisStudioItemCard::startRecording);
+    connect(d->keyCap, &QAbstractButton::clicked, this, [this]() {
+        if (d->action && d->action->shortcut().isEmpty() && !d->offer.isEmpty()) finishRecording(true, d->offer);
+        else startRecording();
+    });
     d->keyCap->cleared = [this]() { finishRecording(true); };
     header->addWidget(d->keyCap);
     layout->addLayout(header);
@@ -673,11 +685,55 @@ void KisStudioItemCard::popupBeside(QWidget *anchor)
     setFocus(Qt::PopupFocusReason);
 }
 
+namespace
+{
+/// Uses from Find after which a command without a key is offered one
+constexpr qreal usesForAKey = 4;
+
+/// The first key under the hand that isn't holding the pen that nothing working where \p action works has
+QKeySequence freeLeftHandKey(KisMainWindow *window, QAction *action)
+{
+    // N, R, V, W and Y are held on the canvas; the numbers are the rail's
+    static const QStringList keys = {QStringLiteral("D"), QStringLiteral("G"), QStringLiteral("C"), QStringLiteral("B"), QStringLiteral("T"),
+                                     QStringLiteral("Z")};
+    QStringList candidates = keys;
+    for (const QString &key : {QStringLiteral("Q"), QStringLiteral("E"), QStringLiteral("A"), QStringLiteral("S"), QStringLiteral("D"),
+                               QStringLiteral("F"), QStringLiteral("G"), QStringLiteral("Z"), QStringLiteral("X"), QStringLiteral("C"),
+                               QStringLiteral("B"), QStringLiteral("T")}) {
+        candidates << QStringLiteral("Shift+") + key;
+    }
+    const QList<QAction *> actions = KisStudioShortcuts::allActions(window);
+    const QStringList tools = KisStudioShortcuts::toolsOf(action);
+    for (const QString &candidate : candidates) {
+        const QKeySequence sequence(candidate);
+        bool taken = false;
+        for (QAction *other : actions) {
+            if (other != action && other->shortcuts().contains(sequence) && KisStudioShortcuts::shareContext(tools, KisStudioShortcuts::toolsOf(other))) {
+                taken = true;
+                break;
+            }
+        }
+        if (!taken) return sequence;
+    }
+    return QKeySequence();
+}
+}
+
 void KisStudioItemCard::updateKeyCap()
 {
     if (d->action) {
         d->keyCap->setText(KisStudioShortcuts::badgeText(d->action->shortcut()));
+        // a command reached often through Find without a key gets a free one to take with a click
+        d->offer = QKeySequence();
+        if (d->action->shortcut().isEmpty() && !d->action->objectName().isEmpty()
+            && KisStudioFind::usesOf(QStringLiteral("action:") + d->action->objectName()) >= usesForAKey) {
+            d->offer = freeLeftHandKey(d->mainWindow, d->action);
+        }
+        d->keyCap->offer = KisStudioShortcuts::badgeText(d->offer);
+        d->keyCap->setToolTip(d->offer.isEmpty() ? i18nc("@info:tooltip", "Shortcut\nClick: record a new one\nRight-click: remove")
+                                                 : i18nc("@info:tooltip a key nothing else uses", "Free key\nClick: use it"));
         d->keyCap->updateGeometry();
+        d->keyCap->update();
     }
 }
 

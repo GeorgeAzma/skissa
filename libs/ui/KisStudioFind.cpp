@@ -1730,6 +1730,18 @@ bool KisStudioFind::item(const QString &key, Item *item)
     return true;
 }
 
+qreal KisStudioFind::usesOf(const QString &key)
+{
+    const QString prefix = key + QLatin1Char('|');
+    Q_FOREACH (const QString &line, KisConfig(true).readEntry<QStringList>(QStringLiteral("StudioFindUsage"))) {
+        if (!line.startsWith(prefix)) continue;
+        const QStringList parts = line.mid(prefix.size()).split(QLatin1Char('|'));
+        if (parts.size() != 2) continue;
+        return Usage{parts[0].toDouble(), parts[1].toLongLong()}.countNow();
+    }
+    return 0;
+}
+
 bool KisStudioFind::run(const QString &key)
 {
     if (d->isStale()) {
